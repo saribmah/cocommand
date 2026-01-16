@@ -100,7 +100,7 @@ input:focus {
   box-shadow: 0 0 0 3px rgba(27, 109, 106, 0.15);
 }
 
-button {
+.command button {
   cursor: pointer;
   background: #1b6d6a;
   color: #f7f7f2;
@@ -108,9 +108,118 @@ button {
   font-weight: 600;
 }
 
-button:hover {
+.command button:hover {
   transform: translateY(-1px);
   box-shadow: 0 8px 16px rgba(27, 109, 106, 0.2);
+}
+
+.panel {
+  width: min(640px, 100%);
+  background: #ffffff;
+  border-radius: 18px;
+  border: 1px solid #d8e1e4;
+  box-shadow: 0 16px 32px rgba(25, 29, 36, 0.08);
+  overflow: hidden;
+}
+
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 18px;
+  font-family: "Space Mono", ui-monospace, monospace;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  font-size: 11px;
+  color: #516064;
+  background: #f7fbfb;
+  border-bottom: 1px solid #e2ecef;
+}
+
+.panel-hint {
+  font-size: 10px;
+  color: #7d8c91;
+}
+
+.panel-list {
+  list-style: none;
+  margin: 0;
+  padding: 8px;
+  display: grid;
+  gap: 6px;
+}
+
+.panel-list li {
+  margin: 0;
+}
+
+.panel-list button {
+  width: 100%;
+  text-align: left;
+  border-radius: 12px;
+  padding: 12px 14px;
+  border: 1px solid transparent;
+  background: #f6f8f9;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: grid;
+  gap: 6px;
+}
+
+.panel-list button span {
+  font-weight: 600;
+  color: #1b1b1b;
+}
+
+.panel-list button small {
+  color: #56636a;
+  font-size: 12px;
+}
+
+.panel-list button:hover,
+.panel-list button.active {
+  border-color: #1b6d6a;
+  background: #e9f6f5;
+}
+
+.panel-empty {
+  padding: 18px 12px;
+  color: #7d8c91;
+  text-align: center;
+}
+
+.history {
+  width: min(640px, 100%);
+  display: grid;
+  gap: 8px;
+}
+
+.history span {
+  font-family: "Space Mono", ui-monospace, monospace;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  color: #8a6a42;
+}
+
+.history-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.history-row button {
+  border-radius: 999px;
+  border: 1px solid #e1d1bb;
+  background: #fff8ee;
+  color: #5b4630;
+  font-size: 12px;
+  padding: 8px 12px;
+  cursor: pointer;
+}
+
+.history-row button:hover {
+  border-color: #b8956c;
 }
 
 .result {
