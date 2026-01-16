@@ -1,0 +1,37 @@
+{
+  "id": "organize-downloads",
+  "name": "Organize Downloads",
+  "description": "Move the most recent download into a target folder.",
+  "version": "1.0.0",
+  "inputs": {
+    "destination": {
+      "type": "string",
+      "description": "Target folder path",
+      "required": true
+    }
+  },
+  "steps": [
+    {
+      "id": "latest-download",
+      "tool": "files.latest_download",
+      "inputs": {},
+      "outputs": {
+        "path": "{{result.path}}"
+      },
+      "onError": "halt"
+    },
+    {
+      "id": "move-file",
+      "tool": "files.move",
+      "inputs": {
+        "source": "{{steps.latest-download.outputs.path}}",
+        "destination": "{{inputs.destination}}"
+      },
+      "onError": "halt"
+    }
+  ],
+  "permissions": {
+    "files.latest_download": "read",
+    "files.move": "write"
+  }
+}

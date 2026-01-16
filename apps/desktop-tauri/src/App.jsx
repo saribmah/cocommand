@@ -1,35 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
 import "./App.css";
-import { executeCommand } from "./lib/ipc";
-
-const WORKFLOWS = [
-  {
-    id: "move-downloads",
-    name: "Organize downloads",
-    prompt: "Move the file I just downloaded to Projects",
-  },
-  {
-    id: "quick-note",
-    name: "Quick note",
-    prompt: "Quick Note: Draft Q3 strategy outline",
-  },
-  {
-    id: "reply-message",
-    name: "Reply to message",
-    prompt: "Craft a professional response to the message I just received",
-  },
-  {
-    id: "calendar-today",
-    name: "Today's calendar",
-    prompt: "What meetings are on my calendar today?",
-  },
-  {
-    id: "reminder",
-    name: "Set reminder",
-    prompt: "Remind me about the xyz meeting in 15 minutes",
-  },
-];
+import { executeCommand, listWorkflows } from "./lib/ipc";
 
 function App() {
   const [result, setResult] = useState("");
@@ -41,6 +13,8 @@ function App() {
   const draftInputRef = useRef("");
   const resizeFrameRef = useRef(0);
   const lastHeightRef = useRef(140);
+  const [workflows, setWorkflows] = useState([]);
+  const [workflowErrors, setWorkflowErrors] = useState([]);
 
   async function submitCommand() {
     try {
@@ -63,18 +37,41 @@ function App() {
   const filteredWorkflows = useMemo(() => {
     const query = input.trim().toLowerCase();
     if (!query) {
-      return WORKFLOWS;
+      return workflows;
     }
-    return WORKFLOWS.filter((workflow) =>
+    return workflows.filter((workflow) =>
       workflow.name.toLowerCase().includes(query)
     );
-  }, [input]);
+  }, [input, workflows]);
 
   useEffect(() => {
     if (selectedWorkflowIndex > filteredWorkflows.length - 1) {
       setSelectedWorkflowIndex(0);
     }
   }, [filteredWorkflows, selectedWorkflowIndex]);
+
+  useEffect(() => {
+    let cancelled = false;
+    listWorkflows()
+      .then((response) => {
+        if (cancelled) return;
+        const normalized = response.workflows.map((workflow) => ({
+          ...workflow,
+          prompt: workflow.description ?? workflow.name,
+        }));
+        setWorkflows(normalized);
+        setWorkflowErrors(response.errors ?? []);
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        setWorkflowErrors([
+          { file: "backend", message: String(error) },
+        ]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (!window.__TAURI_INTERNALS__) return;
@@ -141,7 +138,7 @@ function App() {
   function handleWorkflowSelection(index) {
     const workflow = filteredWorkflows[index];
     if (!workflow) return;
-    setInput(workflow.prompt);
+    setInput(workflow.prompt ?? workflow.name);
     setShowWorkflows(false);
   }
 
@@ -240,6 +237,11 @@ function App() {
             <span className="panel-hint">Tab to cycle • Enter to apply</span>
           </div>
           <ul className="panel-list">
+            {workflowErrors.length > 0 && (
+              <li className="panel-error">
+                {workflowErrors[0].message}
+              </li>
+            )}
             {filteredWorkflows.length === 0 && (
               <li className="panel-empty">No workflows match that search.</li>
             )}

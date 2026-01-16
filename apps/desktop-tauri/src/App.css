@@ -181,6 +181,15 @@ input:focus {
   text-align: center;
 }
 
+.panel-error {
+  padding: 12px 12px;
+  color: #b24b3a;
+  background: #fff3ef;
+  border-radius: 10px;
+  border: 1px solid #f0c7be;
+  font-size: 12px;
+}
+
 .history {
   width: 100%;
   display: grid;
