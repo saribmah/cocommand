@@ -39,6 +39,8 @@ function App() {
   const [showWorkflows, setShowWorkflows] = useState(false);
   const [selectedWorkflowIndex, setSelectedWorkflowIndex] = useState(0);
   const draftInputRef = useRef("");
+  const resizeFrameRef = useRef(0);
+  const lastHeightRef = useRef(140);
 
   async function submitCommand() {
     try {
@@ -82,8 +84,31 @@ function App() {
     const resultHeight = result ? 110 : 0;
     const nextHeight = baseHeight + panelHeight + historyHeight + resultHeight;
     const windowHandle = getCurrentWindow();
-    const nextSize = new LogicalSize(720, nextHeight);
-    windowHandle.setSize(nextSize).catch(() => {});
+    const startHeight = lastHeightRef.current;
+    const targetHeight = nextHeight;
+    const startTime = performance.now();
+    const duration = 180;
+
+    cancelAnimationFrame(resizeFrameRef.current);
+
+    const step = (now) => {
+      const elapsed = Math.min(now - startTime, duration);
+      const progress = elapsed / duration;
+      const eased = 1 - Math.pow(1 - progress, 3);
+      const currentHeight = Math.round(
+        startHeight + (targetHeight - startHeight) * eased
+      );
+      lastHeightRef.current = currentHeight;
+      windowHandle
+        .setSize(new LogicalSize(720, currentHeight))
+        .catch(() => {});
+      if (elapsed < duration) {
+        resizeFrameRef.current = requestAnimationFrame(step);
+      }
+    };
+
+    resizeFrameRef.current = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(resizeFrameRef.current);
   }, [showWorkflows, history.length, result]);
 
   function handleHistoryNavigation(direction) {
