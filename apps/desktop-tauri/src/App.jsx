@@ -1,7 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
 import "./App.css";
-import { executeCommand, listCommands, listWorkflows } from "./lib/ipc";
+import {
+  executeCommand,
+  hideWindow,
+  listCommands,
+  listWorkflows,
+} from "./lib/ipc";
 
 function App() {
   const [result, setResult] = useState("");
@@ -13,6 +18,7 @@ function App() {
   const draftInputRef = useRef("");
   const resizeFrameRef = useRef(0);
   const lastHeightRef = useRef(140);
+  const inputRef = useRef(null);
   const [commands, setCommands] = useState([]);
   const [commandErrors, setCommandErrors] = useState([]);
   const [workflows, setWorkflows] = useState([]);
@@ -93,6 +99,32 @@ function App() {
       });
     return () => {
       cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!window.__TAURI_INTERNALS__) return;
+    const windowHandle = getCurrentWindow();
+    let unlisten;
+    windowHandle
+      .onFocusChanged(({ payload: focused }) => {
+        if (focused) {
+          requestAnimationFrame(() => {
+            inputRef.current?.focus();
+            inputRef.current?.select();
+          });
+        } else {
+          windowHandle.hide().catch(() => {});
+        }
+      })
+      .then((fn) => {
+        unlisten = fn;
+      })
+      .catch(() => {});
+    return () => {
+      if (unlisten) {
+        unlisten();
+      }
     };
   }, []);
   useEffect(() => {
@@ -176,6 +208,7 @@ function App() {
         <div className="command-badge">coco</div>
         <input
           id="command-input"
+          ref={inputRef}
           value={input}
           onChange={(e) => setInput(e.currentTarget.value)}
           onFocus={() => {
@@ -204,7 +237,11 @@ function App() {
                 setShowCommands(false);
                 return;
               }
-              setInput("");
+              if (input.trim()) {
+                setInput("");
+                return;
+              }
+              hideWindow().catch(() => {});
               return;
             }
 

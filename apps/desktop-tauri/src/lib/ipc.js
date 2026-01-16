@@ -120,3 +120,11 @@ export async function deleteCommand(id) {
 export async function deleteWorkflow(id) {
   return invoke("delete_workflow", { request: { id } });
 }
+
+/**
+ * Hide the main window.
+ * @returns {Promise<void>}
+ */
+export async function hideWindow() {
+  return invoke("hide_window");
+}

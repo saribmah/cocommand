@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::fs;
 use std::path::{Path, PathBuf};
-use tauri::Manager;
+use tauri::{Manager, WindowEvent};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
@@ -555,6 +555,14 @@ fn load_workflows_from_dir(
     (workflows, errors)
 }
 
+#[tauri::command]
+fn hide_window(app: tauri::AppHandle) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("main") {
+        window.hide().map_err(|error| error.to_string())?;
+    }
+    Ok(())
+}
+
 fn toggle_main_window(app: &tauri::AppHandle) {
     let window = app.get_webview_window("main");
     if let Some(window) = window {
@@ -584,10 +592,19 @@ pub fn run() {
         .setup(|app| {
             let handle = app.handle();
             handle.global_shortcut().register("CmdOrCtrl+O")?;
+            if let Some(window) = app.get_webview_window("main") {
+                let window_handle = window.clone();
+                window.on_window_event(move |event| {
+                    if let WindowEvent::Focused(false) = event {
+                        let _ = window_handle.hide();
+                    }
+                });
+            }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             execute_command,
+            hide_window,
             list_commands,
             save_command,
             delete_command,
