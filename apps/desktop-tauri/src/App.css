@@ -36,22 +36,16 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 32px 24px 24px;
-  gap: 16px;
-  background: radial-gradient(420px 120px at 50% -20%, rgba(255, 255, 255, 0.8) 0%, rgba(232, 239, 242, 0.9) 45%, rgba(222, 231, 235, 0.9) 100%);
-}
-
-.container:has(.panel),
-.container:has(.history),
-.container:has(.result) {
-  padding-bottom: 28px;
+  padding: 0;
+  gap: 12px;
+  background: transparent;
 }
 
 .command {
   display: grid;
   grid-template-columns: auto 1fr auto;
   gap: 12px;
-  width: min(640px, 100%);
+  width: 100%;
   padding: 12px 14px;
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.9);
@@ -112,7 +106,7 @@ input:focus {
 }
 
 .panel {
-  width: min(640px, 100%);
+  width: 100%;
   background: #ffffff;
   border-radius: 18px;
   border: 1px solid #d8e1e4;
@@ -188,7 +182,7 @@ input:focus {
 }
 
 .history {
-  width: min(640px, 100%);
+  width: 100%;
   display: grid;
   gap: 8px;
   animation: fadeInUp 0.18s ease;
@@ -223,7 +217,7 @@ input:focus {
 }
 
 .result {
-  width: min(640px, 100%);
+  width: 100%;
   padding: 16px 18px;
   border-radius: 16px;
   background: #fff8ee;
