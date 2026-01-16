@@ -1,0 +1,13 @@
+{
+  "name": "cocommand",
+  "private": true,
+  "type": "module",
+  "packageManager": "bun@1.2.17",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "validate:workflow": "bun run packages/workflows/scripts/validate-example.mjs"
+  }
+}
