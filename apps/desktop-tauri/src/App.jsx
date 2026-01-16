@@ -1,14 +1,18 @@
 import { useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
 import "./App.css";
+import { executeCommand } from "./lib/ipc";
 
 function App() {
   const [result, setResult] = useState("");
   const [input, setInput] = useState("");
 
   async function submitCommand() {
-    const response = await invoke("execute_command", { input });
-    setResult(response);
+    try {
+      const response = await executeCommand(input);
+      setResult(response.output);
+    } catch (error) {
+      setResult(`Error: ${error}`);
+    }
   }
 
   return (

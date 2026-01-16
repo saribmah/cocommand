@@ -1,12 +1,31 @@
+use serde::{Deserialize, Serialize};
+
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
+#[derive(Deserialize)]
+struct CommandRequest {
+    input: String,
+}
+
+#[derive(Serialize)]
+struct CommandResponse {
+    status: String,
+    output: String,
+}
+
 #[tauri::command]
-fn execute_command(input: String) -> String {
-    let trimmed = input.trim();
+fn execute_command(request: CommandRequest) -> CommandResponse {
+    let trimmed = request.input.trim();
     if trimmed.is_empty() {
-        return "Type a command to get started.".to_string();
+        return CommandResponse {
+            status: "empty".to_string(),
+            output: "Type a command to get started.".to_string(),
+        };
     }
 
-    format!("Command received: {}", trimmed)
+    CommandResponse {
+        status: "ok".to_string(),
+        output: format!("Command received: {}", trimmed),
+    }
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
