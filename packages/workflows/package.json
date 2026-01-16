@@ -1,12 +1,11 @@
 {
-  "name": "@cocommand/core",
+  "name": "@cocommand/workflows",
   "private": true,
   "type": "module",
   "exports": {
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@cocommand/commands": "workspace:*",
-    "@cocommand/workflows": "workspace:*"
+    "ajv": "^8.17.1"
   }
 }

@@ -75,3 +75,20 @@ export interface CommandDefinition {
   }>;
   permissions?: Record<string, string>;
 }
+
+export interface WorkflowStep {
+  id: string;
+  commandId: string;
+  inputs?: Record<string, unknown>;
+  onError?: "halt" | "continue";
+}
+
+export interface WorkflowDefinition {
+  id: string;
+  name: string;
+  description?: string;
+  version: string;
+  inputs?: Record<string, CommandInputSchemaEntry>;
+  steps: WorkflowStep[];
+  permissions?: Record<string, string>;
+}
