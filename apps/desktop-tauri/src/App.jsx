@@ -109,12 +109,6 @@ function App() {
 
   return (
     <main className="container">
-      <div className="hero">
-        <div className="badge">cocommand.ai</div>
-        <h1>Command bar, powered by intent.</h1>
-        <p>Press Tab to browse workflows. Enter runs the current command.</p>
-      </div>
-
       <form
         className="command"
         onSubmit={(e) => {
@@ -122,6 +116,7 @@ function App() {
           submitCommand();
         }}
       >
+        <div className="command-badge">coco</div>
         <input
           id="command-input"
           value={input}
@@ -195,7 +190,7 @@ function App() {
               handleHistoryNavigation("down");
             }
           }}
-          placeholder="Try: Move the file I just downloaded to Projects"
+          placeholder="Ask coco to do something..."
         />
         <button type="submit">Run</button>
       </form>
