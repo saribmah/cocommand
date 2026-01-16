@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
 import "./App.css";
 import { executeCommand } from "./lib/ipc";
 
@@ -72,6 +73,18 @@ function App() {
       setSelectedWorkflowIndex(0);
     }
   }, [filteredWorkflows, selectedWorkflowIndex]);
+
+  useEffect(() => {
+    if (!window.__TAURI_INTERNALS__) return;
+    const baseHeight = 140;
+    const panelHeight = showWorkflows ? 220 : 0;
+    const historyHeight = history.length > 0 ? 64 : 0;
+    const resultHeight = result ? 110 : 0;
+    const nextHeight = baseHeight + panelHeight + historyHeight + resultHeight;
+    const windowHandle = getCurrentWindow();
+    const nextSize = new LogicalSize(720, nextHeight);
+    windowHandle.setSize(nextSize).catch(() => {});
+  }, [showWorkflows, history.length, result]);
 
   function handleHistoryNavigation(direction) {
     if (history.length === 0) return;
@@ -242,10 +255,12 @@ function App() {
           </div>
         </div>
       )}
-      <div className="result">
-        <span>Result</span>
-        <p>{result}</p>
-      </div>
+      {result && (
+        <div className="result">
+          <span>Result</span>
+          <p>{result}</p>
+        </div>
+      )}
     </main>
   );
 }

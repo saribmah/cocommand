@@ -27,6 +27,7 @@ body,
 body {
   margin: 0;
   background: transparent;
+  overflow: hidden;
 }
 
 .container {
@@ -38,6 +39,12 @@ body {
   padding: 32px 24px 24px;
   gap: 16px;
   background: radial-gradient(420px 120px at 50% -20%, rgba(255, 255, 255, 0.8) 0%, rgba(232, 239, 242, 0.9) 45%, rgba(222, 231, 235, 0.9) 100%);
+}
+
+.container:has(.panel),
+.container:has(.history),
+.container:has(.result) {
+  padding-bottom: 28px;
 }
 
 .command {
