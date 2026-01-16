@@ -8,6 +8,8 @@
       "name": "tauri-app",
       "version": "0.1.0",
       "dependencies": {
+        "@cocommand/core": "workspace:*",
+        "@cocommand/llm": "workspace:*",
         "@tauri-apps/api": "^2",
         "@tauri-apps/plugin-opener": "^2",
         "react": "^19.1.0",
@@ -29,6 +31,19 @@
       "name": "@cocommand/core",
       "dependencies": {
         "@cocommand/commands": "workspace:*",
+        "@cocommand/workflows": "workspace:*",
+      },
+    },
+    "packages/llm": {
+      "name": "@cocommand/llm",
+      "dependencies": {
+        "@cocommand/core": "workspace:*",
+      },
+    },
+    "packages/workflows": {
+      "name": "@cocommand/workflows",
+      "dependencies": {
+        "ajv": "^8.17.1",
       },
     },
   },
@@ -74,6 +89,10 @@
     "@cocommand/commands": ["@cocommand/commands@workspace:packages/commands"],
 
     "@cocommand/core": ["@cocommand/core@workspace:packages/core"],
+
+    "@cocommand/llm": ["@cocommand/llm@workspace:packages/llm"],
+
+    "@cocommand/workflows": ["@cocommand/workflows@workspace:packages/workflows"],
 
     "@esbuild/aix-ppc64": ["@esbuild/aix-ppc64@0.27.2", "", { "os": "aix", "cpu": "ppc64" }, "sha512-GZMB+a0mOMZs4MpDbj8RJp4cw+w1WV5NYD6xzgvzUJ5Ek2jerwfO2eADyI6ExDSUED+1X8aMbegahsJi+8mgpw=="],
 

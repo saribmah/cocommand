@@ -1,16 +1,5 @@
 import Ajv from "ajv";
-import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
-
-const schemaPath = join(
-  dirname(fileURLToPath(import.meta.url)),
-  "..",
-  "schema",
-  "command.schema.json"
-);
-
-const commandSchema = JSON.parse(readFileSync(schemaPath, "utf-8"));
+import commandSchema from "../schema/command.schema.json" assert { type: "json" };
 const ajv = new Ajv({ allErrors: true, strict: false });
 const validateFn = ajv.compile(commandSchema);
 

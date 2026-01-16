@@ -1,16 +1,5 @@
 import Ajv from "ajv";
-import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
-
-const schemaPath = join(
-  dirname(fileURLToPath(import.meta.url)),
-  "..",
-  "schema",
-  "workflow.schema.json"
-);
-
-const workflowSchema = JSON.parse(readFileSync(schemaPath, "utf-8"));
+import workflowSchema from "../schema/workflow.schema.json" assert { type: "json" };
 const ajv = new Ajv({ allErrors: true, strict: false });
 const validateFn = ajv.compile(workflowSchema);
 
