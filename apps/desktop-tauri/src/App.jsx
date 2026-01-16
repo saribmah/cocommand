@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
 import "./App.css";
-import { executeCommand, listCommands } from "./lib/ipc";
+import { executeCommand, listCommands, listWorkflows } from "./lib/ipc";
 
 function App() {
   const [result, setResult] = useState("");
@@ -15,6 +15,8 @@ function App() {
   const lastHeightRef = useRef(140);
   const [commands, setCommands] = useState([]);
   const [commandErrors, setCommandErrors] = useState([]);
+  const [workflows, setWorkflows] = useState([]);
+  const [workflowErrors, setWorkflowErrors] = useState([]);
 
   async function submitCommand() {
     try {
@@ -36,13 +38,14 @@ function App() {
 
   const filteredCommands = useMemo(() => {
     const query = input.trim().toLowerCase();
+    const combined = [...commands, ...workflows];
     if (!query) {
-      return commands;
+      return combined;
     }
-    return commands.filter((command) =>
+    return combined.filter((command) =>
       command.name.toLowerCase().includes(query)
     );
-  }, [input, commands]);
+  }, [input, commands, workflows]);
 
   useEffect(() => {
     if (selectedCommandIndex > filteredCommands.length - 1) {
@@ -71,6 +74,27 @@ function App() {
     };
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+    listWorkflows()
+      .then((response) => {
+        if (cancelled) return;
+        const normalized = response.workflows.map((workflow) => ({
+          ...workflow,
+          prompt: workflow.description ?? workflow.name,
+          isWorkflow: true,
+        }));
+        setWorkflows(normalized);
+        setWorkflowErrors(response.errors ?? []);
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        setWorkflowErrors([{ file: "backend", message: String(error) }]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   useEffect(() => {
     if (!window.__TAURI_INTERNALS__) return;
     const baseHeight = 140;
@@ -240,6 +264,11 @@ function App() {
                 {commandErrors[0].message}
               </li>
             )}
+            {workflowErrors.length > 0 && (
+              <li className="panel-error">
+                {workflowErrors[0].message}
+              </li>
+            )}
             {filteredCommands.length === 0 && (
               <li className="panel-empty">No commands match that search.</li>
             )}
@@ -256,7 +285,10 @@ function App() {
                   }}
                 >
                   <span>{command.name}</span>
-                  <small>{command.prompt}</small>
+                  <small>
+                    {command.prompt}
+                    {command.isWorkflow ? " · workflow" : ""}
+                  </small>
                 </button>
               </li>
             ))}
