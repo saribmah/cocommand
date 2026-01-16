@@ -8,6 +8,6 @@
     "packages/*"
   ],
   "scripts": {
-    "validate:workflow": "bun run packages/workflows/scripts/validate-example.mjs"
+    "validate:command": "bun run packages/commands/scripts/validate-example.mjs"
   }
 }

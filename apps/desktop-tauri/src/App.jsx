@@ -1,20 +1,20 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
 import "./App.css";
-import { executeCommand, listWorkflows } from "./lib/ipc";
+import { executeCommand, listCommands } from "./lib/ipc";
 
 function App() {
   const [result, setResult] = useState("");
   const [input, setInput] = useState("");
   const [history, setHistory] = useState([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
-  const [showWorkflows, setShowWorkflows] = useState(false);
-  const [selectedWorkflowIndex, setSelectedWorkflowIndex] = useState(0);
+  const [showCommands, setShowCommands] = useState(false);
+  const [selectedCommandIndex, setSelectedCommandIndex] = useState(0);
   const draftInputRef = useRef("");
   const resizeFrameRef = useRef(0);
   const lastHeightRef = useRef(140);
-  const [workflows, setWorkflows] = useState([]);
-  const [workflowErrors, setWorkflowErrors] = useState([]);
+  const [commands, setCommands] = useState([]);
+  const [commandErrors, setCommandErrors] = useState([]);
 
   async function submitCommand() {
     try {
@@ -26,7 +26,7 @@ function App() {
       const response = await executeCommand(trimmed);
       setHistory((prev) => [...prev, trimmed].slice(-20));
       setHistoryIndex(-1);
-      setShowWorkflows(false);
+      setShowCommands(false);
       setInput("");
       setResult(response.output);
     } catch (error) {
@@ -34,39 +34,37 @@ function App() {
     }
   }
 
-  const filteredWorkflows = useMemo(() => {
+  const filteredCommands = useMemo(() => {
     const query = input.trim().toLowerCase();
     if (!query) {
-      return workflows;
+      return commands;
     }
-    return workflows.filter((workflow) =>
-      workflow.name.toLowerCase().includes(query)
+    return commands.filter((command) =>
+      command.name.toLowerCase().includes(query)
     );
-  }, [input, workflows]);
+  }, [input, commands]);
 
   useEffect(() => {
-    if (selectedWorkflowIndex > filteredWorkflows.length - 1) {
-      setSelectedWorkflowIndex(0);
+    if (selectedCommandIndex > filteredCommands.length - 1) {
+      setSelectedCommandIndex(0);
     }
-  }, [filteredWorkflows, selectedWorkflowIndex]);
+  }, [filteredCommands, selectedCommandIndex]);
 
   useEffect(() => {
     let cancelled = false;
-    listWorkflows()
+    listCommands()
       .then((response) => {
         if (cancelled) return;
-        const normalized = response.workflows.map((workflow) => ({
-          ...workflow,
-          prompt: workflow.description ?? workflow.name,
+        const normalized = response.commands.map((command) => ({
+          ...command,
+          prompt: command.description ?? command.name,
         }));
-        setWorkflows(normalized);
-        setWorkflowErrors(response.errors ?? []);
+        setCommands(normalized);
+        setCommandErrors(response.errors ?? []);
       })
       .catch((error) => {
         if (cancelled) return;
-        setWorkflowErrors([
-          { file: "backend", message: String(error) },
-        ]);
+        setCommandErrors([{ file: "backend", message: String(error) }]);
       });
     return () => {
       cancelled = true;
@@ -76,7 +74,7 @@ function App() {
   useEffect(() => {
     if (!window.__TAURI_INTERNALS__) return;
     const baseHeight = 140;
-    const panelHeight = showWorkflows ? 220 : 0;
+    const panelHeight = showCommands ? 220 : 0;
     const historyHeight = history.length > 0 ? 64 : 0;
     const resultHeight = result ? 110 : 0;
     const nextHeight = baseHeight + panelHeight + historyHeight + resultHeight;
@@ -106,7 +104,7 @@ function App() {
 
     resizeFrameRef.current = requestAnimationFrame(step);
     return () => cancelAnimationFrame(resizeFrameRef.current);
-  }, [showWorkflows, history.length, result]);
+  }, [showCommands, history.length, result]);
 
   function handleHistoryNavigation(direction) {
     if (history.length === 0) return;
@@ -135,11 +133,11 @@ function App() {
     setInput(history[nextIndex]);
   }
 
-  function handleWorkflowSelection(index) {
-    const workflow = filteredWorkflows[index];
-    if (!workflow) return;
-    setInput(workflow.prompt ?? workflow.name);
-    setShowWorkflows(false);
+  function handleCommandSelection(index) {
+    const command = filteredCommands[index];
+    if (!command) return;
+    setInput(command.prompt ?? command.name);
+    setShowCommands(false);
   }
 
   return (
@@ -157,70 +155,70 @@ function App() {
           value={input}
           onChange={(e) => setInput(e.currentTarget.value)}
           onFocus={() => {
-            if (showWorkflows && filteredWorkflows.length === 0) {
-              setShowWorkflows(false);
+            if (showCommands && filteredCommands.length === 0) {
+              setShowCommands(false);
             }
           }}
           onKeyDown={(event) => {
             if (event.key === "Tab") {
               event.preventDefault();
-              if (!showWorkflows) {
-                setShowWorkflows(true);
-                setSelectedWorkflowIndex(0);
+              if (!showCommands) {
+                setShowCommands(true);
+                setSelectedCommandIndex(0);
                 return;
               }
               const nextIndex =
-                filteredWorkflows.length === 0
+                filteredCommands.length === 0
                   ? 0
-                  : (selectedWorkflowIndex + 1) % filteredWorkflows.length;
-              setSelectedWorkflowIndex(nextIndex);
+                  : (selectedCommandIndex + 1) % filteredCommands.length;
+              setSelectedCommandIndex(nextIndex);
               return;
             }
 
             if (event.key === "Escape") {
-              if (showWorkflows) {
-                setShowWorkflows(false);
+              if (showCommands) {
+                setShowCommands(false);
                 return;
               }
               setInput("");
               return;
             }
 
-            if (showWorkflows && event.key === "ArrowDown") {
+            if (showCommands && event.key === "ArrowDown") {
               event.preventDefault();
               const nextIndex = Math.min(
-                filteredWorkflows.length - 1,
-                selectedWorkflowIndex + 1
+                filteredCommands.length - 1,
+                selectedCommandIndex + 1
               );
-              setSelectedWorkflowIndex(Math.max(0, nextIndex));
+              setSelectedCommandIndex(Math.max(0, nextIndex));
               return;
             }
 
-            if (showWorkflows && event.key === "ArrowUp") {
+            if (showCommands && event.key === "ArrowUp") {
               event.preventDefault();
-              const nextIndex = Math.max(0, selectedWorkflowIndex - 1);
-              setSelectedWorkflowIndex(nextIndex);
+              const nextIndex = Math.max(0, selectedCommandIndex - 1);
+              setSelectedCommandIndex(nextIndex);
               return;
             }
 
-            if (showWorkflows && event.key === "Enter") {
+            if (showCommands && event.key === "Enter") {
               event.preventDefault();
-              if (filteredWorkflows.length > 0) {
-                handleWorkflowSelection(selectedWorkflowIndex);
+              if (filteredCommands.length > 0) {
+                handleCommandSelection(selectedCommandIndex);
               } else {
-                setShowWorkflows(false);
+                setShowCommands(false);
                 submitCommand();
               }
               return;
             }
 
-            if (!showWorkflows && event.key === "ArrowUp") {
+            if (!showCommands && event.key === "ArrowUp") {
               event.preventDefault();
               handleHistoryNavigation("up");
               return;
             }
 
-            if (!showWorkflows && event.key === "ArrowDown") {
+            if (!showCommands && event.key === "ArrowDown") {
               event.preventDefault();
               handleHistoryNavigation("down");
             }
@@ -230,35 +228,35 @@ function App() {
         <button type="submit">Run</button>
       </form>
 
-      {showWorkflows && (
+      {showCommands && (
         <div className="panel">
           <div className="panel-header">
-            <span>Workflows</span>
+            <span>Commands</span>
             <span className="panel-hint">Tab to cycle • Enter to apply</span>
           </div>
           <ul className="panel-list">
-            {workflowErrors.length > 0 && (
+            {commandErrors.length > 0 && (
               <li className="panel-error">
-                {workflowErrors[0].message}
+                {commandErrors[0].message}
               </li>
             )}
-            {filteredWorkflows.length === 0 && (
-              <li className="panel-empty">No workflows match that search.</li>
+            {filteredCommands.length === 0 && (
+              <li className="panel-empty">No commands match that search.</li>
             )}
-            {filteredWorkflows.map((workflow, index) => (
-              <li key={workflow.id}>
+            {filteredCommands.map((command, index) => (
+              <li key={command.id}>
                 <button
                   type="button"
                   className={
-                    index === selectedWorkflowIndex ? "active" : undefined
+                    index === selectedCommandIndex ? "active" : undefined
                   }
                   onMouseDown={(event) => {
                     event.preventDefault();
-                    handleWorkflowSelection(index);
+                    handleCommandSelection(index);
                   }}
                 >
-                  <span>{workflow.name}</span>
-                  <small>{workflow.prompt}</small>
+                  <span>{command.name}</span>
+                  <small>{command.prompt}</small>
                 </button>
               </li>
             ))}

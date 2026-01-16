@@ -1,5 +1,5 @@
 {
-  "name": "@cocommand/workflows",
+  "name": "@cocommand/commands",
   "private": true,
   "type": "module",
   "exports": {

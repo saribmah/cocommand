@@ -1,23 +1,23 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { validateWorkflow } from "@cocommand/workflows";
+import { validateCommand } from "@cocommand/commands";
 
 const examplePath = resolve(
   "packages",
-  "workflows",
+  "commands",
   "examples",
   "quick-note.json"
 );
 
-const workflow = JSON.parse(readFileSync(examplePath, "utf-8"));
-const result = validateWorkflow(workflow);
+const command = JSON.parse(readFileSync(examplePath, "utf-8"));
+const result = validateCommand(command);
 
 if (!result.valid) {
-  console.error("Workflow validation failed:");
+  console.error("Command validation failed:");
   result.errors.forEach((error) => {
     console.error(`- ${error.instancePath || "/"} ${error.message ?? ""}`);
   });
   process.exit(1);
 }
 
-console.log("Workflow validation passed.");
+console.log("Command validation passed.");

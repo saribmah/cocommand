@@ -24,7 +24,7 @@ export async function executeCommand(input) {
 }
 
 /**
- * @typedef {Object} WorkflowDefinition
+ * @typedef {Object} CommandDefinition
  * @property {string} id
  * @property {string} name
  * @property {string} version
@@ -35,21 +35,39 @@ export async function executeCommand(input) {
  */
 
 /**
- * @typedef {Object} WorkflowLoadError
+ * @typedef {Object} CommandLoadError
  * @property {string} file
  * @property {string} message
  */
 
 /**
- * @typedef {Object} WorkflowLoadResponse
- * @property {WorkflowDefinition[]} workflows
- * @property {WorkflowLoadError[]} errors
+ * @typedef {Object} CommandLoadResponse
+ * @property {CommandDefinition[]} commands
+ * @property {CommandLoadError[]} errors
  */
 
 /**
- * Load workflows from the Tauri backend.
- * @returns {Promise<WorkflowLoadResponse>}
+ * Load commands from the Tauri backend.
+ * @returns {Promise<CommandLoadResponse>}
  */
-export async function listWorkflows() {
-  return invoke("list_workflows");
+export async function listCommands() {
+  return invoke("list_commands");
+}
+
+/**
+ * Save or update a command JSON file.
+ * @param {CommandDefinition} command
+ * @returns {Promise<{status: string, file?: string, message?: string}>}
+ */
+export async function saveCommand(command) {
+  return invoke("save_command", { request: { command } });
+}
+
+/**
+ * Delete a command JSON file by id.
+ * @param {string} id
+ * @returns {Promise<{status: string, file?: string, message?: string}>}
+ */
+export async function deleteCommand(id) {
+  return invoke("delete_command", { request: { id } });
 }

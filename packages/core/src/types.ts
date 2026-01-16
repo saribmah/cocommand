@@ -1,4 +1,4 @@
-export type CommandSource = "manual" | "workflow";
+export type CommandSource = "manual" | "command" | "workflow";
 
 export interface CommandInput {
   id: string;
@@ -54,18 +54,18 @@ export interface ToolDefinition {
   permissions?: string[];
 }
 
-export interface WorkflowInputSchemaEntry {
+export interface CommandInputSchemaEntry {
   type: string;
   description?: string;
   required?: boolean;
 }
 
-export interface WorkflowDefinition {
+export interface CommandDefinition {
   id: string;
   name: string;
   description?: string;
   version: string;
-  inputs?: Record<string, WorkflowInputSchemaEntry>;
+  inputs?: Record<string, CommandInputSchemaEntry>;
   steps: Array<{
     id: string;
     tool: string;

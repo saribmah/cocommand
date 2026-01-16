@@ -6,6 +6,6 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
-    "@cocommand/workflows": "workspace:*"
+    "@cocommand/commands": "workspace:*"
   }
 }

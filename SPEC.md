@@ -6,7 +6,7 @@ Concept: Develop an AI-first command bar application, leveraging Large Language 
 
 The application will feature a minimal, simple hovering command bar, activated instantly with a universal hotkey (e.g., Cmd + O).
 Direct Command: Users can type a natural language command and press Enter for immediate execution.
-Workflow Selection: Pressing Tab will present a list of pre-defined, high-value workflows for selection before typing.
+Command Selection: Pressing Tab will present a list of pre-defined, high-value commands for selection before typing.
 Core Functionality & Use Cases
 
 The LLM-powered command bar will interpret intent to perform a wide range of tasks, including:
@@ -23,7 +23,6 @@ Technology & Roadmap
 
 Implementation:
 Development Platform: The initial application will be built as a native macOS application using the Tauri framework.
-Workflow Definition: While key workflows will be defined out-of-the-box, a crucial feature will be the ability for users to define and customize their own proprietary workflows.
+Workflow Definition: While key commands will be defined out-of-the-box, a crucial feature will be the ability for users to define and customize their own proprietary workflows by chaining commands.
 Future Enhancements:
 Mobile Synchronization: Develop a companion iOS mobile app to synchronize actions and data with the macOS application. This will allow users to quickly trigger actions on their MacBook from their phone or efficiently manage their information while mobile.
-

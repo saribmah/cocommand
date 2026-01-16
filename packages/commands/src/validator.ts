@@ -7,19 +7,19 @@ const schemaPath = join(
   dirname(fileURLToPath(import.meta.url)),
   "..",
   "schema",
-  "workflow.schema.json"
+  "command.schema.json"
 );
 
-const workflowSchema = JSON.parse(readFileSync(schemaPath, "utf-8"));
+const commandSchema = JSON.parse(readFileSync(schemaPath, "utf-8"));
 const ajv = new Ajv({ allErrors: true, strict: false });
-const validateFn = ajv.compile(workflowSchema);
+const validateFn = ajv.compile(commandSchema);
 
-export function getWorkflowSchema() {
-  return workflowSchema;
+export function getCommandSchema() {
+  return commandSchema;
 }
 
-export function validateWorkflow(workflow: unknown) {
-  const valid = validateFn(workflow);
+export function validateCommand(command: unknown) {
+  const valid = validateFn(command);
   return {
     valid: Boolean(valid),
     errors: validateFn.errors ?? [],

@@ -1,19 +1,19 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { extname, join } from "node:path";
-import { WorkflowDefinition } from "./types";
-import { WorkflowRegistry } from "./workflows";
+import { CommandDefinition } from "./types";
+import { CommandRegistry } from "./commands";
 
-export interface WorkflowLoadError {
+export interface CommandLoadError {
   file: string;
   message: string;
 }
 
-export function loadWorkflowsFromDir(
+export function loadCommandsFromDir(
   directory: string,
-  registry: WorkflowRegistry
+  registry: CommandRegistry
 ) {
-  const errors: WorkflowLoadError[] = [];
-  const workflows: WorkflowDefinition[] = [];
+  const errors: CommandLoadError[] = [];
+  const commands: CommandDefinition[] = [];
   const entries = readdirSync(directory, { withFileTypes: true });
 
   entries.forEach((entry) => {
@@ -24,14 +24,14 @@ export function loadWorkflowsFromDir(
     const filePath = join(directory, entry.name);
     try {
       const raw = readFileSync(filePath, "utf-8");
-      const workflow = JSON.parse(raw) as WorkflowDefinition;
-      registry.register(workflow);
-      workflows.push(workflow);
+      const command = JSON.parse(raw) as CommandDefinition;
+      registry.register(command);
+      commands.push(command);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       errors.push({ file: filePath, message });
     }
   });
 
-  return { workflows, errors };
+  return { commands, errors };
 }
