@@ -1,9 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
-import { CommandRegistry, WorkflowRegistry } from "@cocommand/core/browser";
-import { HeuristicPlanner } from "@cocommand/llm";
 import "./App.css";
-import { hideWindow, listCommands, listWorkflows } from "./lib/ipc";
+import { hideWindow, listCommands, listWorkflows, planCommand } from "./lib/ipc";
 
 function App() {
   const [result, setResult] = useState("");
@@ -22,10 +20,6 @@ function App() {
   const [workflowErrors, setWorkflowErrors] = useState([]);
   const isStacked = showCommands || history.length > 0 || Boolean(result);
 
-  function isPlainObject(value) {
-    return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-  }
-
   async function submitCommand() {
     try {
       const trimmed = input.trim();
@@ -33,38 +27,20 @@ function App() {
         setResult("Type a command to get started.");
         return;
       }
-      const commandRegistry = new CommandRegistry();
-      const workflowRegistry = new WorkflowRegistry();
-      const commandsForPlanner = commands.map(({ prompt, ...rest }) => rest);
-      const workflowsForPlanner = workflows.map(
-        ({ prompt, isWorkflow, ...rest }) => ({
-          ...rest,
-          inputs: isPlainObject(rest.inputs) ? rest.inputs : undefined,
-          steps: Array.isArray(rest.steps)
-            ? rest.steps.map((step) => ({
-                ...step,
-                inputs: isPlainObject(step.inputs) ? step.inputs : undefined,
-              }))
-            : rest.steps,
-        })
-      );
-      commandRegistry.registerAll(commandsForPlanner);
-      workflowRegistry.registerAll(workflowsForPlanner);
-      const planner = new HeuristicPlanner({
-        commandRegistry,
-        workflowRegistry,
-      });
-      const plan = await planner.plan({
-        id: crypto.randomUUID?.() ?? `cmd_${Date.now()}`,
-        text: trimmed,
-        source: "manual",
-        createdAt: new Date().toISOString(),
-      });
-      const confidence = Math.round(plan.intent.confidence * 100);
-      const steps = plan.steps.map((step) => step.tool).join(", ");
+      const planResponse = await planCommand(trimmed);
+      if (planResponse.status === "empty") {
+        setResult(planResponse.message ?? "Type a command to get started.");
+        return;
+      }
+      if (planResponse.status !== "ok" || !planResponse.plan) {
+        setResult(planResponse.message ?? "Unable to plan the request.");
+        return;
+      }
+      const confidence = Math.round(planResponse.plan.intent.confidence * 100);
+      const steps = planResponse.plan.steps.map((step) => step.tool).join(", ");
       const summary = steps
-        ? `Intent: ${plan.intent.name} (${confidence}%). Steps: ${steps}.`
-        : `Intent: ${plan.intent.name} (${confidence}%). No steps planned.`;
+        ? `Intent: ${planResponse.plan.intent.name} (${confidence}%). Steps: ${steps}.`
+        : `Intent: ${planResponse.plan.intent.name} (${confidence}%). No steps planned.`;
       setHistory((prev) => [...prev, trimmed].slice(-20));
       setHistoryIndex(-1);
       setShowCommands(false);

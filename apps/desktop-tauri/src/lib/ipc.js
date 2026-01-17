@@ -24,6 +24,53 @@ export async function executeCommand(input) {
 }
 
 /**
+ * @typedef {Object} PlanRequest
+ * @property {string} input
+ */
+
+/**
+ * @typedef {Object} PlanStep
+ * @property {string} id
+ * @property {string} tool
+ * @property {Record<string, unknown>} inputs
+ * @property {"pending" | "running" | "completed" | "failed"} status
+ */
+
+/**
+ * @typedef {Object} Intent
+ * @property {string} id
+ * @property {string} name
+ * @property {number} confidence
+ * @property {Record<string, unknown>} parameters
+ */
+
+/**
+ * @typedef {Object} ExecutionPlan
+ * @property {string} id
+ * @property {Intent} intent
+ * @property {PlanStep[]} steps
+ * @property {string} createdAt
+ */
+
+/**
+ * @typedef {Object} PlanResponse
+ * @property {"ok" | "empty" | "error"} status
+ * @property {ExecutionPlan=} plan
+ * @property {string=} message
+ */
+
+/**
+ * Plan a command via the Tauri backend.
+ * @param {string} input
+ * @returns {Promise<PlanResponse>}
+ */
+export async function planCommand(input) {
+  /** @type {PlanRequest} */
+  const payload = { input };
+  return invoke("plan_command", { request: payload });
+}
+
+/**
  * @typedef {Object} CommandDefinition
  * @property {string} id
  * @property {string} name

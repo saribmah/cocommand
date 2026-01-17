@@ -1,10 +1,12 @@
 use jsonschema::JSONSchema;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{json, Value};
 use std::fs;
 use std::path::{Path, PathBuf};
 use tauri::{Manager, WindowEvent};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
+use time::format_description::well_known::Rfc3339;
+use time::OffsetDateTime;
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[derive(Deserialize)]
@@ -16,6 +18,43 @@ struct CommandRequest {
 struct CommandResponse {
     status: String,
     output: String,
+}
+
+#[derive(Deserialize)]
+struct PlanRequest {
+    input: String,
+}
+
+#[derive(Serialize)]
+struct Intent {
+    id: String,
+    name: String,
+    confidence: f32,
+    parameters: Value,
+}
+
+#[derive(Serialize)]
+struct PlanStep {
+    id: String,
+    tool: String,
+    inputs: Value,
+    status: String,
+}
+
+#[derive(Serialize)]
+struct ExecutionPlan {
+    id: String,
+    intent: Intent,
+    steps: Vec<PlanStep>,
+    #[serde(rename = "createdAt")]
+    created_at: String,
+}
+
+#[derive(Serialize)]
+struct PlanResponse {
+    status: String,
+    plan: Option<ExecutionPlan>,
+    message: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -125,6 +164,102 @@ fn execute_command(request: CommandRequest) -> CommandResponse {
     CommandResponse {
         status: "ok".to_string(),
         output: format!("Command received: {}", trimmed),
+    }
+}
+
+#[tauri::command]
+fn plan_command(app: tauri::AppHandle, request: PlanRequest) -> PlanResponse {
+    let trimmed = request.input.trim();
+    if trimmed.is_empty() {
+        return PlanResponse {
+            status: "empty".to_string(),
+            plan: None,
+            message: Some("Type a command to get started.".to_string()),
+        };
+    }
+
+    let query = normalize(trimmed);
+    let command_schema = load_command_schema();
+    let workflow_schema = load_workflow_schema();
+    let mut commands = Vec::new();
+    let mut workflows = Vec::new();
+
+    for dir in command_dirs(&app) {
+        let (dir_commands, _dir_errors) =
+            load_commands_from_dir(&dir, command_schema.as_ref());
+        commands.extend(dir_commands);
+    }
+
+    for dir in workflow_dirs(&app) {
+        let (dir_workflows, _dir_errors) =
+            load_workflows_from_dir(&dir, workflow_schema.as_ref());
+        workflows.extend(dir_workflows);
+    }
+
+    let best_command = best_command_match(&commands, &query);
+    let best_workflow = best_workflow_match(&workflows, &query);
+
+    if let Some(best) = best_workflow {
+        if best_command
+            .as_ref()
+            .map_or(true, |best_command| best.score >= best_command.score)
+        {
+            let intent =
+                build_intent("workflow", &best.workflow.id, &best.workflow.name);
+            return PlanResponse {
+                status: "ok".to_string(),
+                plan: Some(ExecutionPlan {
+                    id: plan_id(trimmed),
+                    intent,
+                    steps: vec![PlanStep {
+                        id: format!("step_{}", best.workflow.id),
+                        tool: "workflow.run".to_string(),
+                        inputs: json!({ "workflowId": best.workflow.id }),
+                        status: "pending".to_string(),
+                    }],
+                    created_at: now_iso(),
+                }),
+                message: None,
+            };
+        }
+    }
+
+    if let Some(best) = best_command {
+        let intent =
+            build_intent("command", &best.command.id, &best.command.name);
+        return PlanResponse {
+            status: "ok".to_string(),
+            plan: Some(ExecutionPlan {
+                id: plan_id(trimmed),
+                intent,
+                steps: vec![PlanStep {
+                    id: format!("step_{}", best.command.id),
+                    tool: "command.run".to_string(),
+                    inputs: json!({ "commandId": best.command.id }),
+                    status: "pending".to_string(),
+                }],
+                created_at: now_iso(),
+            }),
+            message: None,
+        };
+    }
+
+    let intent = Intent {
+        id: format!("intent_{}", slug_id(trimmed)),
+        name: "freeform".to_string(),
+        confidence: 0.1,
+        parameters: json!({ "text": trimmed }),
+    };
+
+    PlanResponse {
+        status: "ok".to_string(),
+        plan: Some(ExecutionPlan {
+            id: plan_id(trimmed),
+            intent,
+            steps: vec![],
+            created_at: now_iso(),
+        }),
+        message: None,
     }
 }
 
@@ -576,6 +711,112 @@ fn toggle_main_window(app: &tauri::AppHandle) {
     }
 }
 
+fn normalize(value: &str) -> String {
+    value.trim().to_lowercase()
+}
+
+fn slug_id(value: &str) -> String {
+    let normalized = normalize(value);
+    let mut out = String::new();
+    for ch in normalized.chars() {
+        if ch.is_ascii_alphanumeric() {
+            out.push(ch);
+        } else if ch.is_whitespace() || ch == '-' || ch == '_' {
+            out.push('_');
+        }
+    }
+    if out.is_empty() {
+        "request".to_string()
+    } else {
+        out
+    }
+}
+
+fn plan_id(input: &str) -> String {
+    format!("plan_{}_{}", slug_id(input), OffsetDateTime::now_utc().unix_timestamp_nanos())
+}
+
+fn now_iso() -> String {
+    OffsetDateTime::now_utc()
+        .format(&Rfc3339)
+        .unwrap_or_else(|_| "unknown".to_string())
+}
+
+struct CommandMatch<'a> {
+    command: &'a CommandDefinition,
+    score: f32,
+}
+
+struct WorkflowMatch<'a> {
+    workflow: &'a WorkflowDefinition,
+    score: f32,
+}
+
+fn best_command_match<'a>(
+    commands: &'a [CommandDefinition],
+    query: &str,
+) -> Option<CommandMatch<'a>> {
+    let mut best: Option<CommandMatch<'a>> = None;
+    for command in commands {
+        let score = score_match(&command.name, command.description.as_deref(), query);
+        if score <= 0.0 {
+            continue;
+        }
+        if best.as_ref().map_or(true, |current| score > current.score) {
+            best = Some(CommandMatch { command, score });
+        }
+    }
+    best
+}
+
+fn best_workflow_match<'a>(
+    workflows: &'a [WorkflowDefinition],
+    query: &str,
+) -> Option<WorkflowMatch<'a>> {
+    let mut best: Option<WorkflowMatch<'a>> = None;
+    for workflow in workflows {
+        let score = score_match(&workflow.name, workflow.description.as_deref(), query);
+        if score <= 0.0 {
+            continue;
+        }
+        if best.as_ref().map_or(true, |current| score > current.score) {
+            best = Some(WorkflowMatch { workflow, score });
+        }
+    }
+    best
+}
+
+fn score_match(name: &str, description: Option<&str>, query: &str) -> f32 {
+    if query.is_empty() {
+        return 0.0;
+    }
+    let name_norm = normalize(name);
+    let desc_norm = description.map(normalize).unwrap_or_default();
+
+    if name_norm == query {
+        return 1.0;
+    }
+    if name_norm.contains(query) {
+        return 0.8;
+    }
+    if !desc_norm.is_empty() && desc_norm.contains(query) {
+        return 0.5;
+    }
+    0.0
+}
+
+fn build_intent(kind: &str, item_id: &str, item_name: &str) -> Intent {
+    Intent {
+        id: format!("intent_{}", slug_id(item_name)),
+        name: item_name.to_string(),
+        confidence: 0.6,
+        parameters: json!({
+            "type": kind,
+            "id": item_id,
+        }),
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -604,6 +845,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             execute_command,
+            plan_command,
             hide_window,
             list_commands,
             save_command,
