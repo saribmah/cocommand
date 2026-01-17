@@ -5,6 +5,7 @@ import { hideWindow, listCommands, listWorkflows, planCommand } from "./lib/ipc"
 
 function App() {
   const [result, setResult] = useState("");
+  const [plan, setPlan] = useState(null);
   const [input, setInput] = useState("");
   const [history, setHistory] = useState([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
@@ -24,15 +25,18 @@ function App() {
     try {
       const trimmed = input.trim();
       if (!trimmed) {
+        setPlan(null);
         setResult("Type a command to get started.");
         return;
       }
       const planResponse = await planCommand(trimmed);
       if (planResponse.status === "empty") {
+        setPlan(null);
         setResult(planResponse.message ?? "Type a command to get started.");
         return;
       }
       if (planResponse.status !== "ok" || !planResponse.plan) {
+        setPlan(null);
         setResult(planResponse.message ?? "Unable to plan the request.");
         return;
       }
@@ -46,7 +50,9 @@ function App() {
       setShowCommands(false);
       setInput("");
       setResult(summary);
+      setPlan(planResponse.plan);
     } catch (error) {
+      setPlan(null);
       setResult(`Error: ${error}`);
     }
   }
@@ -141,8 +147,10 @@ function App() {
     const baseHeight = 140;
     const panelHeight = showCommands ? 220 : 0;
     const historyHeight = history.length > 0 ? 64 : 0;
-    const resultHeight = result ? 110 : 0;
-    const nextHeight = baseHeight + panelHeight + historyHeight + resultHeight;
+    const planHeight = plan ? 80 + plan.steps.length * 28 : 0;
+    const resultHeight = result ? 90 : 0;
+    const nextHeight =
+      baseHeight + panelHeight + historyHeight + resultHeight + planHeight;
     const windowHandle = getCurrentWindow();
     const startHeight = lastHeightRef.current;
     const targetHeight = nextHeight;
@@ -362,6 +370,30 @@ function App() {
         <div className="result">
           <span>Result</span>
           <p>{result}</p>
+          {plan && (
+            <div className="plan-details">
+              <div className="plan-row">
+                <span>Intent</span>
+                <strong>{plan.intent.name}</strong>
+              </div>
+              <div className="plan-row">
+                <span>Confidence</span>
+                <strong>{Math.round(plan.intent.confidence * 100)}%</strong>
+              </div>
+              <div className="plan-steps">
+                {plan.steps.length === 0 ? (
+                  <span>No steps planned</span>
+                ) : (
+                  plan.steps.map((step) => (
+                    <div key={step.id} className="plan-step">
+                      <span>{step.tool}</span>
+                      <small>{step.status}</small>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </main>
