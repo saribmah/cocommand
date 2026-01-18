@@ -236,6 +236,26 @@ input:focus {
   animation: fadeInUp 0.18s ease;
 }
 
+.backend-banner {
+  width: 100%;
+  padding: 10px 14px;
+  border-radius: 12px;
+  font-size: 12px;
+  text-align: center;
+}
+
+.backend-banner-ok {
+  border: 1px solid #b9dcd8;
+  background: #e9f6f5;
+  color: #1b6d6a;
+}
+
+.backend-banner-error {
+  border: 1px solid #f0c7be;
+  background: #fff3ef;
+  color: #b24b3a;
+}
+
 .plan-details {
   display: grid;
   gap: 8px;

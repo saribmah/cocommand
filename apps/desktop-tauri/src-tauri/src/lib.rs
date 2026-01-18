@@ -8,6 +8,8 @@ use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 use time::format_description::well_known::Rfc3339;
 use time::OffsetDateTime;
 
+mod server;
+
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[derive(Deserialize)]
 struct CommandRequest {
@@ -945,6 +947,11 @@ pub fn run() {
         .setup(|app| {
             let handle = app.handle();
             handle.global_shortcut().register("CmdOrCtrl+O")?;
+            tauri::async_runtime::spawn(async move {
+                if let Ok(addr) = server::start().await {
+                    println!("Backend server listening on {}", addr);
+                }
+            });
             if let Some(window) = app.get_webview_window("main") {
                 let window_handle = window.clone();
                 window.on_window_event(move |event| {

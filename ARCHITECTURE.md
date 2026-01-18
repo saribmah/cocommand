@@ -2,54 +2,48 @@
 
 ## Goals
 - Fast, low-friction command execution.
-- Extensible commands, workflows, and integrations.
-- Clear boundaries between UI, orchestration, and system adapters.
+- Clear separation between UI, planning, and execution.
+- Extensible integrations for third-party apps and OS services.
 - Safe execution with auditability and opt-in automation.
 
 ## High-Level Flow
-1) Capture: global hotkey opens command bar.
-2) Intent: LLM parses intent + context into a structured plan.
-3) Plan: planner selects commands, workflows, tools, and steps.
-4) Execute: integrations perform actions with user confirmation when needed.
-5) Feedback: status, results, and traces shown in UI and stored locally.
+1) Capture: global hotkey opens the command bar.
+2) Plan: AI selects an application and a tool (or uses the user-selected app).
+3) Execute: the tool runs with validated inputs and permissions.
+4) Feedback: results and traces are shown in the UI and stored locally.
 
-## Core Domains
-- Command: raw user input and command metadata.
-- Context: local state (recent files, clipboard, calendar, etc.).
-- Intent: structured representation of what the user wants.
-- Command: reusable, parameterized action composed of tool steps.
-- Workflow: chain of commands.
-- Execution: tool calls and side effects.
-- Memory: short-term session + optional long-term preference state.
+## Core Concepts
+- Application: a target surface like Spotify, Notetaker, or Finder. Each application exposes tools and capabilities.
+- Tool: a single action the app can perform (e.g., `spotify.play`, `notes.create`, `finder.move`).
+- Command: a user request expressed in natural language.
+- Intent: structured decision about which application + tool to use and with what parameters.
+- Workflow: a chain of tool calls (optionally across multiple applications).
+
+## Planner Responsibilities
+- If the user pre-selects an application, constrain planning to that application.
+- Otherwise, classify the best application for the intent.
+- Select the tool within that application and map inputs.
+- Produce an execution plan with steps and permissions.
+
+## Execution Model
+- Tools are deterministic and typed. AI may fill parameters, but execution is explicit.
+- Each tool declares inputs, outputs, and required permissions.
+- Workflows are sequences of tool calls with error policies.
 
 ## Package Boundaries
-- apps/desktop-tauri: UI + OS shell.
-- packages/core: domain types, routing, planner interfaces.
-- packages/llm: model providers, prompts, parsing, safety rules.
-- packages/commands: command registry, schema, validation.
-- packages/integrations: adapters for OS and third-party services.
-- packages/storage: local persistence and search.
-- packages/sync: cross-device sync primitives (future).
-- packages/shared: shared utils and types.
-
-## Command and Workflow Model
-Commands are declarative steps with typed inputs/outputs.
-- Each step maps to a tool provided by integrations.
-- LLM can fill parameters but execution is deterministic.
-- User-defined commands are validated against schema.
-
-Workflows chain commands together for higher-level automation.
-
-## Execution Safety
-- Default: read-only unless user confirms.
-- Tiered permissions per command, workflow, and tool.
-- Audit log for actions and results.
+- apps/desktop-tauri: UI, windowing, IPC.
+- packages/core: domain types and planner interfaces.
+- packages/commands: schemas and validation for commands and workflows.
+- packages/llm: planner logic and intent parsing.
+- packages/integrations: application adapters and tool definitions.
+- packages/storage: local persistence and search (future).
 
 ## Extensibility
-- Integrations expose tool definitions and capabilities.
-- Commands compose tools with explicit inputs/outputs.
-- Planner chooses commands/workflows/tools based on intent and context.
+- Add a new application by defining tools + permissions in an integration module.
+- Tools become available to the planner via the registry.
+- Workflows can stitch tools across applications.
 
-## Future Sync
-- Event log as source of truth.
-- Sync service merges logs and reconciles conflicts.
+## Safety and Trust
+- Default to read-only actions unless confirmed.
+- Permission tiers per application and tool.
+- Audit log of tool runs and results.

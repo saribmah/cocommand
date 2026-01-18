@@ -1,11 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
 import "./App.css";
-import { hideWindow, listCommands, listWorkflows, planCommand } from "./lib/ipc";
+import {
+  hideWindow,
+  listCommands,
+  listWorkflows,
+  planCommand,
+  runWorkflow,
+} from "./lib/ipc";
 
 function App() {
   const [result, setResult] = useState("");
   const [plan, setPlan] = useState(null);
+  const [workflowRun, setWorkflowRun] = useState(null);
   const [input, setInput] = useState("");
   const [history, setHistory] = useState([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
@@ -20,25 +27,38 @@ function App() {
   const [workflows, setWorkflows] = useState([]);
   const [workflowErrors, setWorkflowErrors] = useState([]);
   const isStacked = showCommands || history.length > 0 || Boolean(result);
+  const [backendStatus, setBackendStatus] = useState("checking");
 
   async function submitCommand() {
     try {
       const trimmed = input.trim();
       if (!trimmed) {
+        setWorkflowRun(null);
         setPlan(null);
         setResult("Type a command to get started.");
         return;
       }
       const planResponse = await planCommand(trimmed);
       if (planResponse.status === "empty") {
+        setWorkflowRun(null);
         setPlan(null);
         setResult(planResponse.message ?? "Type a command to get started.");
         return;
       }
       if (planResponse.status !== "ok" || !planResponse.plan) {
+        setWorkflowRun(null);
         setPlan(null);
         setResult(planResponse.message ?? "Unable to plan the request.");
         return;
+      }
+      let workflowRunResponse = null;
+      if (
+        planResponse.plan.intent.parameters?.type === "workflow" &&
+        typeof planResponse.plan.intent.parameters?.id === "string"
+      ) {
+        workflowRunResponse = await runWorkflow(
+          planResponse.plan.intent.parameters.id
+        );
       }
       const confidence = Math.round(planResponse.plan.intent.confidence * 100);
       const steps = planResponse.plan.steps.map((step) => step.tool).join(", ");
@@ -51,7 +71,9 @@ function App() {
       setInput("");
       setResult(summary);
       setPlan(planResponse.plan);
+      setWorkflowRun(workflowRunResponse);
     } catch (error) {
+      setWorkflowRun(null);
       setPlan(null);
       setResult(`Error: ${error}`);
     }
@@ -92,6 +114,32 @@ function App() {
       });
     return () => {
       cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    const check = () => {
+      fetch("http://127.0.0.1:4840/health")
+        .then((response) => response.json())
+        .then((data) => {
+          if (!active) return;
+          const next = data?.status === "ok" ? "ok" : "error";
+          setBackendStatus(next);
+          if (next === "ok") {
+            clearInterval(timer);
+          }
+        })
+        .catch(() => {
+          if (!active) return;
+          setBackendStatus("error");
+        });
+    };
+    const timer = setInterval(check, 800);
+    check();
+    return () => {
+      active = false;
+      clearInterval(timer);
     };
   }, []);
 
@@ -148,9 +196,15 @@ function App() {
     const panelHeight = showCommands ? 220 : 0;
     const historyHeight = history.length > 0 ? 64 : 0;
     const planHeight = plan ? 80 + plan.steps.length * 28 : 0;
+    const runHeight = workflowRun ? 70 + workflowRun.steps.length * 24 : 0;
     const resultHeight = result ? 90 : 0;
     const nextHeight =
-      baseHeight + panelHeight + historyHeight + resultHeight + planHeight;
+      baseHeight +
+      panelHeight +
+      historyHeight +
+      resultHeight +
+      planHeight +
+      runHeight;
     const windowHandle = getCurrentWindow();
     const startHeight = lastHeightRef.current;
     const targetHeight = nextHeight;
@@ -394,6 +448,40 @@ function App() {
               </div>
             </div>
           )}
+          {workflowRun && (
+            <div className="plan-details">
+              <div className="plan-row">
+                <span>Workflow Run</span>
+                <strong>{workflowRun.status}</strong>
+              </div>
+              <div className="plan-row">
+                <span>Summary</span>
+                <strong>{workflowRun.summary}</strong>
+              </div>
+              <div className="plan-steps">
+                {workflowRun.steps.map((step) => (
+                  <div key={step.id} className="plan-step">
+                    <span>{step.command_id}</span>
+                    <small>{step.status}</small>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {backendStatus !== "checking" && (
+        <div
+          className={
+            backendStatus === "ok"
+              ? "backend-banner backend-banner-ok"
+              : "backend-banner backend-banner-error"
+          }
+        >
+          {backendStatus === "ok"
+            ? "Backend connected"
+            : "Backend not reachable. Ensure the server is running."}
         </div>
       )}
     </main>
