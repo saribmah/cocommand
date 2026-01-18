@@ -13,6 +13,13 @@ pub trait Tool {
     fn id(&self) -> &str;
     fn name(&self) -> &str;
     fn description(&self) -> &str;
+    fn execute(&self, inputs: serde_json::Value) -> ToolResult;
+}
+
+#[derive(Clone, Serialize)]
+pub struct ToolResult {
+    pub status: String,
+    pub message: String,
 }
 
 #[derive(Clone, Serialize)]
@@ -54,5 +61,13 @@ pub fn tool_definition<T: Tool>(tool: &T) -> ToolDefinition {
         id: tool.id().to_string(),
         name: tool.name().to_string(),
         description: tool.description().to_string(),
+    }
+}
+
+pub fn execute_tool(tool_id: &str, inputs: serde_json::Value) -> Option<ToolResult> {
+    match tool_id {
+        "spotify.play" => Some(spotify::SpotifyPlay.execute(inputs)),
+        "spotify.pause" => Some(spotify::SpotifyPause.execute(inputs)),
+        _ => None,
     }
 }

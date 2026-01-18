@@ -1,4 +1,5 @@
-use super::{tool_definition, Application, Tool, ToolDefinition};
+use super::{tool_definition, Application, Tool, ToolDefinition, ToolResult};
+use serde_json::Value;
 
 #[derive(Default)]
 pub struct SpotifyApp;
@@ -18,6 +19,13 @@ impl Tool for SpotifyPlay {
     fn description(&self) -> &str {
         "Resume playback in Spotify."
     }
+
+    fn execute(&self, _inputs: Value) -> ToolResult {
+        ToolResult {
+            status: "ok".to_string(),
+            message: "Spotify play triggered (stub).".to_string(),
+        }
+    }
 }
 
 impl Tool for SpotifyPause {
@@ -31,6 +39,13 @@ impl Tool for SpotifyPause {
 
     fn description(&self) -> &str {
         "Pause playback in Spotify."
+    }
+
+    fn execute(&self, _inputs: Value) -> ToolResult {
+        ToolResult {
+            status: "ok".to_string(),
+            message: "Spotify pause triggered (stub).".to_string(),
+        }
     }
 }
 

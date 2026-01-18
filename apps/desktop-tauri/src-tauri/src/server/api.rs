@@ -72,10 +72,16 @@ async fn plan(State(_state): State<AppState>, Json(request): Json<PlanRequest>) 
 
 async fn execute(
     State(_state): State<AppState>,
-    Json(_request): Json<ExecuteRequest>,
+    Json(request): Json<ExecuteRequest>,
 ) -> Json<ExecuteResponse> {
-    Json(ExecuteResponse {
-        status: "ok".to_string(),
-        message: Some("Executor stub: dispatch tool here.".to_string()),
-    })
+    match applications::execute_tool(&request.tool_id, request.inputs) {
+        Some(result) => Json(ExecuteResponse {
+            status: result.status,
+            message: Some(result.message),
+        }),
+        None => Json(ExecuteResponse {
+            status: "error".to_string(),
+            message: Some(format!("Unknown tool: {}", request.tool_id)),
+        }),
+    }
 }
