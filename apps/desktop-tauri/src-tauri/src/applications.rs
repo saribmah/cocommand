@@ -56,6 +56,10 @@ pub fn all_tools() -> Vec<ToolDefinition> {
         .collect()
 }
 
+pub fn app_by_id(app_id: &str) -> Option<ApplicationDefinition> {
+    all_apps().into_iter().find(|app| app.id == app_id)
+}
+
 pub fn tool_definition<T: Tool>(tool: &T) -> ToolDefinition {
     ToolDefinition {
         id: tool.id().to_string(),

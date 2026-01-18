@@ -3,16 +3,17 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::fs;
 use std::path::{Path, PathBuf};
+use tauri::Manager;
 use time::format_description::well_known::Rfc3339;
 use time::OffsetDateTime;
 
 #[derive(Deserialize)]
-struct PlanRequest {
+pub struct PlanRequest {
     input: String,
 }
 
 #[derive(Serialize)]
-struct Intent {
+pub struct Intent {
     id: String,
     name: String,
     confidence: f32,
@@ -20,7 +21,7 @@ struct Intent {
 }
 
 #[derive(Serialize)]
-struct PlanStep {
+pub struct PlanStep {
     id: String,
     tool: String,
     inputs: Value,
@@ -28,7 +29,7 @@ struct PlanStep {
 }
 
 #[derive(Serialize)]
-struct ExecutionPlan {
+pub struct ExecutionPlan {
     id: String,
     intent: Intent,
     steps: Vec<PlanStep>,
@@ -37,14 +38,14 @@ struct ExecutionPlan {
 }
 
 #[derive(Serialize)]
-struct PlanResponse {
+pub struct PlanResponse {
     status: String,
     plan: Option<ExecutionPlan>,
     message: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
-struct CommandDefinition {
+pub struct CommandDefinition {
     id: String,
     name: String,
     description: Option<String>,
@@ -55,43 +56,43 @@ struct CommandDefinition {
 }
 
 #[derive(Serialize)]
-struct CommandLoadError {
+pub struct CommandLoadError {
     file: String,
     message: String,
 }
 
 #[derive(Serialize)]
-struct CommandLoadResponse {
+pub struct CommandLoadResponse {
     commands: Vec<CommandDefinition>,
     errors: Vec<CommandLoadError>,
 }
 
 #[derive(Deserialize)]
-struct CommandWriteRequest {
+pub struct CommandWriteRequest {
     command: CommandDefinition,
 }
 
 #[derive(Serialize)]
-struct CommandWriteResponse {
+pub struct CommandWriteResponse {
     status: String,
     file: Option<String>,
     message: Option<String>,
 }
 
 #[derive(Deserialize)]
-struct CommandDeleteRequest {
+pub struct CommandDeleteRequest {
     id: String,
 }
 
 #[derive(Serialize)]
-struct CommandDeleteResponse {
+pub struct CommandDeleteResponse {
     status: String,
     file: Option<String>,
     message: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
-struct WorkflowDefinition {
+pub struct WorkflowDefinition {
     id: String,
     name: String,
     description: Option<String>,
@@ -102,48 +103,48 @@ struct WorkflowDefinition {
 }
 
 #[derive(Serialize)]
-struct WorkflowLoadError {
+pub struct WorkflowLoadError {
     file: String,
     message: String,
 }
 
 #[derive(Serialize)]
-struct WorkflowLoadResponse {
+pub struct WorkflowLoadResponse {
     workflows: Vec<WorkflowDefinition>,
     errors: Vec<WorkflowLoadError>,
 }
 
 #[derive(Deserialize)]
-struct WorkflowWriteRequest {
+pub struct WorkflowWriteRequest {
     workflow: WorkflowDefinition,
 }
 
 #[derive(Serialize)]
-struct WorkflowWriteResponse {
+pub struct WorkflowWriteResponse {
     status: String,
     file: Option<String>,
     message: Option<String>,
 }
 
 #[derive(Deserialize)]
-struct WorkflowDeleteRequest {
+pub struct WorkflowDeleteRequest {
     id: String,
 }
 
 #[derive(Serialize)]
-struct WorkflowDeleteResponse {
+pub struct WorkflowDeleteResponse {
     status: String,
     file: Option<String>,
     message: Option<String>,
 }
 
 #[derive(Deserialize)]
-struct WorkflowRunRequest {
+pub struct WorkflowRunRequest {
     id: String,
 }
 
 #[derive(Serialize)]
-struct WorkflowRunStep {
+pub struct WorkflowRunStep {
     id: String,
     command_id: String,
     status: String,
@@ -151,7 +152,7 @@ struct WorkflowRunStep {
 }
 
 #[derive(Serialize)]
-struct WorkflowRunResponse {
+pub struct WorkflowRunResponse {
     status: String,
     summary: String,
     steps: Vec<WorkflowRunStep>,
@@ -873,7 +874,7 @@ fn build_intent(kind: &str, item_id: &str, item_name: &str) -> Intent {
 }
 
 #[derive(Deserialize)]
-struct WorkflowStep {
+pub struct WorkflowStep {
     id: String,
     #[serde(rename = "commandId")]
     command_id: String,
