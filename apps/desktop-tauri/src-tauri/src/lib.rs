@@ -9,6 +9,7 @@ use time::format_description::well_known::Rfc3339;
 use time::OffsetDateTime;
 
 mod server;
+mod applications;
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[derive(Deserialize)]

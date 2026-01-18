@@ -5,7 +5,8 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 
-use super::state::{AppState, ToolDefinition};
+use crate::applications;
+use super::state::AppState;
 
 #[derive(Deserialize)]
 struct PlanRequest {
@@ -34,6 +35,7 @@ struct ExecuteResponse {
 pub fn router(state: AppState) -> Router {
     Router::new()
         .route("/health", get(health))
+        .route("/apps", get(apps))
         .route("/tools", get(tools))
         .route("/plan", post(plan))
         .route("/execute", post(execute))
@@ -44,8 +46,14 @@ async fn health() -> Json<serde_json::Value> {
     Json(serde_json::json!({ "status": "ok" }))
 }
 
-async fn tools(State(state): State<AppState>) -> Json<Vec<ToolDefinition>> {
-    Json(state.tools)
+async fn tools(State(_state): State<AppState>) -> Json<Vec<applications::ToolDefinition>> {
+    Json(applications::all_tools())
+}
+
+async fn apps(
+    State(_state): State<AppState>,
+) -> Json<Vec<applications::ApplicationDefinition>> {
+    Json(applications::all_apps())
 }
 
 async fn plan(State(_state): State<AppState>, Json(request): Json<PlanRequest>) -> Json<PlanResponse> {
