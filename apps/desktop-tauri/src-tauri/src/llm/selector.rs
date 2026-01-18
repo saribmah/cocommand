@@ -34,7 +34,7 @@ pub fn select_tool(query: &str, tools: &[ToolDefinition]) -> Option<ToolSelectio
     let mut best: Option<(String, f32)> = None;
 
     for tool in tools {
-        let score = score_match(&tool.name, &tool.description, &normalized, Some(&tool.id));
+        let score = tool_score(tool, &normalized);
         if score <= 0.0 {
             continue;
         }
@@ -77,4 +77,25 @@ fn score_match(name: &str, description: &str, query: &str, id: Option<&str>) -> 
         return 0.5;
     }
     0.0
+}
+
+fn tool_score(tool: &ToolDefinition, query: &str) -> f32 {
+    let mut score = score_match(&tool.name, &tool.description, query, Some(&tool.id));
+
+    if score > 0.0 {
+        return score;
+    }
+
+    let id_norm = normalize(&tool.id);
+    if query.contains("stop") && id_norm.contains("pause") {
+        score = 0.7;
+    } else if query.contains("pause") && id_norm.contains("pause") {
+        score = 0.75;
+    } else if query.contains("play") && id_norm.contains("play") {
+        score = 0.75;
+    } else if query.contains("resume") && id_norm.contains("play") {
+        score = 0.7;
+    }
+
+    score
 }
