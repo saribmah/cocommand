@@ -71,6 +71,37 @@ export async function planCommand(input) {
 }
 
 /**
+ * @typedef {Object} WorkflowRunRequest
+ * @property {string} id
+ */
+
+/**
+ * @typedef {Object} WorkflowRunStep
+ * @property {string} id
+ * @property {string} command_id
+ * @property {string} status
+ * @property {string=} message
+ */
+
+/**
+ * @typedef {Object} WorkflowRunResponse
+ * @property {"ok" | "failed" | "error"} status
+ * @property {string} summary
+ * @property {WorkflowRunStep[]} steps
+ */
+
+/**
+ * Execute a workflow via the Tauri backend.
+ * @param {string} id
+ * @returns {Promise<WorkflowRunResponse>}
+ */
+export async function runWorkflow(id) {
+  /** @type {WorkflowRunRequest} */
+  const payload = { id };
+  return invoke("run_workflow", { request: payload });
+}
+
+/**
  * @typedef {Object} CommandDefinition
  * @property {string} id
  * @property {string} name

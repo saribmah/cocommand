@@ -151,6 +151,26 @@ struct WorkflowDeleteResponse {
     message: Option<String>,
 }
 
+#[derive(Deserialize)]
+struct WorkflowRunRequest {
+    id: String,
+}
+
+#[derive(Serialize)]
+struct WorkflowRunStep {
+    id: String,
+    command_id: String,
+    status: String,
+    message: Option<String>,
+}
+
+#[derive(Serialize)]
+struct WorkflowRunResponse {
+    status: String,
+    summary: String,
+    steps: Vec<WorkflowRunStep>,
+}
+
 #[tauri::command]
 fn execute_command(request: CommandRequest) -> CommandResponse {
     let trimmed = request.input.trim();
@@ -260,6 +280,88 @@ fn plan_command(app: tauri::AppHandle, request: PlanRequest) -> PlanResponse {
             created_at: now_iso(),
         }),
         message: None,
+    }
+}
+
+#[tauri::command]
+fn run_workflow(app: tauri::AppHandle, request: WorkflowRunRequest) -> WorkflowRunResponse {
+    let workflow_schema = load_workflow_schema();
+    let command_schema = load_command_schema();
+    let mut workflows = Vec::new();
+    let mut commands = Vec::new();
+
+    for dir in workflow_dirs(&app) {
+        let (dir_workflows, _dir_errors) =
+            load_workflows_from_dir(&dir, workflow_schema.as_ref());
+        workflows.extend(dir_workflows);
+    }
+
+    for dir in command_dirs(&app) {
+        let (dir_commands, _dir_errors) =
+            load_commands_from_dir(&dir, command_schema.as_ref());
+        commands.extend(dir_commands);
+    }
+
+    let Some(workflow) = workflows.into_iter().find(|item| item.id == request.id) else {
+        return WorkflowRunResponse {
+            status: "error".to_string(),
+            summary: format!("Workflow not found: {}", request.id),
+            steps: Vec::new(),
+        };
+    };
+
+    let mut step_reports = Vec::new();
+    let mut status = "ok".to_string();
+    let command_map: std::collections::HashMap<String, CommandDefinition> =
+        commands.into_iter().map(|cmd| (cmd.id.clone(), cmd)).collect();
+
+    for step_value in workflow.steps {
+        let step: WorkflowStep = match serde_json::from_value(step_value) {
+            Ok(step) => step,
+            Err(error) => {
+                step_reports.push(WorkflowRunStep {
+                    id: "unknown".to_string(),
+                    command_id: "unknown".to_string(),
+                    status: "failed".to_string(),
+                    message: Some(error.to_string()),
+                });
+                status = "failed".to_string();
+                break;
+            }
+        };
+
+        if !command_map.contains_key(&step.command_id) {
+            step_reports.push(WorkflowRunStep {
+                id: step.id.clone(),
+                command_id: step.command_id.clone(),
+                status: "failed".to_string(),
+                message: Some("Command not found.".to_string()),
+            });
+            status = "failed".to_string();
+            if step.on_error.as_deref().unwrap_or("halt") == "halt" {
+                break;
+            }
+            continue;
+        }
+
+        step_reports.push(WorkflowRunStep {
+            id: step.id,
+            command_id: step.command_id,
+            status: "completed".to_string(),
+            message: None,
+        });
+    }
+
+    let summary = if status == "ok" {
+        format!("Workflow executed: {} step(s).", step_reports.len())
+    } else {
+        "Workflow execution failed.".to_string()
+    };
+
+    WorkflowRunResponse {
+        status,
+        summary,
+        steps: step_reports,
     }
 }
 
@@ -817,6 +919,16 @@ fn build_intent(kind: &str, item_id: &str, item_name: &str) -> Intent {
     }
 }
 
+#[derive(Deserialize)]
+struct WorkflowStep {
+    id: String,
+    #[serde(rename = "commandId")]
+    command_id: String,
+    inputs: Option<Value>,
+    #[serde(rename = "onError")]
+    on_error: Option<String>,
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -846,6 +958,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             execute_command,
             plan_command,
+            run_workflow,
             hide_window,
             list_commands,
             save_command,
