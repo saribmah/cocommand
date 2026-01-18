@@ -5,7 +5,6 @@ mod server;
 mod applications;
 mod commands;
 mod llm;
-mod tauri_commands;
 mod window;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -40,15 +39,7 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            tauri_commands::plan_command,
-            tauri_commands::run_workflow,
             window::hide_window,
-            tauri_commands::list_commands,
-            tauri_commands::save_command,
-            tauri_commands::delete_command,
-            tauri_commands::list_workflows,
-            tauri_commands::save_workflow,
-            tauri_commands::delete_workflow
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

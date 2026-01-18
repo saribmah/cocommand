@@ -2,10 +2,6 @@
 
 ## Project Structure & Module Organization
 - `apps/desktop-tauri/`: Tauri + React app (UI, IPC, window behavior). Frontend code in `apps/desktop-tauri/src/` and Rust backend in `apps/desktop-tauri/src-tauri/`.
-- `packages/`: Shared domain logic and schemas.
-  - `packages/core/`: Types, registries, planner interfaces.
-  - `packages/commands/` and `packages/workflows/`: JSON schemas, validators, examples.
-  - `packages/llm/`: Heuristic planner implementation.
 - `docs/`, `SPEC.md`, `ARCHITECTURE.md`: Product concept and architecture context.
 
 ## Build, Test, and Development Commands

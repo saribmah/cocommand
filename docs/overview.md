@@ -23,5 +23,5 @@ The product has two goals:
 
 - UI and window behavior: `apps/desktop-tauri/src/`
 - Tauri backend commands, planner, and workflow execution: `apps/desktop-tauri/src-tauri/`
-- Schemas and examples: `packages/commands/` and `packages/workflows/`
+- Backend server and application modules: `apps/desktop-tauri/src-tauri/src/`
 - Architecture and product concept: `ARCHITECTURE.md`, `SPEC.md`

@@ -4,11 +4,7 @@
   "type": "module",
   "packageManager": "bun@1.2.17",
   "workspaces": [
-    "apps/*",
-    "packages/*"
+    "apps/*"
   ],
-  "scripts": {
-    "validate:command": "bun run packages/commands/scripts/validate-example.mjs",
-    "validate:workflow": "bun run packages/workflows/scripts/validate-example.mjs"
-  }
+  "scripts": {}
 }

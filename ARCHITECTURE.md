@@ -30,13 +30,11 @@
 - Each tool declares inputs, outputs, and required permissions.
 - Workflows are sequences of tool calls with error policies.
 
-## Package Boundaries
-- apps/desktop-tauri: UI, windowing, IPC.
-- packages/core: domain types and planner interfaces.
-- packages/commands: schemas and validation for commands and workflows.
-- packages/llm: planner logic and intent parsing.
-- packages/integrations: application adapters and tool definitions.
-- packages/storage: local persistence and search (future).
+## Module Boundaries
+- apps/desktop-tauri: UI, windowing, backend server bootstrap.
+- apps/desktop-tauri/src-tauri/src/applications: application + tool definitions.
+- apps/desktop-tauri/src-tauri/src/llm: LLM client and selection logic.
+- apps/desktop-tauri/src-tauri/src/server: HTTP API surface.
 
 ## Extensibility
 - Add a new application by defining tools + permissions in an integration module.
