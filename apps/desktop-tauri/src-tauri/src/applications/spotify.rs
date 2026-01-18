@@ -1,5 +1,6 @@
 use super::{tool_definition, Application, Tool, ToolDefinition, ToolResult};
 use serde_json::Value;
+use std::process::Command;
 
 #[derive(Default)]
 pub struct SpotifyApp;
@@ -21,10 +22,7 @@ impl Tool for SpotifyPlay {
     }
 
     fn execute(&self, _inputs: Value) -> ToolResult {
-        ToolResult {
-            status: "ok".to_string(),
-            message: "Spotify play triggered (stub).".to_string(),
-        }
+        run_spotify_script("play", "Spotify play triggered.")
     }
 }
 
@@ -42,10 +40,26 @@ impl Tool for SpotifyPause {
     }
 
     fn execute(&self, _inputs: Value) -> ToolResult {
-        ToolResult {
+        run_spotify_script("pause", "Spotify pause triggered.")
+    }
+}
+
+fn run_spotify_script(action: &str, success_message: &str) -> ToolResult {
+    let script = format!("tell application \"Spotify\" to {}", action);
+    let output = Command::new("osascript").arg("-e").arg(script).output();
+    match output {
+        Ok(result) if result.status.success() => ToolResult {
             status: "ok".to_string(),
-            message: "Spotify pause triggered (stub).".to_string(),
-        }
+            message: success_message.to_string(),
+        },
+        Ok(result) => ToolResult {
+            status: "error".to_string(),
+            message: String::from_utf8_lossy(&result.stderr).to_string(),
+        },
+        Err(error) => ToolResult {
+            status: "error".to_string(),
+            message: error.to_string(),
+        },
     }
 }
 
