@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::applications;
 use super::state::AppState;
+use crate::commands::intake as command_intake;
 
 #[derive(Deserialize)]
 struct PlanRequest {
@@ -17,6 +18,18 @@ struct PlanRequest {
 #[derive(Serialize)]
 struct PlanResponse {
     status: String,
+    message: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct CommandSubmitRequest {
+    text: String,
+}
+
+#[derive(Serialize)]
+struct CommandSubmitResponse {
+    status: String,
+    command: Option<command_intake::CommandInput>,
     message: Option<String>,
 }
 
@@ -37,6 +50,7 @@ pub fn router(state: AppState) -> Router {
         .route("/health", get(health))
         .route("/apps", get(apps))
         .route("/tools", get(tools))
+        .route("/command", post(command))
         .route("/plan", post(plan))
         .route("/execute", post(execute))
         .with_state(state)
@@ -67,6 +81,30 @@ async fn plan(State(_state): State<AppState>, Json(request): Json<PlanRequest>) 
     Json(PlanResponse {
         status: "ok".to_string(),
         message: Some("Planner stub: connect LLM here.".to_string()),
+    })
+}
+
+async fn command(
+    State(_state): State<AppState>,
+    Json(request): Json<CommandSubmitRequest>,
+) -> Json<CommandSubmitResponse> {
+    if request.text.trim().is_empty() {
+        return Json(CommandSubmitResponse {
+            status: "empty".to_string(),
+            command: None,
+            message: Some("Type a command to get started.".to_string()),
+        });
+    }
+
+    let command = command_intake::normalize(command_intake::CommandRequest {
+        text: request.text,
+        source: Some("ui".to_string()),
+    });
+
+    Json(CommandSubmitResponse {
+        status: "ok".to_string(),
+        command: Some(command),
+        message: None,
     })
 }
 

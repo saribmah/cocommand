@@ -10,6 +10,8 @@ use time::OffsetDateTime;
 
 mod server;
 mod applications;
+mod commands;
+mod llm;
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[derive(Deserialize)]
