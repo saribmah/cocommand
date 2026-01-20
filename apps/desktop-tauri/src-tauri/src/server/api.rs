@@ -9,7 +9,7 @@ use serde_json::json;
 
 use crate::applications;
 use super::state::AppState;
-use crate::agent::{processor, registry as agent_registry};
+use crate::agent::{context::ContextBuilder, processor, registry as agent_registry, session::SessionPhase};
 use crate::commands::intake as command_intake;
 use crate::workspace::types::WorkspaceSnapshot;
 
@@ -57,6 +57,12 @@ struct WindowResponse {
     status: String,
     snapshot: Option<WorkspaceSnapshot>,
     message: Option<String>,
+    /// Whether the workspace was soft-reset due to inactivity
+    #[serde(skip_serializing_if = "Option::is_none")]
+    soft_reset: Option<bool>,
+    /// Whether the workspace is archived and requires restore
+    #[serde(skip_serializing_if = "Option::is_none")]
+    archived: Option<bool>,
 }
 
 pub fn router(state: AppState) -> Router {
@@ -113,15 +119,22 @@ async fn window_snapshot(State(state): State<AppState>) -> Json<WindowResponse> 
                 status: "error".to_string(),
                 snapshot: None,
                 message: Some(error),
+                soft_reset: None,
+                archived: None,
             })
         }
     };
 
-    let snapshot = state.workspace.snapshot(&workspace);
+    // Use context builder to apply lifecycle rules
+    let context_builder = ContextBuilder::new(&state.workspace);
+    let context = context_builder.build_readonly(&workspace, SessionPhase::Control);
+
     Json(WindowResponse {
         status: "ok".to_string(),
-        snapshot: Some(snapshot),
-        message: None,
+        snapshot: Some(context.snapshot),
+        message: context.lifecycle_message,
+        soft_reset: if context.is_soft_reset { Some(true) } else { None },
+        archived: if context.is_archived { Some(true) } else { None },
     })
 }
 
@@ -134,6 +147,8 @@ async fn window_open(
             status: "error".to_string(),
             snapshot: None,
             message: Some(format!("Unknown app: {}", request.app_id)),
+            soft_reset: None,
+            archived: None,
         });
     }
 
@@ -144,9 +159,22 @@ async fn window_open(
                 status: "error".to_string(),
                 snapshot: None,
                 message: Some(error),
+                soft_reset: None,
+                archived: None,
             })
         }
     };
+
+    // Check if workspace is archived - block open operations
+    if state.workspace.is_archived(&workspace) {
+        return Json(WindowResponse {
+            status: "error".to_string(),
+            snapshot: None,
+            message: Some("Workspace is archived. Use window.restore_workspace to recover.".to_string()),
+            soft_reset: None,
+            archived: Some(true),
+        });
+    }
 
     state.workspace.open_app(&mut workspace, &request.app_id);
     if let Err(error) = state.store.save(&workspace) {
@@ -154,6 +182,8 @@ async fn window_open(
             status: "error".to_string(),
             snapshot: None,
             message: Some(error),
+            soft_reset: None,
+            archived: None,
         });
     }
 
@@ -162,6 +192,8 @@ async fn window_open(
         status: "ok".to_string(),
         snapshot: Some(snapshot),
         message: None,
+        soft_reset: None,
+        archived: None,
     })
 }
 
@@ -174,6 +206,8 @@ async fn window_close(
             status: "error".to_string(),
             snapshot: None,
             message: Some(format!("Unknown app: {}", request.app_id)),
+            soft_reset: None,
+            archived: None,
         });
     }
 
@@ -184,9 +218,22 @@ async fn window_close(
                 status: "error".to_string(),
                 snapshot: None,
                 message: Some(error),
+                soft_reset: None,
+                archived: None,
             })
         }
     };
+
+    // Check if workspace is archived - block close operations
+    if state.workspace.is_archived(&workspace) {
+        return Json(WindowResponse {
+            status: "error".to_string(),
+            snapshot: None,
+            message: Some("Workspace is archived. Use window.restore_workspace to recover.".to_string()),
+            soft_reset: None,
+            archived: Some(true),
+        });
+    }
 
     state.workspace.close_app(&mut workspace, &request.app_id);
     if let Err(error) = state.store.save(&workspace) {
@@ -194,6 +241,8 @@ async fn window_close(
             status: "error".to_string(),
             snapshot: None,
             message: Some(error),
+            soft_reset: None,
+            archived: None,
         });
     }
 
@@ -202,6 +251,8 @@ async fn window_close(
         status: "ok".to_string(),
         snapshot: Some(snapshot),
         message: None,
+        soft_reset: None,
+        archived: None,
     })
 }
 
@@ -214,6 +265,8 @@ async fn window_focus(
             status: "error".to_string(),
             snapshot: None,
             message: Some(format!("Unknown app: {}", request.app_id)),
+            soft_reset: None,
+            archived: None,
         });
     }
 
@@ -224,9 +277,22 @@ async fn window_focus(
                 status: "error".to_string(),
                 snapshot: None,
                 message: Some(error),
+                soft_reset: None,
+                archived: None,
             })
         }
     };
+
+    // Check if workspace is archived - block focus operations
+    if state.workspace.is_archived(&workspace) {
+        return Json(WindowResponse {
+            status: "error".to_string(),
+            snapshot: None,
+            message: Some("Workspace is archived. Use window.restore_workspace to recover.".to_string()),
+            soft_reset: None,
+            archived: Some(true),
+        });
+    }
 
     state.workspace.focus_app(&mut workspace, &request.app_id);
     if let Err(error) = state.store.save(&workspace) {
@@ -234,6 +300,8 @@ async fn window_focus(
             status: "error".to_string(),
             snapshot: None,
             message: Some(error),
+            soft_reset: None,
+            archived: None,
         });
     }
 
@@ -242,6 +310,8 @@ async fn window_focus(
         status: "ok".to_string(),
         snapshot: Some(snapshot),
         message: None,
+        soft_reset: None,
+        archived: None,
     })
 }
 

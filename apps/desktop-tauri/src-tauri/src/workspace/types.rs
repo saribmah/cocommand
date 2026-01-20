@@ -31,13 +31,13 @@ pub struct WorkspaceState {
     pub staleness: Staleness,
 }
 
-#[derive(Clone, Serialize)]
+#[derive(Clone, Debug, Serialize)]
 pub struct OpenAppSummary {
     pub id: String,
     pub summary: String,
 }
 
-#[derive(Clone, Serialize)]
+#[derive(Clone, Debug, Serialize)]
 pub struct WorkspaceSnapshot {
     #[serde(rename = "focusedApp")]
     pub focused_app: Option<String>,

@@ -141,16 +141,26 @@ impl WorkspaceService {
     }
 
     /// Generate a soft-reset snapshot (empty open apps, offer resume)
+    ///
+    /// Returns a snapshot with "dormant" staleness level (discrete value)
+    /// and includes metadata about restorable apps in the summary.
     pub fn soft_reset_snapshot(&self, state: &WorkspaceState) -> WorkspaceSnapshot {
         WorkspaceSnapshot {
             focused_app: None,
             open_apps: vec![],
-            staleness: format!(
-                "stale ({}h idle, {} apps can be restored)",
-                self.hours_since_last_active(state),
-                state.open_apps.len()
-            ),
+            // Use discrete staleness level, not free-form string
+            staleness: "dormant".to_string(),
         }
+    }
+
+    /// Get the count of apps that can be restored from a soft-reset workspace.
+    pub fn restorable_app_count(&self, state: &WorkspaceState) -> usize {
+        state.open_apps.len()
+    }
+
+    /// Get hours since last activity (public for lifecycle messages).
+    pub fn idle_hours(&self, state: &WorkspaceState) -> u32 {
+        self.hours_since_last_active(state)
     }
 
     /// Refresh ephemeral data for apps (called when workspace is stale but < 24h)
@@ -220,6 +230,21 @@ mod tests {
         let soft_snapshot = service.soft_reset_snapshot(&state);
         assert!(soft_snapshot.focused_app.is_none());
         assert!(soft_snapshot.open_apps.is_empty());
-        assert!(soft_snapshot.staleness.contains("can be restored"));
+        // Should use discrete staleness level, not free-form string
+        assert_eq!(soft_snapshot.staleness, "dormant");
+    }
+
+    #[test]
+    fn test_restorable_app_count() {
+        let service = WorkspaceService::new();
+        let mut state = WorkspaceState::default();
+
+        assert_eq!(service.restorable_app_count(&state), 0);
+
+        service.open_app(&mut state, "spotify");
+        assert_eq!(service.restorable_app_count(&state), 1);
+
+        service.open_app(&mut state, "calendar");
+        assert_eq!(service.restorable_app_count(&state), 2);
     }
 }

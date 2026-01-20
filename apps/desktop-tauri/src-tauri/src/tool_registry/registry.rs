@@ -10,7 +10,7 @@ use crate::storage::WorkspaceStore;
 use crate::workspace::service::WorkspaceService;
 use crate::workspace::types::WorkspaceState;
 
-use super::window_tools::build_window_tools;
+use super::window::build_window_tools;
 
 /// Build the control plane tool set.
 /// Only includes window.* tools for workspace management.
@@ -169,7 +169,7 @@ mod tests {
 
     #[test]
     fn test_control_plane_has_only_window_tools() {
-        let store = Arc::new(MemoryStore::new());
+        let store: Arc<dyn WorkspaceStore> = Arc::new(MemoryStore::default());
         let workspace = WorkspaceService::new();
         let tools = build_control_plane_tool_set(store, workspace);
 
@@ -183,7 +183,7 @@ mod tests {
 
     #[test]
     fn test_execution_plane_includes_app_tools_for_open_apps() {
-        let store = Arc::new(MemoryStore::new());
+        let store: Arc<dyn WorkspaceStore> = Arc::new(MemoryStore::default());
         let workspace = WorkspaceService::new();
 
         // Create workspace with spotify open
@@ -201,7 +201,7 @@ mod tests {
 
     #[test]
     fn test_execution_plane_excludes_closed_app_tools() {
-        let store = Arc::new(MemoryStore::new());
+        let store: Arc<dyn WorkspaceStore> = Arc::new(MemoryStore::default());
         let workspace = WorkspaceService::new();
 
         // Empty workspace - no apps open
