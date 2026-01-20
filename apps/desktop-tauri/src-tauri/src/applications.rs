@@ -16,7 +16,7 @@ pub mod spotify;
 pub mod types;
 
 // Re-export commonly used items for convenience
-pub use registry::{all_apps, all_tools, app_by_id, execute_tool};
+pub use registry::{all_apps, all_tools, app_by_id, app_id_from_tool, execute_tool, tools_for_app};
 pub use types::{
     tool_definition, Application, ApplicationDefinition, Tool, ToolDefinition, ToolResult,
 };

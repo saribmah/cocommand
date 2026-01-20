@@ -13,6 +13,9 @@ mod workspace;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Load .env file from the crate root directory
+    let _ = dotenvy::from_path(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(".env"));
+
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(

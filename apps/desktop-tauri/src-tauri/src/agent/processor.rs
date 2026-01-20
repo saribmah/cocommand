@@ -16,8 +16,8 @@ use crate::workspace::service::WorkspaceService;
 
 use super::config::AgentConfig;
 use super::context::ContextBuilder;
-use super::prompt;
 use super::session::Session;
+use super::system::assemble_system_prompt;
 
 // Re-export SessionPhase for use in api.rs
 pub use super::session::SessionPhase;
@@ -226,8 +226,7 @@ impl Processor {
         } else {
             Some(self.agent_config.instructions.as_str())
         };
-        let system_prompt =
-            prompt::build_system_prompt_with_instructions(phase, snapshot, custom_instructions);
+        let system_prompt = assemble_system_prompt(phase, snapshot, custom_instructions);
 
         let runner = Agent::new(
             AgentSettings::new(self.llm.model())
