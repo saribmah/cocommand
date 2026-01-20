@@ -9,9 +9,8 @@ use serde_json::json;
 
 use crate::applications;
 use super::state::AppState;
-use crate::agent::{registry as agent_registry, runner as agent_runner};
+use crate::agent::{processor, registry as agent_registry};
 use crate::commands::intake as command_intake;
-use crate::tool_registry::registry as tool_registry;
 use crate::workspace::types::WorkspaceSnapshot;
 
 #[derive(Deserialize)]
@@ -27,6 +26,12 @@ struct CommandSubmitResponse {
     tool_id: Option<String>,
     result: Option<applications::ToolResult>,
     message: Option<String>,
+    /// The phase of execution that produced the result (control or execution)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    phase: Option<String>,
+    /// Number of turns used in the agent loop
+    #[serde(skip_serializing_if = "Option::is_none")]
+    turns_used: Option<u32>,
 }
 
 #[derive(Deserialize)]
@@ -252,58 +257,65 @@ async fn command(
             tool_id: None,
             result: None,
             message: Some("Type a command to get started.".to_string()),
+            phase: None,
+            turns_used: None,
         });
     }
 
-    let workspace = match state.store.load() {
-        Ok(workspace) => workspace,
-        Err(error) => {
-            return Json(CommandSubmitResponse {
-                status: "error".to_string(),
-                command: None,
-                app_id: None,
-                tool_id: None,
-                result: None,
-                message: Some(error),
-            })
-        }
-    };
-
+    // Normalize the incoming command
     let command = command_intake::normalize(command_intake::CommandRequest {
-        text: request.text,
+        text: request.text.clone(),
         source: Some("ui".to_string()),
     });
 
-    let snapshot = state.workspace.snapshot(&workspace);
-    let tools = tool_registry::build_tool_set(state.store.clone(), state.workspace.clone());
-    let agent = agent_registry::default_agent();
-    let prompt = agent_registry::build_prompt(&command.text, &snapshot);
-    let result = match agent_runner::run_command(&state.llm, &agent, tools, prompt).await {
-        Ok(result) => result,
+    // Get agent config
+    let agent_config = agent_registry::default_agent();
+
+    // Process command through the control→execution loop
+    let process_result = processor::process_command(
+        &state.llm,
+        state.store.clone(),
+        state.workspace.clone(),
+        agent_config,
+        &command.text,
+    )
+    .await;
+
+    match process_result {
+        Ok(result) => {
+            let phase_str = match result.phase_used {
+                processor::SessionPhase::Control => "control",
+                processor::SessionPhase::Execution => "execution",
+            };
+
+            Json(CommandSubmitResponse {
+                status: "ok".to_string(),
+                command: Some(command),
+                app_id: None,
+                tool_id: None,
+                result: Some(applications::ToolResult {
+                    status: "ok".to_string(),
+                    message: result.output,
+                }),
+                message: None,
+                phase: Some(phase_str.to_string()),
+                turns_used: Some(result.turns_used),
+            })
+        }
         Err(error) => {
-            log_llm_debug(&state, &command.text).await;
-            return Json(CommandSubmitResponse {
+            log_llm_debug(&state, &request.text).await;
+            Json(CommandSubmitResponse {
                 status: "error".to_string(),
                 command: Some(command),
                 app_id: None,
                 tool_id: None,
                 result: None,
                 message: Some(error),
+                phase: None,
+                turns_used: None,
             })
         }
-    };
-
-    Json(CommandSubmitResponse {
-        status: "ok".to_string(),
-        command: Some(command),
-        app_id: None,
-        tool_id: None,
-        result: Some(applications::ToolResult {
-            status: "ok".to_string(),
-            message: result,
-        }),
-        message: None,
-    })
+    }
 }
 
 async fn execute(
