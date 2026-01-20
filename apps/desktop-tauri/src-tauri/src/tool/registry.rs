@@ -1,3 +1,9 @@
+//! Tool registry for building tool sets.
+//!
+//! This module provides builders for different tool set configurations:
+//! - Control plane: Only window.* tools (for workspace management)
+//! - Execution plane: Window.* plus app-specific tools
+
 use std::collections::HashSet;
 use std::sync::Arc;
 
@@ -13,6 +19,7 @@ use crate::workspace::types::WorkspaceState;
 use super::window::build_window_tools;
 
 /// Build the control plane tool set.
+///
 /// Only includes window.* tools for workspace management.
 /// This is used in the first phase of the agent loop.
 pub fn build_control_plane_tool_set(
@@ -23,6 +30,7 @@ pub fn build_control_plane_tool_set(
 }
 
 /// Build the execution plane tool set.
+///
 /// Includes window.* tools plus app tools for currently open apps only.
 /// This is used after apps have been opened in the control phase.
 pub fn build_execution_plane_tool_set(
@@ -55,7 +63,7 @@ pub fn build_execution_plane_tool_set(
 
             tools.insert(
                 tool_id.clone(),
-                Tool::function(json!({"type": "object"}))
+                Tool::function(json!({"type": "object", "properties": {}, "required": []}))
                     .with_description(format!("{} - {}", tool_name, tool.description))
                     .with_execute(Arc::new(move |_input, _opts| {
                         // Double-check app is still open at execution time
@@ -97,13 +105,11 @@ pub fn build_execution_plane_tool_set(
 }
 
 /// Build the full tool set with all tools (for backward compatibility).
+///
 /// Includes window.* tools and all app tools (with runtime open-check).
 /// Prefer using build_control_plane_tool_set and build_execution_plane_tool_set
 /// for the new two-phase architecture.
-pub fn build_tool_set(
-    store: Arc<dyn WorkspaceStore>,
-    workspace: WorkspaceService,
-) -> ToolSet {
+pub fn build_tool_set(store: Arc<dyn WorkspaceStore>, workspace: WorkspaceService) -> ToolSet {
     // Start with window tools
     let mut tools = build_window_tools(store.clone(), workspace);
 
@@ -121,7 +127,7 @@ pub fn build_tool_set(
 
             tools.insert(
                 tool_id.clone(),
-                Tool::function(json!({"type": "object"}))
+                Tool::function(json!({"type": "object", "properties": {}, "required": []}))
                     .with_description(format!("{} - {}", tool_name, tool_desc))
                     .with_execute(Arc::new(move |_input, _opts| {
                         let result = match exec_store.load() {
@@ -174,11 +180,11 @@ mod tests {
         let tools = build_control_plane_tool_set(store, workspace);
 
         // Should have window tools
-        assert!(tools.get("window.list_apps").is_some());
-        assert!(tools.get("window.open").is_some());
+        assert!(tools.get("window_list_apps").is_some());
+        assert!(tools.get("window_open").is_some());
 
         // Should NOT have app tools
-        assert!(tools.get("spotify.play").is_none());
+        assert!(tools.get("spotify_play").is_none());
     }
 
     #[test]
@@ -193,7 +199,7 @@ mod tests {
         let tools = build_execution_plane_tool_set(store, workspace, &state);
 
         // Should have window tools
-        assert!(tools.get("window.list_apps").is_some());
+        assert!(tools.get("window_list_apps").is_some());
 
         // Should have spotify tools (assuming spotify app is registered)
         // This test depends on spotify being in applications::all_apps()
@@ -210,9 +216,9 @@ mod tests {
         let tools = build_execution_plane_tool_set(store, workspace, &state);
 
         // Should have window tools
-        assert!(tools.get("window.list_apps").is_some());
+        assert!(tools.get("window_list_apps").is_some());
 
         // Should NOT have any app tools
-        assert!(tools.get("spotify.play").is_none());
+        assert!(tools.get("spotify_play").is_none());
     }
 }

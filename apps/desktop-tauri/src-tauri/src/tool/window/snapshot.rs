@@ -12,7 +12,7 @@ use crate::storage::WorkspaceStore;
 use crate::workspace::service::WorkspaceService;
 
 /// Tool ID for the get_snapshot tool
-pub const TOOL_ID: &str = "window.get_snapshot";
+pub const TOOL_ID: &str = "window_get_snapshot";
 
 /// Build the window.get_snapshot tool.
 ///
@@ -72,7 +72,7 @@ mod tests {
         let store: Arc<dyn WorkspaceStore> = Arc::new(MemoryStore::default());
         let workspace = WorkspaceService::new();
         let (id, _tool) = build(store, workspace);
-        assert_eq!(id, "window.get_snapshot");
+        assert_eq!(id, "window_get_snapshot");
     }
 
     #[test]

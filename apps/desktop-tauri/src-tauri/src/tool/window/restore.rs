@@ -11,7 +11,7 @@ use crate::storage::WorkspaceStore;
 use crate::workspace::service::WorkspaceService;
 
 /// Tool ID for the restore_workspace tool
-pub const TOOL_ID: &str = "window.restore_workspace";
+pub const TOOL_ID: &str = "window_restore_workspace";
 
 /// Build the window.restore_workspace tool.
 ///
@@ -68,7 +68,7 @@ mod tests {
         let store: Arc<dyn WorkspaceStore> = Arc::new(MemoryStore::default());
         let workspace = WorkspaceService::new();
         let (id, _tool) = build(store, workspace);
-        assert_eq!(id, "window.restore_workspace");
+        assert_eq!(id, "window_restore_workspace");
     }
 
     #[test]

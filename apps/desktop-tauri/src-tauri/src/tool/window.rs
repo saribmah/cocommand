@@ -34,10 +34,7 @@ pub use snapshot::TOOL_ID as SNAPSHOT_TOOL_ID;
 /// - window.close: Close an application (unmounts its tools)
 /// - window.focus: Focus an already-open application
 /// - window.restore_workspace: Restore a soft-reset or archived workspace
-pub fn build_window_tools(
-    store: Arc<dyn WorkspaceStore>,
-    workspace: WorkspaceService,
-) -> ToolSet {
+pub fn build_window_tools(store: Arc<dyn WorkspaceStore>, workspace: WorkspaceService) -> ToolSet {
     let mut tools = ToolSet::new();
 
     // Add list_apps (no store/workspace needed)
@@ -68,6 +65,7 @@ pub fn build_window_tools(
 }
 
 /// Get a list of all window tool IDs.
+///
 /// Useful for checking if a tool belongs to the window module.
 pub fn all_tool_ids() -> Vec<&'static str> {
     vec![
@@ -82,7 +80,7 @@ pub fn all_tool_ids() -> Vec<&'static str> {
 
 /// Check if a tool ID is a window tool.
 pub fn is_window_tool(tool_id: &str) -> bool {
-    tool_id.starts_with("window.")
+    tool_id.starts_with("window_")
 }
 
 #[cfg(test)]
@@ -96,31 +94,31 @@ mod tests {
         let workspace = WorkspaceService::new();
         let tools = build_window_tools(store, workspace);
 
-        assert!(tools.get("window.list_apps").is_some());
-        assert!(tools.get("window.get_snapshot").is_some());
-        assert!(tools.get("window.open").is_some());
-        assert!(tools.get("window.close").is_some());
-        assert!(tools.get("window.focus").is_some());
-        assert!(tools.get("window.restore_workspace").is_some());
+        assert!(tools.get("window_list_apps").is_some());
+        assert!(tools.get("window_get_snapshot").is_some());
+        assert!(tools.get("window_open").is_some());
+        assert!(tools.get("window_close").is_some());
+        assert!(tools.get("window_focus").is_some());
+        assert!(tools.get("window_restore_workspace").is_some());
     }
 
     #[test]
     fn test_all_tool_ids() {
         let ids = all_tool_ids();
         assert_eq!(ids.len(), 6);
-        assert!(ids.contains(&"window.list_apps"));
-        assert!(ids.contains(&"window.get_snapshot"));
-        assert!(ids.contains(&"window.open"));
-        assert!(ids.contains(&"window.close"));
-        assert!(ids.contains(&"window.focus"));
-        assert!(ids.contains(&"window.restore_workspace"));
+        assert!(ids.contains(&"window_list_apps"));
+        assert!(ids.contains(&"window_get_snapshot"));
+        assert!(ids.contains(&"window_open"));
+        assert!(ids.contains(&"window_close"));
+        assert!(ids.contains(&"window_focus"));
+        assert!(ids.contains(&"window_restore_workspace"));
     }
 
     #[test]
     fn test_is_window_tool() {
-        assert!(is_window_tool("window.open"));
-        assert!(is_window_tool("window.close"));
-        assert!(!is_window_tool("spotify.play"));
-        assert!(!is_window_tool("calendar.create"));
+        assert!(is_window_tool("window_open"));
+        assert!(is_window_tool("window_close"));
+        assert!(!is_window_tool("spotify_play"));
+        assert!(!is_window_tool("calendar_create"));
     }
 }

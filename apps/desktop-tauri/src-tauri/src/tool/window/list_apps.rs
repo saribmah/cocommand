@@ -10,7 +10,7 @@ use serde_json::json;
 use crate::applications;
 
 /// Tool ID for the list_apps tool
-pub const TOOL_ID: &str = "window.list_apps";
+pub const TOOL_ID: &str = "window_list_apps";
 
 /// Build the window.list_apps tool.
 ///
@@ -47,7 +47,7 @@ mod tests {
     #[test]
     fn test_tool_id() {
         let (id, _tool) = build();
-        assert_eq!(id, "window.list_apps");
+        assert_eq!(id, "window_list_apps");
     }
 
     #[test]
@@ -55,6 +55,10 @@ mod tests {
         let (_id, tool) = build();
         // The tool has a description field set via with_description
         assert!(tool.description.is_some());
-        assert!(tool.description.as_ref().unwrap().contains("available applications"));
+        assert!(tool
+            .description
+            .as_ref()
+            .unwrap()
+            .contains("available applications"));
     }
 }

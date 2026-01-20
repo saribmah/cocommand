@@ -1,15 +1,15 @@
 use tauri::{Manager, WindowEvent};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 
-mod server;
-mod applications;
 mod agent;
+mod applications;
 mod commands;
 mod llm;
+mod server;
+mod storage;
+mod tool;
 mod window;
 mod workspace;
-mod storage;
-mod tool_registry;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -42,9 +42,7 @@ pub fn run() {
             }
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![
-            window::hide_window,
-        ])
+        .invoke_handler(tauri::generate_handler![window::hide_window,])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

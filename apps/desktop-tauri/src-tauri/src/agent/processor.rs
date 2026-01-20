@@ -11,7 +11,7 @@ use llm_kit_core::ToolSet;
 
 use crate::llm::client::LlmClient;
 use crate::storage::WorkspaceStore;
-use crate::tool_registry::registry::{build_control_plane_tool_set, build_execution_plane_tool_set};
+use crate::tool::{build_control_plane_tool_set, build_execution_plane_tool_set};
 use crate::workspace::service::WorkspaceService;
 
 use super::config::AgentConfig;

@@ -12,7 +12,7 @@ use crate::storage::WorkspaceStore;
 use crate::workspace::service::WorkspaceService;
 
 /// Tool ID for the open tool
-pub const TOOL_ID: &str = "window.open";
+pub const TOOL_ID: &str = "window_open";
 
 /// Build the window.open tool.
 ///
@@ -90,7 +90,7 @@ mod tests {
         let store: Arc<dyn WorkspaceStore> = Arc::new(MemoryStore::default());
         let workspace = WorkspaceService::new();
         let (id, _tool) = build(store, workspace);
-        assert_eq!(id, "window.open");
+        assert_eq!(id, "window_open");
     }
 
     #[test]
@@ -110,6 +110,9 @@ mod tests {
         let schema = &tool.input_schema;
         let required = schema.get("required").and_then(|r| r.as_array());
         assert!(required.is_some());
-        assert!(required.unwrap().iter().any(|v| v.as_str() == Some("appId")));
+        assert!(required
+            .unwrap()
+            .iter()
+            .any(|v| v.as_str() == Some("appId")));
     }
 }
