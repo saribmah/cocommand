@@ -9,16 +9,17 @@
 //! # Route Structure
 //!
 //! ```text
-//! GET  /health         - Health check
-//! GET  /apps           - List all applications
-//! GET  /tools          - List tools for open apps
+//! GET  /health          - Health check
+//! GET  /apps            - List all applications
+//! GET  /tools           - List tools for open apps
 //! GET  /window/snapshot - Get workspace snapshot
-//! GET  /window/apps    - List all applications (alias)
-//! POST /window/open    - Open an application
-//! POST /window/close   - Close an application
-//! POST /window/focus   - Focus an application
-//! POST /command        - Process a user command
-//! POST /execute        - Execute a tool directly
+//! GET  /window/apps     - List all applications (alias)
+//! POST /window/open     - Open an application
+//! POST /window/close    - Close an application
+//! POST /window/focus    - Focus an application
+//! POST /window/restore  - Restore an archived workspace
+//! POST /command         - Process a user command
+//! POST /execute         - Execute a tool directly
 //! ```
 
 pub mod apps;
@@ -48,6 +49,7 @@ pub fn router(state: AppState) -> Router {
         .route("/window/open", post(window::open))
         .route("/window/close", post(window::close))
         .route("/window/focus", post(window::focus))
+        .route("/window/restore", post(window::restore))
         // Command route
         .route("/command", post(command::command))
         .with_state(state)

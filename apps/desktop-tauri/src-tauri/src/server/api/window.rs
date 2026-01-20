@@ -129,3 +129,29 @@ pub async fn focus(
     let snapshot = state.workspace.snapshot(&workspace);
     Json(WindowResponse::success(snapshot))
 }
+
+/// Handle the /window/restore POST endpoint.
+///
+/// Restores an archived workspace by resetting its last_active_at timestamp.
+/// This allows the workspace to be used again after being inactive for >7 days.
+pub async fn restore(State(state): State<AppState>) -> Json<WindowResponse> {
+    let mut workspace = match state.store.load() {
+        Ok(workspace) => workspace,
+        Err(error) => return Json(WindowResponse::error(error)),
+    };
+
+    // Touch the workspace to reset staleness and update last_active_at
+    state.workspace.touch(&mut workspace);
+
+    if let Err(error) = state.store.save(&workspace) {
+        return Json(WindowResponse::error(error));
+    }
+
+    let snapshot = state.workspace.snapshot(&workspace);
+    Json(WindowResponse::with_lifecycle(
+        snapshot,
+        Some("Workspace restored successfully.".to_string()),
+        false,
+        false,
+    ))
+}
