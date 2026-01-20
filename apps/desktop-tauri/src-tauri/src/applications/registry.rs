@@ -15,7 +15,10 @@
 
 use serde_json::Value;
 
-use super::spotify::{self, PAUSE_TOOL_ID, PLAY_TOOL_ID, PLAY_TRACK_TOOL_ID};
+use super::spotify::{
+    self, OPEN_TOOL_ID, PAUSE_TOOL_ID, PLAY_ALBUM_TOOL_ID, PLAY_ARTIST_TOOL_ID, PLAY_TOOL_ID,
+    PLAY_TRACK_TOOL_ID, SEARCH_AND_PLAY_TOOL_ID,
+};
 use super::types::{Application, ApplicationDefinition, Tool, ToolDefinition, ToolResult};
 
 /// Get all registered applications.
@@ -72,8 +75,12 @@ pub fn tool_belongs_to_app(tool_id: &str, app_id: &str) -> bool {
 /// Returns None if the tool is not found.
 pub fn execute_tool(tool_id: &str, inputs: Value) -> Option<ToolResult> {
     match tool_id {
+        id if id == OPEN_TOOL_ID => Some(spotify::SpotifyOpen.execute(inputs)),
         id if id == PLAY_TOOL_ID => Some(spotify::SpotifyPlay.execute(inputs)),
         id if id == PAUSE_TOOL_ID => Some(spotify::SpotifyPause.execute(inputs)),
+        id if id == SEARCH_AND_PLAY_TOOL_ID => Some(spotify::SpotifySearchAndPlay.execute(inputs)),
+        id if id == PLAY_ARTIST_TOOL_ID => Some(spotify::SpotifyPlayArtist.execute(inputs)),
+        id if id == PLAY_ALBUM_TOOL_ID => Some(spotify::SpotifyPlayAlbum.execute(inputs)),
         id if id == PLAY_TRACK_TOOL_ID => Some(spotify::SpotifyPlayTrack.execute(inputs)),
         _ => None,
     }
@@ -128,7 +135,7 @@ mod tests {
         let tools = tools_for_app("spotify");
         assert!(tools.is_some());
         let tools = tools.unwrap();
-        assert_eq!(tools.len(), 3);
+        assert_eq!(tools.len(), 7);
     }
 
     #[test]
@@ -136,6 +143,18 @@ mod tests {
         let tools = all_tools();
         let play_track = tools.iter().find(|t| t.id == "spotify_play_track").unwrap();
         assert!(play_track.schema.is_some());
+    }
+
+    #[test]
+    fn test_all_spotify_tools_present() {
+        let tools = all_tools();
+        assert!(tools.iter().any(|t| t.id == "spotify_open"));
+        assert!(tools.iter().any(|t| t.id == "spotify_play"));
+        assert!(tools.iter().any(|t| t.id == "spotify_pause"));
+        assert!(tools.iter().any(|t| t.id == "spotify_search_and_play"));
+        assert!(tools.iter().any(|t| t.id == "spotify_play_artist"));
+        assert!(tools.iter().any(|t| t.id == "spotify_play_album"));
+        assert!(tools.iter().any(|t| t.id == "spotify_play_track"));
     }
 
     #[test]

@@ -32,5 +32,5 @@ llm-kit-core = "0.1"
 llm-kit-openai-compatible = "0.1"
 llm-kit-provider = "0.1"
 llm-kit-provider-utils = "0.1"
-reqwest = { version = "0.12", features = ["json"] }
+reqwest = { version = "0.12", features = ["json", "blocking"] }
 dotenvy = "0.15"
