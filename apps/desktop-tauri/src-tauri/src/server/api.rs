@@ -5,11 +5,13 @@ use axum::{
 };
 use std::collections::HashSet;
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 
 use crate::applications;
 use super::state::AppState;
+use crate::agent::{registry as agent_registry, runner as agent_runner};
 use crate::commands::intake as command_intake;
-use crate::llm::selector;
+use crate::tool_registry::registry as tool_registry;
 use crate::workspace::types::WorkspaceSnapshot;
 
 #[derive(Deserialize)]
@@ -267,53 +269,39 @@ async fn command(
         }
     };
 
-    if workspace.open_apps.is_empty() {
-        return Json(CommandSubmitResponse {
-            status: "no_apps".to_string(),
-            command: None,
-            app_id: None,
-            tool_id: None,
-            result: None,
-            message: Some("No apps open. Use window.open_app to continue.".to_string()),
-        });
-    }
-
     let command = command_intake::normalize(command_intake::CommandRequest {
         text: request.text,
         source: Some("ui".to_string()),
     });
 
-    let open_ids: HashSet<String> =
-        workspace.open_apps.iter().map(|app| app.id.clone()).collect();
-    let apps: Vec<applications::ApplicationDefinition> = applications::all_apps()
-        .into_iter()
-        .filter(|app| open_ids.contains(&app.id))
-        .collect();
-    let app_selection = selector::select_application(&command.text, &apps);
-    let (app_id, tool_id) = match app_selection {
-        Some(selection) => {
-            let tools = applications::app_by_id(&selection.app_id)
-                .map(|app| app.tools)
-                .unwrap_or_default();
-            let tool_selection = selector::select_tool(&command.text, &tools);
-            (
-                Some(selection.app_id),
-                tool_selection.map(|tool| tool.tool_id),
-            )
+    let snapshot = state.workspace.snapshot(&workspace);
+    let tools = tool_registry::build_tool_set(state.store.clone(), state.workspace.clone());
+    let agent = agent_registry::default_agent();
+    let prompt = agent_registry::build_prompt(&command.text, &snapshot);
+    let result = match agent_runner::run_command(&state.llm, &agent, tools, prompt).await {
+        Ok(result) => result,
+        Err(error) => {
+            log_llm_debug(&state, &command.text).await;
+            return Json(CommandSubmitResponse {
+                status: "error".to_string(),
+                command: Some(command),
+                app_id: None,
+                tool_id: None,
+                result: None,
+                message: Some(error),
+            })
         }
-        None => (None, None),
-    };
-    let result = match tool_id.as_deref() {
-        Some(tool_id) => applications::execute_tool(tool_id, serde_json::json!({})),
-        None => None,
     };
 
     Json(CommandSubmitResponse {
         status: "ok".to_string(),
         command: Some(command),
-        app_id,
-        tool_id,
-        result,
+        app_id: None,
+        tool_id: None,
+        result: Some(applications::ToolResult {
+            status: "ok".to_string(),
+            message: result,
+        }),
         message: None,
     })
 }
@@ -366,5 +354,61 @@ async fn execute(
             status: "error".to_string(),
             message: Some(format!("Unknown tool: {}", request.tool_id)),
         }),
+    }
+}
+
+async fn log_llm_debug(state: &AppState, command: &str) {
+    if std::env::var("COCOMMAND_LLM_DEBUG").is_err() {
+        return;
+    }
+
+    let config = state.llm.config();
+    let api_key = if !config.api_key.is_empty() {
+        config.api_key.clone()
+    } else {
+        std::env::var("OPENAI_API_KEY").unwrap_or_default()
+    };
+    if api_key.is_empty() {
+        eprintln!("LLM debug: missing API key");
+        return;
+    }
+
+    let base_url = config
+        .base_url
+        .clone()
+        .unwrap_or_else(|| "https://api.openai.com/v1".to_string());
+    let base_url = base_url.trim_end_matches('/').to_string();
+    let url = format!("{}/chat/completions", base_url);
+    let payload = json!({
+        "model": config.model,
+        "messages": [
+            { "role": "user", "content": command }
+        ]
+    });
+
+    let client = reqwest::Client::new();
+    let response = client
+        .post(url)
+        .header("Authorization", format!("Bearer {}", api_key))
+        .json(&payload)
+        .send()
+        .await;
+
+    match response {
+        Ok(resp) => {
+            let status = resp.status();
+            match resp.text().await {
+                Ok(body) => {
+                    eprintln!("LLM debug status: {}", status);
+                    eprintln!("LLM debug response: {}", body);
+                }
+                Err(error) => {
+                    eprintln!("LLM debug failed reading response: {}", error);
+                }
+            }
+        }
+        Err(error) => {
+            eprintln!("LLM debug request failed: {}", error);
+        }
     }
 }

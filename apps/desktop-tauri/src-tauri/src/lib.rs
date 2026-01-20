@@ -3,11 +3,13 @@ use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 
 mod server;
 mod applications;
+mod agent;
 mod commands;
 mod llm;
 mod window;
 mod workspace;
 mod storage;
+mod tool_registry;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
