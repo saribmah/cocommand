@@ -15,7 +15,7 @@
 
 use serde_json::Value;
 
-use super::spotify::{self, PAUSE_TOOL_ID, PLAY_TOOL_ID};
+use super::spotify::{self, PAUSE_TOOL_ID, PLAY_TOOL_ID, PLAY_TRACK_TOOL_ID};
 use super::types::{Application, ApplicationDefinition, Tool, ToolDefinition, ToolResult};
 
 /// Get all registered applications.
@@ -74,6 +74,7 @@ pub fn execute_tool(tool_id: &str, inputs: Value) -> Option<ToolResult> {
     match tool_id {
         id if id == PLAY_TOOL_ID => Some(spotify::SpotifyPlay.execute(inputs)),
         id if id == PAUSE_TOOL_ID => Some(spotify::SpotifyPause.execute(inputs)),
+        id if id == PLAY_TRACK_TOOL_ID => Some(spotify::SpotifyPlayTrack.execute(inputs)),
         _ => None,
     }
 }
@@ -127,7 +128,14 @@ mod tests {
         let tools = tools_for_app("spotify");
         assert!(tools.is_some());
         let tools = tools.unwrap();
-        assert_eq!(tools.len(), 2);
+        assert_eq!(tools.len(), 3);
+    }
+
+    #[test]
+    fn test_play_track_tool_has_schema() {
+        let tools = all_tools();
+        let play_track = tools.iter().find(|t| t.id == "spotify_play_track").unwrap();
+        assert!(play_track.schema.is_some());
     }
 
     #[test]

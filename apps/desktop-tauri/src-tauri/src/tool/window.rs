@@ -64,6 +64,24 @@ pub fn build_window_tools(store: Arc<dyn WorkspaceStore>, workspace: WorkspaceSe
     tools
 }
 
+/// Build the archived workspace tool set.
+///
+/// Only includes restore and snapshot tools. Used when workspace is archived
+/// to block all actions except recovery.
+pub fn build_archived_tools(store: Arc<dyn WorkspaceStore>, workspace: WorkspaceService) -> ToolSet {
+    let mut tools = ToolSet::new();
+
+    // Add snapshot (so agent can see current state)
+    let (id, tool) = snapshot::build(store.clone(), workspace.clone());
+    tools.insert(id, tool);
+
+    // Add restore_workspace (the only action allowed when archived)
+    let (id, tool) = restore::build(store.clone(), workspace.clone());
+    tools.insert(id, tool);
+
+    tools
+}
+
 /// Get a list of all window tool IDs.
 ///
 /// Useful for checking if a tool belongs to the window module.
@@ -120,5 +138,22 @@ mod tests {
         assert!(is_window_tool("window_close"));
         assert!(!is_window_tool("spotify_play"));
         assert!(!is_window_tool("calendar_create"));
+    }
+
+    #[test]
+    fn test_build_archived_tools_only_has_restore_and_snapshot() {
+        let store: Arc<dyn WorkspaceStore> = Arc::new(MemoryStore::default());
+        let workspace = WorkspaceService::new();
+        let tools = build_archived_tools(store, workspace);
+
+        // Should only have snapshot and restore
+        assert!(tools.get("window_get_snapshot").is_some());
+        assert!(tools.get("window_restore_workspace").is_some());
+
+        // Should NOT have other window tools
+        assert!(tools.get("window_list_apps").is_none());
+        assert!(tools.get("window_open").is_none());
+        assert!(tools.get("window_close").is_none());
+        assert!(tools.get("window_focus").is_none());
     }
 }

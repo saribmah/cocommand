@@ -3,7 +3,7 @@
 //! This module orchestrates prompt building by delegating to specialized
 //! submodules for base instructions, control-plane prompts, and execution-plane prompts.
 
-mod base;
+pub mod base;
 mod control;
 mod execution;
 

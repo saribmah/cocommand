@@ -36,6 +36,12 @@ pub trait Tool {
     /// Brief description of what the tool does.
     fn description(&self) -> &str;
 
+    /// JSON schema for the tool's parameters (optional).
+    /// Returns None if the tool takes no parameters.
+    fn schema(&self) -> Option<Value> {
+        None
+    }
+
     /// Execute the tool with the given inputs.
     fn execute(&self, inputs: Value) -> ToolResult;
 }
@@ -76,6 +82,40 @@ pub struct ToolDefinition {
     pub name: String,
     /// Description of the tool.
     pub description: String,
+    /// JSON schema for tool parameters (optional).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub schema: Option<Value>,
+}
+
+impl ToolDefinition {
+    /// Create a tool definition with no parameters.
+    pub fn no_params(id: impl Into<String>, name: impl Into<String>, description: impl Into<String>) -> Self {
+        Self {
+            id: id.into(),
+            name: name.into(),
+            description: description.into(),
+            schema: None,
+        }
+    }
+
+    /// Create a tool definition with a JSON schema.
+    pub fn with_schema(id: impl Into<String>, name: impl Into<String>, description: impl Into<String>, schema: Value) -> Self {
+        Self {
+            id: id.into(),
+            name: name.into(),
+            description: description.into(),
+            schema: Some(schema),
+        }
+    }
+
+    /// Get the schema as JSON, defaulting to empty object if none specified.
+    pub fn schema_json(&self) -> Value {
+        self.schema.clone().unwrap_or_else(|| serde_json::json!({
+            "type": "object",
+            "properties": {},
+            "required": []
+        }))
+    }
 }
 
 /// Static definition of an application (used for listing/discovery).
@@ -92,11 +132,11 @@ pub struct ApplicationDefinition {
 }
 
 /// Helper to create a ToolDefinition from a Tool trait object.
+/// Uses the tool's schema() method if available.
 pub fn tool_definition<T: Tool>(tool: &T) -> ToolDefinition {
-    ToolDefinition {
-        id: tool.id().to_string(),
-        name: tool.name().to_string(),
-        description: tool.description().to_string(),
+    match tool.schema() {
+        Some(schema) => ToolDefinition::with_schema(tool.id(), tool.name(), tool.description(), schema),
+        None => ToolDefinition::no_params(tool.id(), tool.name(), tool.description()),
     }
 }
 

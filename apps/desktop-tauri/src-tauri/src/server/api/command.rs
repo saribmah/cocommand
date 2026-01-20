@@ -15,6 +15,7 @@ use super::types::{CommandSubmitRequest, CommandSubmitResponse};
 /// Handle the /command POST endpoint.
 ///
 /// Processes a user command through the control→execution loop.
+/// Archived workspaces are handled by the processor, which includes restore tools.
 pub async fn command(
     State(state): State<AppState>,
     Json(request): Json<CommandSubmitRequest>,
@@ -23,6 +24,16 @@ pub async fn command(
         return Json(CommandSubmitResponse::empty(
             "Type a command to get started.",
         ));
+    }
+
+    // Validate workspace can be loaded (but don't block on archived status)
+    // The processor handles archived workspaces and provides restore functionality
+    if let Err(e) = state.store.load() {
+        let cmd = command_intake::normalize(command_intake::CommandRequest {
+            text: request.text.clone(),
+            source: Some("ui".to_string()),
+        });
+        return Json(CommandSubmitResponse::error(cmd, format!("Failed to load workspace: {}", e)));
     }
 
     // Normalize the incoming command

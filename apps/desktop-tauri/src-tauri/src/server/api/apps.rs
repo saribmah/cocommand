@@ -57,6 +57,7 @@ pub async fn list_tools(State(state): State<AppState>) -> Json<Vec<applications:
 /// Handle the /execute POST endpoint.
 ///
 /// Executes a tool directly (requires the app to be open).
+/// Respects workspace lifecycle: archived workspaces require restore before execution.
 pub async fn execute(
     State(state): State<AppState>,
     Json(request): Json<ExecuteRequest>,
@@ -65,6 +66,13 @@ pub async fn execute(
         Ok(workspace) => workspace,
         Err(error) => return Json(ExecuteResponse::error(error)),
     };
+
+    // Check if workspace is archived - block execution
+    if state.workspace.is_archived(&workspace) {
+        return Json(ExecuteResponse::error(
+            "Workspace is archived. Use window.restore_workspace to recover.",
+        ));
+    }
 
     // Extract app ID from tool ID (format: appid_action)
     let app_id = match applications::app_id_from_tool(&request.tool_id) {

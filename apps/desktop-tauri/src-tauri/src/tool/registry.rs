@@ -29,6 +29,18 @@ use super::window::build_window_tools;
 // Core Tool Set Builders
 // ============================================================================
 
+/// Build the archived workspace tool set.
+///
+/// Only includes window_restore_workspace and window_get_snapshot tools.
+/// This is used when the workspace is archived and needs to be restored
+/// before any other actions can be taken.
+pub fn build_archived_tool_set(
+    store: Arc<dyn WorkspaceStore>,
+    workspace: WorkspaceService,
+) -> ToolSet {
+    super::window::build_archived_tools(store, workspace)
+}
+
 /// Build the control plane tool set.
 ///
 /// Only includes window.* tools for workspace management.
@@ -99,11 +111,9 @@ fn add_app_tools(
             continue;
         }
 
-        for tool in app.tools {
+        for tool in &app.tools {
             let tool_entry = build_app_tool_with_open_check(
-                tool.id.clone(),
-                tool.name.clone(),
-                tool.description.clone(),
+                tool,
                 app.id.clone(),
                 store.clone(),
             );
@@ -115,15 +125,16 @@ fn add_app_tools(
 /// Add all app tools with runtime open-check (legacy mode).
 fn add_all_app_tools_with_runtime_check(tools: &mut ToolSet, store: Arc<dyn WorkspaceStore>) {
     for app in applications::all_apps() {
-        for tool in app.tools {
-            let tool_desc = format!(
-                "{} (Requires {} to be open.)",
-                tool.description, app.id
-            );
+        for tool in &app.tools {
+            // Create a modified tool definition with app-open requirement in description
+            let modified_tool = crate::applications::ToolDefinition {
+                id: tool.id.clone(),
+                name: tool.name.clone(),
+                description: format!("{} (Requires {} to be open.)", tool.description, app.id),
+                schema: tool.schema.clone(),
+            };
             let tool_entry = build_app_tool_with_open_check(
-                tool.id.clone(),
-                tool.name.clone(),
-                tool_desc,
+                &modified_tool,
                 app.id.clone(),
                 store.clone(),
             );
@@ -134,16 +145,18 @@ fn add_all_app_tools_with_runtime_check(tools: &mut ToolSet, store: Arc<dyn Work
 
 /// Build a tool entry with runtime app-open validation.
 fn build_app_tool_with_open_check(
-    tool_id: String,
-    tool_name: String,
-    tool_description: String,
+    tool_def: &crate::applications::ToolDefinition,
     app_id: String,
     store: Arc<dyn WorkspaceStore>,
 ) -> Tool {
-    Tool::function(json!({"type": "object", "properties": {}, "required": []}))
-        .with_description(format!("{} - {}", tool_name, tool_description))
-        .with_execute(Arc::new(move |_input, _opts| {
-            let result = execute_tool_with_app_check(&store, &tool_id, &app_id);
+    let tool_id = tool_def.id.clone();
+    let schema = tool_def.schema_json();
+    let description = format!("{} - {}", tool_def.name, tool_def.description);
+
+    Tool::function(schema)
+        .with_description(description)
+        .with_execute(Arc::new(move |input, _opts| {
+            let result = execute_tool_with_app_check(&store, &tool_id, &app_id, input);
             ToolExecutionOutput::Single(Box::pin(async move { result }))
         }))
 }
@@ -153,6 +166,7 @@ fn execute_tool_with_app_check(
     store: &Arc<dyn WorkspaceStore>,
     tool_id: &str,
     app_id: &str,
+    inputs: serde_json::Value,
 ) -> Result<serde_json::Value, serde_json::Value> {
     match store.load() {
         Ok(current_state) => {
@@ -165,7 +179,7 @@ fn execute_tool_with_app_check(
                     "hint": "The app was closed. Use window.open to reopen it."
                 }))
             } else {
-                match applications::execute_tool(tool_id, json!({})) {
+                match applications::execute_tool(tool_id, inputs) {
                     Some(result) => Ok(json!({
                         "status": result.status,
                         "message": result.message

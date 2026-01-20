@@ -3,6 +3,27 @@
 //! This module manages the multi-step agent loop with explicit phases:
 //! - Control phase: Only window.* tools available for workspace management
 //! - Execution phase: Window.* tools + app-specific tools for open apps
+//!
+//! # Architecture (OpenCode-Inspired)
+//!
+//! The processor follows a two-phase architecture with smart phase selection:
+//!
+//! ## Phase Selection Logic
+//! 1. If workspace is archived → Control Phase with restore tool only
+//! 2. If apps are already open → Direct Execution Phase (skip control)
+//! 3. If no apps open → Control Phase first, then Execution if apps opened
+//!
+//! ## Phases
+//! 1. **Control Phase**: Window.* tools only for workspace management
+//!    - User can open/close apps, manage workspace
+//!    - On `window.open`, the app's tools become available in next phase
+//!
+//! 2. **Execution Phase**: Window.* + all open app tools
+//!    - Includes window.* tools + all open app tools
+//!    - If `window.open` is called here, we rebuild tools and continue
+//!
+//! This enables efficient command handling - "pause Spotify" executes immediately
+//! when Spotify is open, while "open Safari" goes through control first.
 
 use std::sync::Arc;
 
@@ -11,7 +32,7 @@ use llm_kit_core::ToolSet;
 
 use crate::llm::client::LlmClient;
 use crate::storage::WorkspaceStore;
-use crate::tool::{build_control_plane_tool_set, build_execution_plane_tool_set};
+use crate::tool::{build_control_plane_tool_set, build_execution_plane_tool_set, build_archived_tool_set};
 use crate::workspace::service::WorkspaceService;
 
 use super::config::AgentConfig;
@@ -56,11 +77,10 @@ impl Processor {
 
     /// Process a user command through the control→execution loop
     ///
-    /// This method:
-    /// 1. Loads workspace and checks lifecycle (staleness, soft-reset, archived)
-    /// 2. Runs control phase with window.* tools
-    /// 3. If apps were opened and workspace is not archived, runs execution phase
-    /// 4. Returns the result with phase used and turns count
+    /// Phase selection logic:
+    /// 1. If workspace is archived → Control Phase with restore tool only
+    /// 2. If apps are already open → Direct Execution Phase (skip control)
+    /// 3. If no apps open → Control Phase first, then Execution if apps opened
     pub async fn process(&self, command: &str) -> Result<ProcessResult, String> {
         let session_id = format!(
             "session_{}",
@@ -81,26 +101,6 @@ impl Processor {
         // Save updated staleness state
         self.store.save(&workspace_state)?;
 
-        // Check if workspace is archived - require restore before proceeding
-        if context.is_archived {
-            return Ok(ProcessResult {
-                success: false,
-                output: context.lifecycle_message.unwrap_or_else(|| {
-                    "Workspace is archived. Use window.restore_workspace to recover.".to_string()
-                }),
-                phase_used: SessionPhase::Control,
-                turns_used: 0,
-            });
-        }
-
-        // Phase 1: Control plane
-        // Only window.* tools are available
-        session.set_phase(SessionPhase::Control);
-        let control_tools = build_control_plane_tool_set(
-            self.store.clone(),
-            self.workspace_service.clone(),
-        );
-
         // Build user command with lifecycle context if applicable
         let user_command = if let Some(ref msg) = context.lifecycle_message {
             format!("Note: {}\n\n{}", msg, command)
@@ -108,46 +108,124 @@ impl Processor {
             command.to_string()
         };
 
-        let control_result = self
-            .run_agent(&control_tools, &SessionPhase::Control, &context.snapshot, &user_command)
-            .await?;
-        session.increment_turn();
-
-        // Check if any apps were opened during control phase
-        let updated_workspace = self.store.load()?;
-        let has_open_apps = !updated_workspace.open_apps.is_empty();
-
-        // If apps were opened, transition to execution phase
-        if has_open_apps && session.can_continue() {
-            session.set_phase(SessionPhase::Execution);
-            let updated_snapshot = self.workspace_service.snapshot(&updated_workspace);
-
-            // Build execution plane tools (window.* + app tools for open apps)
-            let execution_tools = build_execution_plane_tool_set(
+        // Case 1: Archived workspace - only allow restore tool
+        if context.is_archived {
+            session.set_phase(SessionPhase::Control);
+            let archived_tools = build_archived_tool_set(
                 self.store.clone(),
                 self.workspace_service.clone(),
-                &updated_workspace,
             );
 
-            // Run execution phase with the modular prompt system
-            let execution_result = self
-                .run_agent(&execution_tools, &SessionPhase::Execution, &updated_snapshot, command)
+            let archived_command = format!(
+                "Note: Workspace is archived. You can ONLY use window_restore_workspace to recover. All other actions are blocked until restored.\n\n{}",
+                command
+            );
+
+            let result = self
+                .run_agent(&archived_tools, &SessionPhase::Control, &context.snapshot, &archived_command)
                 .await?;
             session.increment_turn();
 
             return Ok(ProcessResult {
                 success: true,
-                output: execution_result,
-                phase_used: SessionPhase::Execution,
+                output: result,
+                phase_used: SessionPhase::Control,
                 turns_used: session.turn_count,
             });
         }
 
-        // No apps opened, return control phase result
+        // Check if apps are already open
+        let has_apps_initially = !workspace_state.open_apps.is_empty();
+
+        // Case 2: Apps already open - go directly to Execution Phase
+        if has_apps_initially {
+            return self.run_execution_loop(&mut session, &workspace_state, &user_command).await;
+        }
+
+        // Case 3: No apps open - run Control Phase first
+        session.set_phase(SessionPhase::Control);
+        let control_tools = build_control_plane_tool_set(
+            self.store.clone(),
+            self.workspace_service.clone(),
+        );
+
+        let control_result = self
+            .run_agent(&control_tools, &SessionPhase::Control, &context.snapshot, &user_command)
+            .await?;
+        session.increment_turn();
+
+        // Reload workspace state after control phase
+        let current_workspace = self.store.load()?;
+
+        // Check if apps are now open
+        let has_apps_now = !current_workspace.open_apps.is_empty();
+
+        // If no apps open after control, return control result
+        if !has_apps_now {
+            return Ok(ProcessResult {
+                success: true,
+                output: control_result,
+                phase_used: SessionPhase::Control,
+                turns_used: session.turn_count,
+            });
+        }
+
+        // Apps were opened during control - transition to Execution Phase
+        self.run_execution_loop(&mut session, &current_workspace, &user_command).await
+    }
+
+    /// Run the execution loop with app tools
+    ///
+    /// This loop handles the case where new apps are opened during execution,
+    /// rebuilding the tool set to include newly available tools.
+    async fn run_execution_loop(
+        &self,
+        session: &mut Session,
+        initial_workspace: &crate::workspace::types::WorkspaceState,
+        user_command: &str,
+    ) -> Result<ProcessResult, String> {
+        session.set_phase(SessionPhase::Execution);
+
+        let mut current_workspace = initial_workspace.clone();
+        let mut execution_result = String::new();
+        let mut previous_app_count = current_workspace.open_apps.len();
+
+        // Execution loop: re-run if window.open adds new apps
+        while session.can_continue() {
+            let current_snapshot = self.workspace_service.snapshot(&current_workspace);
+
+            // Build execution plane tools (window.* + app tools for open apps)
+            let execution_tools = build_execution_plane_tool_set(
+                self.store.clone(),
+                self.workspace_service.clone(),
+                &current_workspace,
+            );
+
+            // Run execution phase with the full user_command (includes lifecycle context)
+            execution_result = self
+                .run_agent(&execution_tools, &SessionPhase::Execution, &current_snapshot, user_command)
+                .await?;
+            session.increment_turn();
+
+            // Reload workspace to check if apps changed
+            current_workspace = self.store.load()?;
+            let current_app_count = current_workspace.open_apps.len();
+
+            // If app count changed, new apps were opened - loop to include their tools
+            if current_app_count > previous_app_count {
+                previous_app_count = current_app_count;
+                // Continue loop to rebuild tools with newly opened apps
+                continue;
+            }
+
+            // No new apps opened, execution is complete
+            break;
+        }
+
         Ok(ProcessResult {
             success: true,
-            output: control_result,
-            phase_used: SessionPhase::Control,
+            output: execution_result,
+            phase_used: SessionPhase::Execution,
             turns_used: session.turn_count,
         })
     }
