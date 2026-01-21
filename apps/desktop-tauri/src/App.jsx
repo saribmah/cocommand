@@ -5,7 +5,7 @@ import { hideWindow } from "./lib/ipc";
 import * as backend from "./lib/backend";
 
 /** Panel tabs for the workspace view */
-const TABS = ["workspace", "apps", "tools"];
+const TABS = ["workspace", "apps", "tools", "settings"];
 
 function App() {
   const [input, setInput] = useState("");
@@ -28,6 +28,14 @@ function App() {
   const [selectedTool, setSelectedTool] = useState(null);
   const [toolInputs, setToolInputs] = useState("{}");
   const [toolResult, setToolResult] = useState(null);
+
+  // LLM settings state
+  const [llmSettings, setLlmSettings] = useState(null);
+  const [llmProviders, setLlmProviders] = useState([]);
+  const [llmApiKey, setLlmApiKey] = useState("");
+  const [llmBaseUrl, setLlmBaseUrl] = useState("");
+  const [llmModel, setLlmModel] = useState("");
+  const [llmSaving, setLlmSaving] = useState(false);
 
   const resizeFrameRef = useRef(0);
   const lastHeightRef = useRef(140);
@@ -60,6 +68,59 @@ function App() {
       console.error("Failed to load apps:", error);
     }
   }, []);
+
+  // Load LLM settings and providers
+  const loadLlmSettings = useCallback(async () => {
+    try {
+      const [settingsRes, providersRes] = await Promise.all([
+        backend.getLlmSettings(),
+        backend.listLlmProviders(),
+      ]);
+
+      if (settingsRes.status === "ok" && settingsRes.settings) {
+        setLlmSettings(settingsRes.settings);
+        setLlmBaseUrl(settingsRes.settings.base_url || "");
+        setLlmModel(settingsRes.settings.model || "");
+      }
+
+      if (providersRes.status === "ok" && providersRes.providers) {
+        setLlmProviders(providersRes.providers);
+      }
+    } catch (error) {
+      console.error("Failed to load LLM settings:", error);
+    }
+  }, []);
+
+  // Save LLM settings
+  async function handleSaveLlmSettings(updates) {
+    setLlmSaving(true);
+    try {
+      const res = await backend.updateLlmSettings(updates);
+      if (res.status === "ok" && res.settings) {
+        setLlmSettings(res.settings);
+        setLlmApiKey(""); // Clear API key input after save
+        setResult("LLM settings saved.");
+      } else {
+        setResult(res.message || "Failed to save LLM settings.");
+      }
+    } catch (error) {
+      setResult(`Error saving LLM settings: ${error}`);
+    } finally {
+      setLlmSaving(false);
+    }
+  }
+
+  // Change LLM provider
+  async function handleProviderChange(providerId) {
+    const provider = llmProviders.find((p) => p.id === providerId);
+    const defaultModel = provider?.default_models?.[0] || "";
+    await handleSaveLlmSettings({
+      provider: providerId,
+      model: defaultModel,
+      auth_method: "api_key",
+    });
+    setLlmModel(defaultModel);
+  }
 
   // Submit a command
   async function submitCommand() {
@@ -200,6 +261,7 @@ function App() {
             // Initial data load on connect
             loadApps();
             refreshWorkspace();
+            loadLlmSettings();
           }
         })
         .catch(() => {
@@ -213,7 +275,7 @@ function App() {
       active = false;
       clearInterval(timer);
     };
-  }, [loadApps, refreshWorkspace]);
+  }, [loadApps, refreshWorkspace, loadLlmSettings]);
 
   // Window focus handling
   useEffect(() => {
@@ -509,6 +571,146 @@ function App() {
                     )}
                   </div>
                 )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Settings tab */}
+        {activeTab === "settings" && (
+          <div className="settings-panel">
+            {!llmSettings ? (
+              <div className="panel-empty">Loading settings...</div>
+            ) : (
+              <div className="settings-content">
+                {/* Provider selection */}
+                <div className="settings-section">
+                  <label className="settings-label">Provider</label>
+                  <select
+                    className="settings-select"
+                    value={llmSettings.provider}
+                    onChange={(e) => handleProviderChange(e.target.value)}
+                    disabled={llmSaving}
+                  >
+                    {llmProviders.map((provider) => (
+                      <option key={provider.id} value={provider.id}>
+                        {provider.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Auth status */}
+                <div className="settings-section">
+                  <label className="settings-label">Authentication</label>
+                  <div className="auth-status">
+                    {llmSettings.has_api_key ? (
+                      <span className="auth-badge connected">API Key Set</span>
+                    ) : (
+                      <span className="auth-badge disconnected">Not Configured</span>
+                    )}
+                  </div>
+                </div>
+
+                {/* API Key input */}
+                <div className="settings-section">
+                  <label className="settings-label">
+                    API Key {llmSettings.has_api_key && "(saved)"}
+                  </label>
+                  <div className="api-key-row">
+                    <input
+                      type="password"
+                      className="settings-input"
+                      value={llmApiKey}
+                      onChange={(e) => setLlmApiKey(e.target.value)}
+                      placeholder={llmSettings.has_api_key ? "Enter new key to update" : "Enter API key"}
+                      disabled={llmSaving}
+                    />
+                    <button
+                      className="btn-sm btn-save"
+                      onClick={() => handleSaveLlmSettings({ api_key: llmApiKey })}
+                      disabled={!llmApiKey || llmSaving}
+                    >
+                      {llmSaving ? "..." : "Save"}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Base URL (for custom providers) */}
+                {llmSettings.provider === "custom" && (
+                  <div className="settings-section">
+                    <label className="settings-label">Base URL</label>
+                    <div className="api-key-row">
+                      <input
+                        type="text"
+                        className="settings-input"
+                        value={llmBaseUrl}
+                        onChange={(e) => setLlmBaseUrl(e.target.value)}
+                        placeholder="https://api.example.com/v1"
+                        disabled={llmSaving}
+                      />
+                      <button
+                        className="btn-sm btn-save"
+                        onClick={() => handleSaveLlmSettings({ base_url: llmBaseUrl })}
+                        disabled={llmSaving}
+                      >
+                        {llmSaving ? "..." : "Save"}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Model selection */}
+                <div className="settings-section">
+                  <label className="settings-label">Model</label>
+                  <div className="api-key-row">
+                    <select
+                      className="settings-select"
+                      value={llmModel}
+                      onChange={(e) => setLlmModel(e.target.value)}
+                      disabled={llmSaving}
+                    >
+                      {(llmProviders.find((p) => p.id === llmSettings.provider)?.default_models || []).map(
+                        (model) => (
+                          <option key={model} value={model}>
+                            {model}
+                          </option>
+                        )
+                      )}
+                      {llmModel &&
+                        !llmProviders
+                          .find((p) => p.id === llmSettings.provider)
+                          ?.default_models?.includes(llmModel) && (
+                          <option value={llmModel}>{llmModel} (custom)</option>
+                        )}
+                    </select>
+                    <button
+                      className="btn-sm btn-save"
+                      onClick={() => handleSaveLlmSettings({ model: llmModel })}
+                      disabled={llmModel === llmSettings.model || llmSaving}
+                    >
+                      {llmSaving ? "..." : "Save"}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Current config summary */}
+                <div className="settings-summary">
+                  <div className="summary-row">
+                    <span className="summary-label">Provider</span>
+                    <span className="summary-value">{llmSettings.provider}</span>
+                  </div>
+                  <div className="summary-row">
+                    <span className="summary-label">Model</span>
+                    <span className="summary-value">{llmSettings.model}</span>
+                  </div>
+                  <div className="summary-row">
+                    <span className="summary-label">Auth</span>
+                    <span className="summary-value">
+                      {llmSettings.has_api_key ? "API Key" : "None"}
+                    </span>
+                  </div>
+                </div>
               </div>
             )}
           </div>

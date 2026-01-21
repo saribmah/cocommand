@@ -3,27 +3,32 @@
 //! This module provides the HTTP API layer organized into submodules:
 //! - `apps`: Application and tool listing/execution endpoints
 //! - `command`: Command processing endpoint
+//! - `llm`: LLM settings endpoints
 //! - `window`: Window/workspace management endpoints
 //! - `types`: Shared request/response types
 //!
 //! # Route Structure
 //!
 //! ```text
-//! GET  /health          - Health check
-//! GET  /apps            - List all applications
-//! GET  /tools           - List tools for open apps
-//! GET  /window/snapshot - Get workspace snapshot
-//! GET  /window/apps     - List all applications (alias)
-//! POST /window/open     - Open an application
-//! POST /window/close    - Close an application
-//! POST /window/focus    - Focus an application
-//! POST /window/restore  - Restore an archived workspace
-//! POST /command         - Process a user command
-//! POST /execute         - Execute a tool directly
+//! GET  /health              - Health check
+//! GET  /apps                - List all applications
+//! GET  /tools               - List tools for open apps
+//! GET  /window/snapshot     - Get workspace snapshot
+//! GET  /window/apps         - List all applications (alias)
+//! POST /window/open         - Open an application
+//! POST /window/close        - Close an application
+//! POST /window/focus        - Focus an application
+//! POST /window/restore      - Restore an archived workspace
+//! POST /command             - Process a user command
+//! POST /execute             - Execute a tool directly
+//! GET  /llm/settings        - Get current LLM settings
+//! POST /llm/settings        - Update LLM settings
+//! GET  /llm/providers       - List available LLM providers
 //! ```
 
 pub mod apps;
 pub mod command;
+pub mod llm;
 pub mod types;
 pub mod window;
 
@@ -52,6 +57,10 @@ pub fn router(state: AppState) -> Router {
         .route("/window/restore", post(window::restore))
         // Command route
         .route("/command", post(command::command))
+        // LLM settings routes
+        .route("/llm/settings", get(llm::get_settings))
+        .route("/llm/settings", post(llm::update_settings))
+        .route("/llm/providers", get(llm::list_providers))
         .with_state(state)
 }
 

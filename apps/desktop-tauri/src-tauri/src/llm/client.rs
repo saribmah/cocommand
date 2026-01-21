@@ -1,4 +1,5 @@
 use super::config::LlmConfig;
+use llm_kit_anthropic::AnthropicClient;
 use llm_kit_core::{prompt::Prompt, GenerateText};
 use llm_kit_openai_compatible::OpenAICompatibleClient;
 use llm_kit_provider::language_model::LanguageModel;
@@ -12,18 +13,40 @@ pub struct LlmClient {
 
 impl LlmClient {
     pub fn new(config: LlmConfig) -> Self {
-        let mut builder = OpenAICompatibleClient::new();
+        let model: Arc<dyn LanguageModel> = match config.provider.as_str() {
+            // Anthropic requires an API key - the library panics without one
+            // Only use Anthropic client if API key is set
+            "anthropic" if !config.api_key.is_empty() => {
+                let builder = AnthropicClient::new()
+                    .api_key(&config.api_key);
 
-        if !config.api_key.is_empty() {
-            builder = builder.api_key(&config.api_key);
-        }
+                let builder = if let Some(base_url) = config.base_url.as_ref() {
+                    builder.base_url(base_url)
+                } else {
+                    builder
+                };
 
-        if let Some(base_url) = config.base_url.as_ref() {
-            builder = builder.base_url(base_url);
-        }
+                let provider = builder.build();
+                Arc::new(provider.language_model(config.model.clone()))
+            }
+            // Default to OpenAI-compatible for openai, custom, anthropic without key,
+            // and any other provider
+            _ => {
+                let mut builder = OpenAICompatibleClient::new();
 
-        let provider = builder.build();
-        let model = provider.chat_model(config.model.clone());
+                if !config.api_key.is_empty() {
+                    builder = builder.api_key(&config.api_key);
+                }
+
+                if let Some(base_url) = config.base_url.as_ref() {
+                    builder = builder.base_url(base_url);
+                }
+
+                let provider = builder.build();
+                provider.chat_model(config.model.clone())
+            }
+        };
+
         Self { config, model }
     }
 

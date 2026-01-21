@@ -1,7 +1,7 @@
 [package]
-name = "tauri-app"
+name = "cocommand"
 version = "0.1.0"
-description = "A Tauri App"
+description = "CoCommand App"
 authors = ["you"]
 edition = "2021"
 
@@ -30,7 +30,9 @@ tokio = { version = "1", features = ["macros", "rt-multi-thread", "net"] }
 tower-http = { version = "0.5", features = ["cors"] }
 llm-kit-core = "0.1"
 llm-kit-openai-compatible = "0.1"
+llm-kit-anthropic = "0.1"
 llm-kit-provider = "0.1"
 llm-kit-provider-utils = "0.1"
 reqwest = { version = "0.12", features = ["json", "blocking"] }
 dotenvy = "0.15"
+dirs = "5"

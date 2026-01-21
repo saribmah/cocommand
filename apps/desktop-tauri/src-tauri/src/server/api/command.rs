@@ -45,9 +45,12 @@ pub async fn command(
     // Get agent config
     let agent_config = agent_registry::default_agent();
 
+    // Get the current LLM client
+    let llm = state.llm();
+
     // Process command through the control→execution loop
     let process_result = processor::process_command(
-        &state.llm,
+        &llm,
         state.store.clone(),
         state.workspace.clone(),
         agent_config,
@@ -82,7 +85,8 @@ async fn log_llm_debug(state: &AppState, command: &str) {
         return;
     }
 
-    let config = state.llm.config();
+    let llm = state.llm();
+    let config = llm.config();
     let api_key = if !config.api_key.is_empty() {
         config.api_key.clone()
     } else {

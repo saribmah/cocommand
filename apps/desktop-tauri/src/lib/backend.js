@@ -178,3 +178,75 @@ export async function restoreWorkspace() {
   });
   return response.json();
 }
+
+// ============================================================================
+// LLM Settings API
+// ============================================================================
+
+/**
+ * @typedef {Object} RedactedLlmSettings
+ * @property {string} provider - "openai", "anthropic", or "custom"
+ * @property {string} auth_method - "api_key"
+ * @property {boolean} has_api_key - Whether an API key is configured
+ * @property {string|null} base_url - Custom base URL (if any)
+ * @property {string} model - Model identifier
+ */
+
+/**
+ * @typedef {Object} LlmSettingsResponse
+ * @property {string} status
+ * @property {RedactedLlmSettings|null} settings
+ * @property {string|null} message
+ */
+
+/**
+ * @typedef {Object} ProviderInfo
+ * @property {string} id
+ * @property {string} name
+ * @property {boolean} supports_api_key
+ * @property {string|null} default_base_url
+ * @property {string[]} default_models
+ */
+
+/**
+ * @typedef {Object} ProvidersResponse
+ * @property {string} status
+ * @property {ProviderInfo[]} providers
+ */
+
+/**
+ * Get current LLM settings (redacted, no secrets).
+ * @returns {Promise<LlmSettingsResponse>}
+ */
+export async function getLlmSettings() {
+  const response = await fetch(`${BASE_URL}/llm/settings`);
+  return response.json();
+}
+
+/**
+ * Update LLM settings.
+ * @param {Object} settings - Settings to update
+ * @param {string} [settings.provider] - Provider ID
+ * @param {string} [settings.auth_method] - Auth method
+ * @param {string} [settings.api_key] - API key (if using api_key auth)
+ * @param {string} [settings.base_url] - Custom base URL
+ * @param {string} [settings.model] - Model identifier
+ * @returns {Promise<LlmSettingsResponse>}
+ */
+export async function updateLlmSettings(settings) {
+  const response = await fetch(`${BASE_URL}/llm/settings`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(settings),
+  });
+  return response.json();
+}
+
+/**
+ * List available LLM providers.
+ * @returns {Promise<ProvidersResponse>}
+ */
+export async function listLlmProviders() {
+  const response = await fetch(`${BASE_URL}/llm/providers`);
+  return response.json();
+}
