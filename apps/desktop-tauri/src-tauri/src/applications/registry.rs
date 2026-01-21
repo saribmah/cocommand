@@ -15,9 +15,15 @@
 
 use serde_json::Value;
 
+use super::reminders::{
+    self, ADD_TOOL_ID as REMINDERS_ADD_TOOL_ID, CANCEL_TOOL_ID as REMINDERS_CANCEL_TOOL_ID,
+    COMPLETE_TOOL_ID as REMINDERS_COMPLETE_TOOL_ID,
+    LIST_UPCOMING_TOOL_ID as REMINDERS_LIST_UPCOMING_TOOL_ID,
+    OPEN_TOOL_ID as REMINDERS_OPEN_TOOL_ID, RESCHEDULE_TOOL_ID as REMINDERS_RESCHEDULE_TOOL_ID,
+};
 use super::spotify::{
-    self, OPEN_TOOL_ID, PAUSE_TOOL_ID, PLAY_ALBUM_TOOL_ID, PLAY_ARTIST_TOOL_ID, PLAY_TOOL_ID,
-    PLAY_TRACK_TOOL_ID, SEARCH_AND_PLAY_TOOL_ID,
+    self, OPEN_TOOL_ID as SPOTIFY_OPEN_TOOL_ID, PAUSE_TOOL_ID, PLAY_ALBUM_TOOL_ID,
+    PLAY_ARTIST_TOOL_ID, PLAY_TOOL_ID, PLAY_TRACK_TOOL_ID, SEARCH_AND_PLAY_TOOL_ID,
 };
 use super::types::{Application, ApplicationDefinition, Tool, ToolDefinition, ToolResult};
 
@@ -26,7 +32,10 @@ use super::types::{Application, ApplicationDefinition, Tool, ToolDefinition, Too
 /// Returns a list of all applications with their tools.
 /// Applications are instantiated fresh each call.
 pub fn all_apps() -> Vec<ApplicationDefinition> {
-    let apps: Vec<Box<dyn Application>> = vec![Box::new(spotify::SpotifyApp::default())];
+    let apps: Vec<Box<dyn Application>> = vec![
+        Box::new(spotify::SpotifyApp::default()),
+        Box::new(reminders::RemindersApp::default()),
+    ];
 
     apps.into_iter()
         .map(|app| ApplicationDefinition {
@@ -75,13 +84,25 @@ pub fn tool_belongs_to_app(tool_id: &str, app_id: &str) -> bool {
 /// Returns None if the tool is not found.
 pub fn execute_tool(tool_id: &str, inputs: Value) -> Option<ToolResult> {
     match tool_id {
-        id if id == OPEN_TOOL_ID => Some(spotify::SpotifyOpen.execute(inputs)),
+        // Spotify tools
+        id if id == SPOTIFY_OPEN_TOOL_ID => Some(spotify::SpotifyOpen.execute(inputs)),
         id if id == PLAY_TOOL_ID => Some(spotify::SpotifyPlay.execute(inputs)),
         id if id == PAUSE_TOOL_ID => Some(spotify::SpotifyPause.execute(inputs)),
         id if id == SEARCH_AND_PLAY_TOOL_ID => Some(spotify::SpotifySearchAndPlay.execute(inputs)),
         id if id == PLAY_ARTIST_TOOL_ID => Some(spotify::SpotifyPlayArtist.execute(inputs)),
         id if id == PLAY_ALBUM_TOOL_ID => Some(spotify::SpotifyPlayAlbum.execute(inputs)),
         id if id == PLAY_TRACK_TOOL_ID => Some(spotify::SpotifyPlayTrack.execute(inputs)),
+        // Reminders tools
+        id if id == REMINDERS_OPEN_TOOL_ID => Some(reminders::RemindersOpen.execute(inputs)),
+        id if id == REMINDERS_ADD_TOOL_ID => Some(reminders::RemindersAdd.execute(inputs)),
+        id if id == REMINDERS_LIST_UPCOMING_TOOL_ID => {
+            Some(reminders::RemindersListUpcoming.execute(inputs))
+        }
+        id if id == REMINDERS_CANCEL_TOOL_ID => Some(reminders::RemindersCancel.execute(inputs)),
+        id if id == REMINDERS_RESCHEDULE_TOOL_ID => {
+            Some(reminders::RemindersReschedule.execute(inputs))
+        }
+        id if id == REMINDERS_COMPLETE_TOOL_ID => Some(reminders::RemindersComplete.execute(inputs)),
         _ => None,
     }
 }
@@ -98,10 +119,11 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_all_apps_returns_spotify() {
+    fn test_all_apps_returns_spotify_and_reminders() {
         let apps = all_apps();
         assert!(!apps.is_empty());
         assert!(apps.iter().any(|a| a.id == "spotify"));
+        assert!(apps.iter().any(|a| a.id == "reminders"));
     }
 
     #[test]
@@ -109,6 +131,10 @@ mod tests {
         let app = app_by_id("spotify");
         assert!(app.is_some());
         assert_eq!(app.unwrap().id, "spotify");
+
+        let app = app_by_id("reminders");
+        assert!(app.is_some());
+        assert_eq!(app.unwrap().id, "reminders");
     }
 
     #[test]
@@ -120,8 +146,12 @@ mod tests {
     #[test]
     fn test_all_tools() {
         let tools = all_tools();
+        // Spotify tools
         assert!(tools.iter().any(|t| t.id == "spotify_play"));
         assert!(tools.iter().any(|t| t.id == "spotify_pause"));
+        // Reminders tools
+        assert!(tools.iter().any(|t| t.id == "reminders_add"));
+        assert!(tools.iter().any(|t| t.id == "reminders_complete"));
     }
 
     #[test]
@@ -131,7 +161,7 @@ mod tests {
     }
 
     #[test]
-    fn test_tools_for_app() {
+    fn test_tools_for_spotify() {
         let tools = tools_for_app("spotify");
         assert!(tools.is_some());
         let tools = tools.unwrap();
@@ -139,10 +169,25 @@ mod tests {
     }
 
     #[test]
+    fn test_tools_for_reminders() {
+        let tools = tools_for_app("reminders");
+        assert!(tools.is_some());
+        let tools = tools.unwrap();
+        assert_eq!(tools.len(), 6);
+    }
+
+    #[test]
     fn test_play_track_tool_has_schema() {
         let tools = all_tools();
         let play_track = tools.iter().find(|t| t.id == "spotify_play_track").unwrap();
         assert!(play_track.schema.is_some());
+    }
+
+    #[test]
+    fn test_reminders_add_tool_has_schema() {
+        let tools = all_tools();
+        let add_tool = tools.iter().find(|t| t.id == "reminders_add").unwrap();
+        assert!(add_tool.schema.is_some());
     }
 
     #[test]
@@ -158,15 +203,30 @@ mod tests {
     }
 
     #[test]
+    fn test_all_reminders_tools_present() {
+        let tools = all_tools();
+        assert!(tools.iter().any(|t| t.id == "reminders_open"));
+        assert!(tools.iter().any(|t| t.id == "reminders_add"));
+        assert!(tools.iter().any(|t| t.id == "reminders_list_upcoming"));
+        assert!(tools.iter().any(|t| t.id == "reminders_cancel"));
+        assert!(tools.iter().any(|t| t.id == "reminders_reschedule"));
+        assert!(tools.iter().any(|t| t.id == "reminders_complete"));
+    }
+
+    #[test]
     fn test_tool_belongs_to_app() {
         assert!(tool_belongs_to_app("spotify_play", "spotify"));
         assert!(tool_belongs_to_app("spotify_pause", "spotify"));
         assert!(!tool_belongs_to_app("spotify_play", "apple_music"));
+        assert!(tool_belongs_to_app("reminders_add", "reminders"));
+        assert!(tool_belongs_to_app("reminders_complete", "reminders"));
+        assert!(!tool_belongs_to_app("reminders_add", "spotify"));
     }
 
     #[test]
     fn test_app_id_from_tool() {
         assert_eq!(app_id_from_tool("spotify_play"), Some("spotify"));
+        assert_eq!(app_id_from_tool("reminders_add"), Some("reminders"));
         assert_eq!(app_id_from_tool("unknown"), Some("unknown"));
     }
 }
