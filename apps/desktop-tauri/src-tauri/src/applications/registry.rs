@@ -15,6 +15,11 @@
 
 use serde_json::Value;
 
+use super::notes::{
+    self, ADD_TOOL_ID as NOTES_ADD_TOOL_ID, DELETE_TOOL_ID as NOTES_DELETE_TOOL_ID,
+    LIST_TOOL_ID as NOTES_LIST_TOOL_ID, OPEN_TOOL_ID as NOTES_OPEN_TOOL_ID,
+    SUMMARIZE_TOOL_ID as NOTES_SUMMARIZE_TOOL_ID,
+};
 use super::reminders::{
     self, ADD_TOOL_ID as REMINDERS_ADD_TOOL_ID, CANCEL_TOOL_ID as REMINDERS_CANCEL_TOOL_ID,
     COMPLETE_TOOL_ID as REMINDERS_COMPLETE_TOOL_ID,
@@ -35,6 +40,7 @@ pub fn all_apps() -> Vec<ApplicationDefinition> {
     let apps: Vec<Box<dyn Application>> = vec![
         Box::new(spotify::SpotifyApp::default()),
         Box::new(reminders::RemindersApp::default()),
+        Box::new(notes::NotesApp::default()),
     ];
 
     apps.into_iter()
@@ -103,6 +109,12 @@ pub fn execute_tool(tool_id: &str, inputs: Value) -> Option<ToolResult> {
             Some(reminders::RemindersReschedule.execute(inputs))
         }
         id if id == REMINDERS_COMPLETE_TOOL_ID => Some(reminders::RemindersComplete.execute(inputs)),
+        // Notes tools
+        id if id == NOTES_OPEN_TOOL_ID => Some(notes::NotesOpen.execute(inputs)),
+        id if id == NOTES_ADD_TOOL_ID => Some(notes::NotesAdd.execute(inputs)),
+        id if id == NOTES_LIST_TOOL_ID => Some(notes::NotesList.execute(inputs)),
+        id if id == NOTES_DELETE_TOOL_ID => Some(notes::NotesDelete.execute(inputs)),
+        id if id == NOTES_SUMMARIZE_TOOL_ID => Some(notes::NotesSummarize.execute(inputs)),
         _ => None,
     }
 }
@@ -119,11 +131,12 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_all_apps_returns_spotify_and_reminders() {
+    fn test_all_apps_returns_spotify_reminders_and_notes() {
         let apps = all_apps();
         assert!(!apps.is_empty());
         assert!(apps.iter().any(|a| a.id == "spotify"));
         assert!(apps.iter().any(|a| a.id == "reminders"));
+        assert!(apps.iter().any(|a| a.id == "notes"));
     }
 
     #[test]
@@ -135,6 +148,10 @@ mod tests {
         let app = app_by_id("reminders");
         assert!(app.is_some());
         assert_eq!(app.unwrap().id, "reminders");
+
+        let app = app_by_id("notes");
+        assert!(app.is_some());
+        assert_eq!(app.unwrap().id, "notes");
     }
 
     #[test]
@@ -152,6 +169,9 @@ mod tests {
         // Reminders tools
         assert!(tools.iter().any(|t| t.id == "reminders_add"));
         assert!(tools.iter().any(|t| t.id == "reminders_complete"));
+        // Notes tools
+        assert!(tools.iter().any(|t| t.id == "notes_add"));
+        assert!(tools.iter().any(|t| t.id == "notes_list"));
     }
 
     #[test]
@@ -211,6 +231,31 @@ mod tests {
         assert!(tools.iter().any(|t| t.id == "reminders_cancel"));
         assert!(tools.iter().any(|t| t.id == "reminders_reschedule"));
         assert!(tools.iter().any(|t| t.id == "reminders_complete"));
+    }
+
+    #[test]
+    fn test_all_notes_tools_present() {
+        let tools = all_tools();
+        assert!(tools.iter().any(|t| t.id == "notes_open"));
+        assert!(tools.iter().any(|t| t.id == "notes_add"));
+        assert!(tools.iter().any(|t| t.id == "notes_list"));
+        assert!(tools.iter().any(|t| t.id == "notes_delete"));
+        assert!(tools.iter().any(|t| t.id == "notes_summarize"));
+    }
+
+    #[test]
+    fn test_tools_for_notes() {
+        let tools = tools_for_app("notes");
+        assert!(tools.is_some());
+        let tools = tools.unwrap();
+        assert_eq!(tools.len(), 5);
+    }
+
+    #[test]
+    fn test_notes_add_tool_has_schema() {
+        let tools = all_tools();
+        let add_tool = tools.iter().find(|t| t.id == "notes_add").unwrap();
+        assert!(add_tool.schema.is_some());
     }
 
     #[test]

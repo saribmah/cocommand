@@ -5,6 +5,7 @@
 //! - `registry`: Application and tool registration/execution
 //! - `spotify`: Spotify application integration
 //! - `reminders`: Apple Reminders application integration
+//! - `notes`: Apple Notes application integration
 //!
 //! # Architecture
 //!
@@ -12,6 +13,7 @@
 //! the application is opened via `window.open`. Each application implements
 //! the `Application` trait and provides a list of `Tool` implementations.
 
+pub mod notes;
 pub mod registry;
 pub mod reminders;
 pub mod spotify;
