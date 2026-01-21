@@ -17,6 +17,7 @@
 //!
 //! The RemindersApp is registered in the applications registry and provides
 //! tools: `reminders_open`, `reminders_add`, `reminders_list_upcoming`,
+//! `reminders_cancel`, `reminders_reschedule`, and `reminders_complete`.
 //! These are mounted when the Reminders app is opened via `window.open`.
 
 pub mod add;
