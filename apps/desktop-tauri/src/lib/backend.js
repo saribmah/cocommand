@@ -16,6 +16,36 @@ const BASE_URL = "http://127.0.0.1:4840";
  */
 
 /**
+ * Normalize snapshot fields from camelCase (Rust serde) to snake_case (UI).
+ * @param {Object} snapshot - Raw snapshot from API
+ * @returns {WorkspaceSnapshot|null}
+ */
+function normalizeSnapshot(snapshot) {
+  if (!snapshot) return null;
+  return {
+    focused_app: snapshot.focusedApp ?? snapshot.focused_app ?? null,
+    open_apps: snapshot.openApps ?? snapshot.open_apps ?? [],
+    staleness: snapshot.staleness ?? "fresh",
+  };
+}
+
+/**
+ * Normalize a response that may contain a snapshot field.
+ * @template T
+ * @param {T} response - API response object
+ * @returns {T}
+ */
+function normalizeResponse(response) {
+  if (response && response.snapshot) {
+    return {
+      ...response,
+      snapshot: normalizeSnapshot(response.snapshot),
+    };
+  }
+  return response;
+}
+
+/**
  * @typedef {Object} WindowResponse
  * @property {string} status
  * @property {WorkspaceSnapshot|null} snapshot
@@ -74,7 +104,8 @@ export async function getHealth() {
  */
 export async function getSnapshot() {
   const response = await fetch(`${BASE_URL}/window/snapshot`);
-  return response.json();
+  const data = await response.json();
+  return normalizeResponse(data);
 }
 
 /**
@@ -106,7 +137,8 @@ export async function openApp(appId) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ appId }),
   });
-  return response.json();
+  const data = await response.json();
+  return normalizeResponse(data);
 }
 
 /**
@@ -120,7 +152,8 @@ export async function closeApp(appId) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ appId }),
   });
-  return response.json();
+  const data = await response.json();
+  return normalizeResponse(data);
 }
 
 /**
@@ -134,7 +167,8 @@ export async function focusApp(appId) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ appId }),
   });
-  return response.json();
+  const data = await response.json();
+  return normalizeResponse(data);
 }
 
 /**
@@ -176,7 +210,8 @@ export async function restoreWorkspace() {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({}),
   });
-  return response.json();
+  const data = await response.json();
+  return normalizeResponse(data);
 }
 
 // ============================================================================

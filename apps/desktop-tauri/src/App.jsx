@@ -157,9 +157,12 @@ function App() {
     setLoadingApps((prev) => ({ ...prev, [appId]: true }));
     try {
       const res = await backend.openApp(appId);
-      if (res.status === "ok" && res.snapshot) {
-        setSnapshot(res.snapshot);
+      if (res.status === "ok") {
+        if (res.snapshot) {
+          setSnapshot(res.snapshot);
+        }
         setIsArchived(res.archived || false);
+        // Always refresh workspace on success to ensure UI is in sync
         await refreshWorkspace();
       } else if (res.archived) {
         setIsArchived(true);
@@ -198,6 +201,7 @@ function App() {
       const res = await backend.focusApp(appId);
       if (res.status === "ok" && res.snapshot) {
         setSnapshot(res.snapshot);
+        await refreshWorkspace();
       } else {
         setResult(res.message || "Failed to focus app.");
       }
@@ -354,6 +358,13 @@ function App() {
     return snapshot?.focused_app === appId;
   };
 
+  // Get display name for an app ID (uses app name if available, falls back to ID)
+  const getAppDisplayName = (appId) => {
+    if (!appId) return "None";
+    const app = apps.find((a) => a.id === appId);
+    return app?.name || appId;
+  };
+
   return (
     <main className="container">
       {/* Command input */}
@@ -364,7 +375,6 @@ function App() {
           submitCommand();
         }}
       >
-        <div className="command-badge">coco</div>
         <input
           id="command-input"
           ref={inputRef}
@@ -381,8 +391,15 @@ function App() {
           }}
           placeholder="Ask coco to do something..."
         />
-        <button type="submit">Run</button>
+        <button type="submit" className="btn-run">Run</button>
       </form>
+
+      {/* Backend status banner - always visible */}
+      {backendStatus !== "checking" && backendStatus !== "ok" && (
+        <div className="backend-status-banner disconnected">
+          Backend not reachable. Ensure the server is running.
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="tabs">
@@ -429,7 +446,7 @@ function App() {
                 <div className="snapshot-row">
                   <span className="snapshot-label">Focused App</span>
                   <span className="snapshot-value">
-                    {snapshot.focused_app || "None"}
+                    {getAppDisplayName(snapshot.focused_app)}
                   </span>
                 </div>
                 <div className="snapshot-row">
@@ -463,6 +480,17 @@ function App() {
         {/* Apps tab */}
         {activeTab === "apps" && (
           <div className="apps-panel">
+            {/* Apps summary header */}
+            <div className="apps-summary">
+              <div className="apps-summary-item">
+                <span className="apps-summary-label">Open Apps</span>
+                <span className="apps-summary-value">{snapshot?.open_apps?.length ?? 0}</span>
+              </div>
+              <div className="apps-summary-item">
+                <span className="apps-summary-label">Focused App</span>
+                <span className="apps-summary-value">{getAppDisplayName(snapshot?.focused_app)}</span>
+              </div>
+            </div>
             {apps.length === 0 ? (
               <div className="panel-empty">No apps available</div>
             ) : (
@@ -579,6 +607,19 @@ function App() {
         {/* Settings tab */}
         {activeTab === "settings" && (
           <div className="settings-panel">
+            {/* Backend connection status */}
+            {backendStatus !== "checking" && (
+              <div
+                className={`settings-backend-status ${
+                  backendStatus === "ok" ? "connected" : "disconnected"
+                }`}
+              >
+                {backendStatus === "ok"
+                  ? "Backend connected"
+                  : "Backend not reachable. Ensure the server is running."}
+              </div>
+            )}
+
             {!llmSettings ? (
               <div className="panel-empty">Loading settings...</div>
             ) : (
@@ -722,21 +763,6 @@ function App() {
         <div className="result">
           <span>Result</span>
           <p>{result}</p>
-        </div>
-      )}
-
-      {/* Backend status */}
-      {backendStatus !== "checking" && (
-        <div
-          className={
-            backendStatus === "ok"
-              ? "backend-banner backend-banner-ok"
-              : "backend-banner backend-banner-error"
-          }
-        >
-          {backendStatus === "ok"
-            ? "Backend connected"
-            : "Backend not reachable. Ensure the server is running."}
         </div>
       )}
     </main>

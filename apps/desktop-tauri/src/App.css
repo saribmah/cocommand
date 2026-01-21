@@ -46,9 +46,7 @@ body {
    ============================================================================ */
 
 .command {
-  display: grid;
-  grid-template-columns: auto 1fr auto;
-  gap: 12px;
+  display: flex;
   width: 100%;
   padding: 12px 14px;
   border-radius: 18px;
@@ -56,6 +54,31 @@ body {
   border: 1px solid rgba(167, 182, 189, 0.7);
   box-shadow: 0 18px 40px rgba(25, 29, 36, 0.18);
   backdrop-filter: blur(18px);
+}
+
+.command input {
+  flex: 1;
+}
+
+.btn-run {
+  padding: 8px 16px;
+  border-radius: 10px;
+  border: 1px solid #1b6d6a;
+  background: #1b6d6a;
+  color: white;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-left: 8px;
+}
+
+.btn-run:hover {
+  background: #155855;
+}
+
+.btn-run:active {
+  transform: scale(0.98);
 }
 
 input,
@@ -74,17 +97,6 @@ input {
   color: #1b1b1b;
 }
 
-.command-badge {
-  font-family: "Space Mono", ui-monospace, monospace;
-  text-transform: uppercase;
-  font-size: 11px;
-  letter-spacing: 0.16em;
-  padding: 10px 12px;
-  border-radius: 12px;
-  border: 1px solid rgba(27, 27, 27, 0.2);
-  color: #1b1b1b;
-  background: rgba(255, 255, 255, 0.8);
-}
 
 input::placeholder {
   color: #7a7a7a;
@@ -96,18 +108,6 @@ input:focus {
   box-shadow: 0 0 0 3px rgba(27, 109, 106, 0.15);
 }
 
-.command button {
-  cursor: pointer;
-  background: #1b6d6a;
-  color: #f7f7f2;
-  border-color: #1b6d6a;
-  font-weight: 600;
-}
-
-.command button:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 8px 16px rgba(27, 109, 106, 0.2);
-}
 
 /* ============================================================================
    Tabs
@@ -309,6 +309,39 @@ input:focus {
 
 .apps-panel {
   padding: 8px;
+}
+
+.apps-summary {
+  display: flex;
+  gap: 12px;
+  padding: 10px 12px;
+  margin-bottom: 8px;
+  border-radius: 10px;
+  background: #f6f8f9;
+  border: 1px solid #e2ecef;
+}
+
+.apps-summary-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.apps-summary-label {
+  font-family: "Space Mono", ui-monospace, monospace;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #516064;
+}
+
+.apps-summary-value {
+  font-size: 12px;
+  font-weight: 600;
+  color: #1b1b1b;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: #e9f6f5;
 }
 
 .app-row {
@@ -689,6 +722,20 @@ input:focus {
   color: #b24b3a;
 }
 
+.backend-status-banner {
+  width: 100%;
+  padding: 10px 14px;
+  border-radius: 12px;
+  font-size: 12px;
+  text-align: center;
+}
+
+.backend-status-banner.disconnected {
+  border: 1px solid #f0c7be;
+  background: #fff3ef;
+  color: #b24b3a;
+}
+
 /* ============================================================================
    History (legacy, kept for reference)
    ============================================================================ */
@@ -795,6 +842,26 @@ input:focus {
   padding: 12px;
   height: 100%;
   overflow-y: auto;
+}
+
+.settings-backend-status {
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: 12px;
+  text-align: center;
+  margin-bottom: 12px;
+}
+
+.settings-backend-status.connected {
+  border: 1px solid #b9dcd8;
+  background: #e9f6f5;
+  color: #1b6d6a;
+}
+
+.settings-backend-status.disconnected {
+  border: 1px solid #f0c7be;
+  background: #fff3ef;
+  color: #b24b3a;
 }
 
 .settings-content {
@@ -967,14 +1034,6 @@ input:focus {
 @media (max-width: 640px) {
   .container {
     padding-top: 24px;
-  }
-
-  .command {
-    grid-template-columns: 1fr;
-  }
-
-  button {
-    width: 100%;
   }
 
   .tools-content {
