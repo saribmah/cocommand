@@ -6,6 +6,7 @@
 //! - `spotify`: Spotify application integration
 //! - `reminders`: Apple Reminders application integration
 //! - `notes`: Apple Notes application integration
+//! - `calendar`: Apple Calendar application integration
 //!
 //! # Architecture
 //!
@@ -13,6 +14,7 @@
 //! the application is opened via `window.open`. Each application implements
 //! the `Application` trait and provides a list of `Tool` implementations.
 
+pub mod calendar;
 pub mod notes;
 pub mod registry;
 pub mod reminders;

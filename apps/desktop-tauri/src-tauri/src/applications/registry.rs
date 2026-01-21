@@ -15,6 +15,11 @@
 
 use serde_json::Value;
 
+use super::calendar::{
+    self, ADD_TOOL_ID as CALENDAR_ADD_TOOL_ID, CANCEL_TOOL_ID as CALENDAR_CANCEL_TOOL_ID,
+    LIST_UPCOMING_TOOL_ID as CALENDAR_LIST_UPCOMING_TOOL_ID, OPEN_TOOL_ID as CALENDAR_OPEN_TOOL_ID,
+    RESCHEDULE_TOOL_ID as CALENDAR_RESCHEDULE_TOOL_ID,
+};
 use super::notes::{
     self, ADD_TOOL_ID as NOTES_ADD_TOOL_ID, DELETE_TOOL_ID as NOTES_DELETE_TOOL_ID,
     LIST_TOOL_ID as NOTES_LIST_TOOL_ID, OPEN_TOOL_ID as NOTES_OPEN_TOOL_ID,
@@ -41,6 +46,7 @@ pub fn all_apps() -> Vec<ApplicationDefinition> {
         Box::new(spotify::SpotifyApp::default()),
         Box::new(reminders::RemindersApp::default()),
         Box::new(notes::NotesApp::default()),
+        Box::new(calendar::CalendarApp::default()),
     ];
 
     apps.into_iter()
@@ -115,6 +121,16 @@ pub fn execute_tool(tool_id: &str, inputs: Value) -> Option<ToolResult> {
         id if id == NOTES_LIST_TOOL_ID => Some(notes::NotesList.execute(inputs)),
         id if id == NOTES_DELETE_TOOL_ID => Some(notes::NotesDelete.execute(inputs)),
         id if id == NOTES_SUMMARIZE_TOOL_ID => Some(notes::NotesSummarize.execute(inputs)),
+        // Calendar tools
+        id if id == CALENDAR_OPEN_TOOL_ID => Some(calendar::CalendarOpen.execute(inputs)),
+        id if id == CALENDAR_ADD_TOOL_ID => Some(calendar::CalendarAdd.execute(inputs)),
+        id if id == CALENDAR_LIST_UPCOMING_TOOL_ID => {
+            Some(calendar::CalendarListUpcoming.execute(inputs))
+        }
+        id if id == CALENDAR_CANCEL_TOOL_ID => Some(calendar::CalendarCancel.execute(inputs)),
+        id if id == CALENDAR_RESCHEDULE_TOOL_ID => {
+            Some(calendar::CalendarReschedule.execute(inputs))
+        }
         _ => None,
     }
 }
@@ -131,12 +147,13 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_all_apps_returns_spotify_reminders_and_notes() {
+    fn test_all_apps_returns_spotify_reminders_notes_and_calendar() {
         let apps = all_apps();
         assert!(!apps.is_empty());
         assert!(apps.iter().any(|a| a.id == "spotify"));
         assert!(apps.iter().any(|a| a.id == "reminders"));
         assert!(apps.iter().any(|a| a.id == "notes"));
+        assert!(apps.iter().any(|a| a.id == "calendar"));
     }
 
     #[test]
@@ -152,6 +169,10 @@ mod tests {
         let app = app_by_id("notes");
         assert!(app.is_some());
         assert_eq!(app.unwrap().id, "notes");
+
+        let app = app_by_id("calendar");
+        assert!(app.is_some());
+        assert_eq!(app.unwrap().id, "calendar");
     }
 
     #[test]
@@ -172,6 +193,9 @@ mod tests {
         // Notes tools
         assert!(tools.iter().any(|t| t.id == "notes_add"));
         assert!(tools.iter().any(|t| t.id == "notes_list"));
+        // Calendar tools
+        assert!(tools.iter().any(|t| t.id == "calendar_add"));
+        assert!(tools.iter().any(|t| t.id == "calendar_list_upcoming"));
     }
 
     #[test]
@@ -244,8 +268,26 @@ mod tests {
     }
 
     #[test]
+    fn test_all_calendar_tools_present() {
+        let tools = all_tools();
+        assert!(tools.iter().any(|t| t.id == "calendar_open"));
+        assert!(tools.iter().any(|t| t.id == "calendar_add"));
+        assert!(tools.iter().any(|t| t.id == "calendar_list_upcoming"));
+        assert!(tools.iter().any(|t| t.id == "calendar_cancel"));
+        assert!(tools.iter().any(|t| t.id == "calendar_reschedule"));
+    }
+
+    #[test]
     fn test_tools_for_notes() {
         let tools = tools_for_app("notes");
+        assert!(tools.is_some());
+        let tools = tools.unwrap();
+        assert_eq!(tools.len(), 5);
+    }
+
+    #[test]
+    fn test_tools_for_calendar() {
+        let tools = tools_for_app("calendar");
         assert!(tools.is_some());
         let tools = tools.unwrap();
         assert_eq!(tools.len(), 5);
@@ -259,6 +301,13 @@ mod tests {
     }
 
     #[test]
+    fn test_calendar_add_tool_has_schema() {
+        let tools = all_tools();
+        let add_tool = tools.iter().find(|t| t.id == "calendar_add").unwrap();
+        assert!(add_tool.schema.is_some());
+    }
+
+    #[test]
     fn test_tool_belongs_to_app() {
         assert!(tool_belongs_to_app("spotify_play", "spotify"));
         assert!(tool_belongs_to_app("spotify_pause", "spotify"));
@@ -266,12 +315,16 @@ mod tests {
         assert!(tool_belongs_to_app("reminders_add", "reminders"));
         assert!(tool_belongs_to_app("reminders_complete", "reminders"));
         assert!(!tool_belongs_to_app("reminders_add", "spotify"));
+        assert!(tool_belongs_to_app("calendar_add", "calendar"));
+        assert!(tool_belongs_to_app("calendar_reschedule", "calendar"));
+        assert!(!tool_belongs_to_app("calendar_add", "reminders"));
     }
 
     #[test]
     fn test_app_id_from_tool() {
         assert_eq!(app_id_from_tool("spotify_play"), Some("spotify"));
         assert_eq!(app_id_from_tool("reminders_add"), Some("reminders"));
+        assert_eq!(app_id_from_tool("calendar_add"), Some("calendar"));
         assert_eq!(app_id_from_tool("unknown"), Some("unknown"));
     }
 }
