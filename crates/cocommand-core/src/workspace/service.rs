@@ -144,7 +144,7 @@ impl WorkspaceService {
     ///
     /// Returns a snapshot with "dormant" staleness level (discrete value)
     /// and includes metadata about restorable apps in the summary.
-    pub fn soft_reset_snapshot(&self, state: &WorkspaceState) -> WorkspaceSnapshot {
+    pub fn soft_reset_snapshot(&self, _state: &WorkspaceState) -> WorkspaceSnapshot {
         WorkspaceSnapshot {
             focused_app: None,
             open_apps: vec![],

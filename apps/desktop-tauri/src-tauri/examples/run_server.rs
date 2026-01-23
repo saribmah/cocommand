@@ -2,7 +2,7 @@
 //!
 //! Usage: cargo run --example run_server
 
-use tauri_app_lib::server;
+use cocommand_core::server;
 
 #[tokio::main]
 async fn main() {
