@@ -23,6 +23,7 @@ tauri-plugin-opener = "2"
 tauri-plugin-global-shortcut = "2"
 cocommand = { path = "../../../crates/cocommand" }
 cocommand-platform-macos = { path = "../../../crates/platform-macos" }
+serde = { version = "1", features = ["derive"] }
 dotenvy = "0.15"
 
 [dev-dependencies]
