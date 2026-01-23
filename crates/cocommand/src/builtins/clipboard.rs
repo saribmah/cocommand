@@ -1,7 +1,10 @@
 //! Clipboard built-in app: list and latest tools.
 
+use std::sync::Arc;
+
 use serde_json::json;
 
+use crate::platform::ClipboardProvider;
 use crate::routing::RoutingMetadata;
 use crate::tools::schema::{RiskLevel, ToolDefinition};
 use crate::tools::registry::ToolRegistry;
@@ -10,13 +13,10 @@ use crate::routing::Router;
 /// App identifier.
 pub const APP_ID: &str = "clipboard";
 
-/// Key used in ApplicationInstance.context to store clipboard history.
-const HISTORY_KEY: &str = "history";
-
 /// Register clipboard tools and routing metadata.
-pub fn register(registry: &mut ToolRegistry, router: &mut Router) {
-    registry.register_kernel_tool(list_tool());
-    registry.register_kernel_tool(latest_tool());
+pub fn register(registry: &mut ToolRegistry, router: &mut Router, provider: Arc<dyn ClipboardProvider>) {
+    registry.register_kernel_tool(list_tool(Arc::clone(&provider)));
+    registry.register_kernel_tool(latest_tool(provider));
     router.register(routing_metadata());
 }
 
@@ -51,7 +51,7 @@ fn routing_metadata() -> RoutingMetadata {
 }
 
 /// Tool definition for `clipboard.list`.
-fn list_tool() -> ToolDefinition {
+fn list_tool(provider: Arc<dyn ClipboardProvider>) -> ToolDefinition {
     ToolDefinition {
         tool_id: "clipboard.list".to_string(),
         input_schema: json!({
@@ -69,13 +69,13 @@ fn list_tool() -> ToolDefinition {
         }),
         risk_level: RiskLevel::Safe,
         is_kernel: false,
-        handler: Box::new(|args, ctx| {
+        handler: Box::new(move |args, _ctx| {
             let limit = args
                 .get("limit")
                 .and_then(|v| v.as_u64())
                 .unwrap_or(50) as usize;
 
-            let entries = get_history(ctx.workspace, APP_ID);
+            let entries = provider.get_history();
             let limited: Vec<_> = entries.iter().rev().take(limit).cloned().collect();
             let count = limited.len();
 
@@ -88,7 +88,7 @@ fn list_tool() -> ToolDefinition {
 }
 
 /// Tool definition for `clipboard.latest`.
-fn latest_tool() -> ToolDefinition {
+fn latest_tool(provider: Arc<dyn ClipboardProvider>) -> ToolDefinition {
     ToolDefinition {
         tool_id: "clipboard.latest".to_string(),
         input_schema: json!({
@@ -103,9 +103,8 @@ fn latest_tool() -> ToolDefinition {
         }),
         risk_level: RiskLevel::Safe,
         is_kernel: false,
-        handler: Box::new(|_args, ctx| {
-            let entries = get_history(ctx.workspace, APP_ID);
-            match entries.last() {
+        handler: Box::new(move |_args, _ctx| {
+            match provider.get_latest() {
                 Some(entry) => Ok(json!({
                     "entry": entry,
                     "found": true
@@ -119,43 +118,18 @@ fn latest_tool() -> ToolDefinition {
     }
 }
 
-/// Read clipboard history from workspace context.
-fn get_history(workspace: &crate::workspace::Workspace, instance_id: &str) -> Vec<serde_json::Value> {
-    workspace
-        .instances
-        .get(instance_id)
-        .and_then(|inst| inst.context.get(HISTORY_KEY))
-        .and_then(|v| v.as_array())
-        .cloned()
-        .unwrap_or_default()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::collections::HashMap;
     use crate::events::EventStore;
+    use crate::platform::MockClipboardProvider;
     use crate::tools::schema::ExecutionContext;
-    use crate::workspace::{ApplicationInstance, ApplicationStatus, Workspace};
-
-    fn setup_workspace_with_history(entries: Vec<serde_json::Value>) -> Workspace {
-        let mut ws = Workspace::new("test".to_string());
-        let mut context = HashMap::new();
-        context.insert(HISTORY_KEY.to_string(), json!(entries));
-        let instance = ApplicationInstance {
-            instance_id: APP_ID.to_string(),
-            app_id: APP_ID.to_string(),
-            status: ApplicationStatus::Active,
-            context,
-            mounted_tools: vec!["clipboard.list".into(), "clipboard.latest".into()],
-        };
-        ws.instances.insert(APP_ID.to_string(), instance);
-        ws
-    }
+    use crate::workspace::Workspace;
 
     #[test]
     fn list_returns_empty_when_no_history() {
-        let tool = list_tool();
+        let provider = Arc::new(MockClipboardProvider::new(vec![]));
+        let tool = list_tool(provider);
         let mut ws = Workspace::new("test".to_string());
         let mut es = EventStore::new();
         let mut ctx = ExecutionContext {
@@ -169,12 +143,13 @@ mod tests {
 
     #[test]
     fn list_returns_entries_in_reverse_order() {
-        let tool = list_tool();
-        let mut ws = setup_workspace_with_history(vec![
+        let provider = Arc::new(MockClipboardProvider::new(vec![
             json!({"text": "first"}),
             json!({"text": "second"}),
             json!({"text": "third"}),
-        ]);
+        ]));
+        let tool = list_tool(provider);
+        let mut ws = Workspace::new("test".to_string());
         let mut es = EventStore::new();
         let mut ctx = ExecutionContext {
             workspace: &mut ws,
@@ -189,12 +164,13 @@ mod tests {
 
     #[test]
     fn list_respects_limit() {
-        let tool = list_tool();
-        let mut ws = setup_workspace_with_history(vec![
+        let provider = Arc::new(MockClipboardProvider::new(vec![
             json!({"text": "a"}),
             json!({"text": "b"}),
             json!({"text": "c"}),
-        ]);
+        ]));
+        let tool = list_tool(provider);
+        let mut ws = Workspace::new("test".to_string());
         let mut es = EventStore::new();
         let mut ctx = ExecutionContext {
             workspace: &mut ws,
@@ -206,11 +182,12 @@ mod tests {
 
     #[test]
     fn latest_returns_most_recent_entry() {
-        let tool = latest_tool();
-        let mut ws = setup_workspace_with_history(vec![
+        let provider = Arc::new(MockClipboardProvider::new(vec![
             json!({"text": "old"}),
             json!({"text": "newest"}),
-        ]);
+        ]));
+        let tool = latest_tool(provider);
+        let mut ws = Workspace::new("test".to_string());
         let mut es = EventStore::new();
         let mut ctx = ExecutionContext {
             workspace: &mut ws,
@@ -223,7 +200,8 @@ mod tests {
 
     #[test]
     fn latest_returns_not_found_when_empty() {
-        let tool = latest_tool();
+        let provider = Arc::new(MockClipboardProvider::new(vec![]));
+        let tool = latest_tool(provider);
         let mut ws = Workspace::new("test".to_string());
         let mut es = EventStore::new();
         let mut ctx = ExecutionContext {

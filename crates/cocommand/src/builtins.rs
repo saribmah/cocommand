@@ -7,15 +7,28 @@ pub mod calculator;
 pub mod clipboard;
 pub mod notes;
 
+use std::sync::Arc;
+
+use crate::platform::{ClipboardProvider, NullClipboardProvider};
 use crate::routing::Router;
 use crate::tools::registry::ToolRegistry;
 
 /// Register all built-in app tools and routing metadata.
 ///
 /// Call this during core startup to make built-in apps available for
-/// routing and execution.
+/// routing and execution. Uses [`NullClipboardProvider`] by default;
+/// call [`register_builtins_with`] to supply a real provider.
 pub fn register_builtins(registry: &mut ToolRegistry, router: &mut Router) {
-    clipboard::register(registry, router);
+    register_builtins_with(registry, router, Arc::new(NullClipboardProvider));
+}
+
+/// Register all built-in apps with an explicit clipboard provider.
+pub fn register_builtins_with(
+    registry: &mut ToolRegistry,
+    router: &mut Router,
+    clipboard_provider: Arc<dyn ClipboardProvider>,
+) {
+    clipboard::register(registry, router, clipboard_provider);
     notes::register(registry, router);
     calculator::register(registry, router);
 }
@@ -26,15 +39,22 @@ mod tests {
     use crate::command::ParsedCommand;
     use crate::events::EventStore;
     use crate::permissions::PermissionStore;
+    use crate::platform::MockClipboardProvider;
     use crate::tools::executor::{execute_tool, ToolExecutionOutcome};
     use crate::workspace::Workspace;
     use serde_json::json;
     use uuid::Uuid;
 
     fn setup() -> (ToolRegistry, Router, Workspace, EventStore, PermissionStore) {
+        setup_with_clipboard(Arc::new(MockClipboardProvider::new(vec![])))
+    }
+
+    fn setup_with_clipboard(
+        provider: Arc<dyn ClipboardProvider>,
+    ) -> (ToolRegistry, Router, Workspace, EventStore, PermissionStore) {
         let mut registry = ToolRegistry::new();
         let mut router = Router::new();
-        register_builtins(&mut registry, &mut router);
+        register_builtins_with(&mut registry, &mut router, provider);
         let workspace = Workspace::new("test-session".to_string());
         let event_store = EventStore::new();
         let permission_store = PermissionStore::new();
@@ -202,22 +222,12 @@ mod tests {
 
     #[test]
     fn clipboard_latest_end_to_end() {
-        let (registry, _router, mut workspace, mut event_store, permission_store) = setup();
-
-        // Seed clipboard history (keyed by APP_ID)
-        let mut context = std::collections::HashMap::new();
-        context.insert("history".to_string(), json!([
-            {"text": "old copy"},
-            {"text": "latest copy"}
+        let provider = Arc::new(MockClipboardProvider::new(vec![
+            json!({"text": "old copy"}),
+            json!({"text": "latest copy"}),
         ]));
-        let instance = crate::workspace::ApplicationInstance {
-            instance_id: clipboard::APP_ID.to_string(),
-            app_id: clipboard::APP_ID.to_string(),
-            status: crate::workspace::ApplicationStatus::Active,
-            context,
-            mounted_tools: vec![],
-        };
-        workspace.instances.insert(clipboard::APP_ID.to_string(), instance);
+        let (registry, _router, mut workspace, mut event_store, permission_store) =
+            setup_with_clipboard(provider);
 
         let result = execute_tool(
             &registry,

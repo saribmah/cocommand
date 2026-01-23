@@ -3,6 +3,7 @@ pub mod server;
 pub mod error;
 pub mod types;
 pub mod core;
+pub mod platform;
 
 pub mod command;
 pub mod routing;
