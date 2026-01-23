@@ -6,5 +6,9 @@
   "workspaces": [
     "apps/*"
   ],
-  "scripts": {}
+  "scripts": {
+    "docs:dev": "bun --cwd apps/docs run dev",
+    "docs:build": "bun --cwd apps/docs run build",
+    "docs:preview": "bun --cwd apps/docs run preview"
+  }
 }
