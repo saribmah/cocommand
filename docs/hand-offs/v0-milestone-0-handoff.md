@@ -130,8 +130,8 @@ If a required change would affect files outside this list, stop and report.
 
 ## Test Checklist
 
-- [ ] `cargo check -p cocommand`
-- [ ] `cargo test -p cocommand`
+- [ ] `cargo check --manifest-path crates/cocommand/Cargo.toml`
+- [ ] `cargo test --manifest-path crates/cocommand/Cargo.toml`
 
 ---
 

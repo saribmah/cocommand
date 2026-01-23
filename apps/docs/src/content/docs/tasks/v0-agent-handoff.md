@@ -149,8 +149,8 @@ All of the following must be true:
 
 You must run and pass:
 
-* [ ] `cargo check -p cocommand`
-* [ ] `cargo test -p cocommand`
+* [ ] `cargo check --manifest-path crates/cocommand/Cargo.toml`
+* [ ] `cargo test --manifest-path crates/cocommand/Cargo.toml`
 * [ ] `[ADDITIONAL_TESTS_IF_ANY]`
 
 If tests are missing, you must add them.
