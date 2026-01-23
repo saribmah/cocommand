@@ -1,30 +1,11 @@
 use serde::Serialize;
 use tauri::State;
 
-use cocommand::{ConfirmationDecision, CoreResponse};
+use cocommand::CoreResponse;
 
 use crate::state::AppState;
 
-// --- Serializable DTOs (Core types lack Serialize) ---
-
-#[derive(Serialize)]
-pub struct RoutedCandidateDto {
-    pub app_id: String,
-    pub score: f64,
-    pub explanation: String,
-}
-
-#[derive(Serialize)]
-#[serde(tag = "type")]
-pub enum CoreResponseDto {
-    Routed {
-        candidates: Vec<RoutedCandidateDto>,
-        follow_up_active: bool,
-    },
-    ClarificationNeeded {
-        message: String,
-    },
-}
+// --- Serializable DTOs ---
 
 #[derive(Serialize)]
 pub struct ActionSummaryDto {
@@ -40,61 +21,29 @@ pub struct WorkspaceSnapshotDto {
     pub follow_up_active: bool,
 }
 
-// --- Conversion helpers ---
-
-fn core_response_to_dto(resp: CoreResponse) -> CoreResponseDto {
-    match resp {
-        CoreResponse::Routed {
-            candidates,
-            follow_up_active,
-        } => CoreResponseDto::Routed {
-            candidates: candidates
-                .into_iter()
-                .map(|c| RoutedCandidateDto {
-                    app_id: c.app_id,
-                    score: c.score,
-                    explanation: c.explanation,
-                })
-                .collect(),
-            follow_up_active,
-        },
-        CoreResponse::ClarificationNeeded { message } => {
-            CoreResponseDto::ClarificationNeeded { message }
-        }
-    }
-}
-
 // --- Tauri invoke handlers ---
 
 #[tauri::command]
-pub fn submit_command(text: String, state: State<'_, AppState>) -> Result<CoreResponseDto, String> {
+pub fn submit_command(text: String, state: State<'_, AppState>) -> Result<CoreResponse, String> {
     let mut core = state
         .core
         .lock()
         .map_err(|e| format!("lock poisoned: {e}"))?;
-    let response = core.submit_command(&text).map_err(|e| e.to_string())?;
-    Ok(core_response_to_dto(response))
+    core.submit_command(&text).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub fn confirm_action(
     confirmation_id: String,
-    decision: String,
+    decision: bool,
     state: State<'_, AppState>,
-) -> Result<CoreResponseDto, String> {
-    let decision = match decision.as_str() {
-        "approve" => ConfirmationDecision::Approve,
-        "deny" => ConfirmationDecision::Deny,
-        _ => return Err("decision must be \"approve\" or \"deny\"".into()),
-    };
-    let core = state
+) -> Result<CoreResponse, String> {
+    let mut core = state
         .core
         .lock()
         .map_err(|e| format!("lock poisoned: {e}"))?;
-    let response = core
-        .confirm_action(&confirmation_id, decision)
-        .map_err(|e| e.to_string())?;
-    Ok(core_response_to_dto(response))
+    core.confirm_action(&confirmation_id, decision)
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
