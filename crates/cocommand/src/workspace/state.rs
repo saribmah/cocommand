@@ -91,6 +91,12 @@ impl Workspace {
     pub fn new_instance_id() -> InstanceId {
         Uuid::new_v4().to_string()
     }
+
+    /// Clear the pending confirmation and reset workspace mode to Idle.
+    pub fn clear_confirmation(&mut self) {
+        self.confirmation_pending = None;
+        self.mode = WorkspaceMode::Idle;
+    }
 }
 
 #[cfg(test)]
@@ -108,6 +114,23 @@ mod tests {
         assert!(ws.confirmation_pending.is_none());
         assert!(ws.created_at > 0);
         assert_eq!(ws.created_at, ws.last_modified);
+    }
+
+    #[test]
+    fn clear_confirmation_resets_state() {
+        let mut ws = Workspace::new("test-session".to_string());
+        ws.mode = WorkspaceMode::AwaitingConfirmation;
+        ws.confirmation_pending = Some(ConfirmationPending {
+            confirmation_id: "confirm-12345678-tool".to_string(),
+            tool_id: "test_tool".to_string(),
+            args: serde_json::json!({}),
+            requested_at: 1000,
+        });
+
+        ws.clear_confirmation();
+
+        assert_eq!(ws.mode, WorkspaceMode::Idle);
+        assert!(ws.confirmation_pending.is_none());
     }
 
     #[test]

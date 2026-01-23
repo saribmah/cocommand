@@ -8,4 +8,4 @@ pub mod executor;
 pub use invocation::{InvocationStatus, ToolInvocationRecord};
 pub use schema::{ExecutionContext, RiskLevel, ToolDefinition, ToolHandler, validate_schema};
 pub use registry::ToolRegistry;
-pub use executor::{execute_tool, ExecutionResult};
+pub use executor::{execute_tool, ExecutionResult, ToolExecutionOutcome};
