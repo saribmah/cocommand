@@ -11,6 +11,7 @@ export function CommandBar() {
     isSubmitting,
     results,
     pendingConfirmation,
+    followUpActive,
     setInput,
     submit,
     dismiss,
@@ -39,6 +40,9 @@ export function CommandBar() {
   return (
     <div className="command-bar">
       <div className="command-input-wrapper">
+        {followUpActive && (
+          <span className="follow-up-badge">Follow-up</span>
+        )}
         <input
           ref={inputRef}
           className="command-input"
@@ -46,7 +50,7 @@ export function CommandBar() {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Type a command..."
+          placeholder={followUpActive ? "Refine the previous result\u2026" : "Type a command..."}
           disabled={isSubmitting || !!pendingConfirmation}
           spellCheck={false}
           autoComplete="off"

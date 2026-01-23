@@ -1,7 +1,8 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import {
   submitCommand,
   confirmAction,
+  getWorkspaceSnapshot,
   hideWindow,
   normalizeResponse,
   type CoreResponse,
@@ -15,6 +16,7 @@ export interface CommandBarState {
   isSubmitting: boolean;
   results: CoreResult[];
   pendingConfirmation: ConfirmationResult | null;
+  followUpActive: boolean;
 }
 
 export function useCommandBar() {
@@ -24,6 +26,7 @@ export function useCommandBar() {
     isSubmitting: false,
     results: [],
     pendingConfirmation: null,
+    followUpActive: false,
   });
 
   const setInput = useCallback((value: string) => {
@@ -37,8 +40,27 @@ export function useCommandBar() {
       isSubmitting: false,
       results: [],
       pendingConfirmation: null,
+      followUpActive: false,
     });
   }, []);
+
+  const syncFollowUp = useCallback(async () => {
+    try {
+      const workspace = await getWorkspaceSnapshot();
+      setState((s) => ({
+        ...s,
+        followUpActive: workspace.mode === "FollowUpActive" && workspace.follow_up !== null,
+      }));
+    } catch {
+      // If snapshot fails, default to inactive
+      setState((s) => ({ ...s, followUpActive: false }));
+    }
+  }, []);
+
+  // Sync follow-up state on mount (window open)
+  useEffect(() => {
+    syncFollowUp();
+  }, [syncFollowUp]);
 
   const submit = useCallback(async () => {
     const text = state.input.trim();
@@ -65,6 +87,7 @@ export function useCommandBar() {
           results: [...s.results, result],
         }));
       }
+      await syncFollowUp();
     } catch (err) {
       const errorResult: CoreResult = {
         type: "error",
@@ -77,7 +100,7 @@ export function useCommandBar() {
         results: [...s.results, errorResult],
       }));
     }
-  }, [state.input]);
+  }, [state.input, syncFollowUp]);
 
   const dismissResult = useCallback((index: number) => {
     setState((s) => ({
@@ -110,7 +133,8 @@ export function useCommandBar() {
         results: [...s.results, errorResult],
       }));
     }
-  }, [state.pendingConfirmation]);
+    await syncFollowUp();
+  }, [state.pendingConfirmation, syncFollowUp]);
 
   const cancelPending = useCallback(async () => {
     if (!state.pendingConfirmation) return;
@@ -122,7 +146,8 @@ export function useCommandBar() {
       // Ignore errors on cancel — just clear the UI
     }
     setState((s) => ({ ...s, pendingConfirmation: null }));
-  }, [state.pendingConfirmation]);
+    await syncFollowUp();
+  }, [state.pendingConfirmation, syncFollowUp]);
 
   const dismiss = useCallback(() => {
     if (state.pendingConfirmation) {
