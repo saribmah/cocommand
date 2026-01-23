@@ -25,6 +25,7 @@ pub struct ArtifactAction {
 /// This is the single stable response shape used for all command outcomes.
 /// The desktop layer renders UI based solely on which variant it receives.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type")]
 pub enum CoreResponse {
     /// A shell-renderable result with optional actions.
     Artifact {

@@ -1,7 +1,7 @@
 use serde::Serialize;
 use tauri::State;
 
-use cocommand::CoreResponse;
+use cocommand::{CoreResponse, Workspace};
 
 use crate::state::AppState;
 
@@ -11,14 +11,6 @@ use crate::state::AppState;
 pub struct ActionSummaryDto {
     pub id: String,
     pub description: String,
-}
-
-#[derive(Serialize)]
-pub struct WorkspaceSnapshotDto {
-    pub mode: String,
-    pub session_id: String,
-    pub instance_count: usize,
-    pub follow_up_active: bool,
 }
 
 // --- Tauri invoke handlers ---
@@ -47,18 +39,12 @@ pub fn confirm_action(
 }
 
 #[tauri::command]
-pub fn get_workspace_snapshot(state: State<'_, AppState>) -> Result<WorkspaceSnapshotDto, String> {
+pub fn get_workspace_snapshot(state: State<'_, AppState>) -> Result<Workspace, String> {
     let core = state
         .core
         .lock()
         .map_err(|e| format!("lock poisoned: {e}"))?;
-    let ws = core.get_workspace_snapshot().map_err(|e| e.to_string())?;
-    Ok(WorkspaceSnapshotDto {
-        mode: format!("{:?}", ws.mode),
-        session_id: ws.session_id.clone(),
-        instance_count: ws.instances.len(),
-        follow_up_active: ws.follow_up.is_some(),
-    })
+    core.get_workspace_snapshot().map_err(|e| e.to_string())
 }
 
 #[tauri::command]

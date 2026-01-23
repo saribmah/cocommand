@@ -1,6 +1,5 @@
 import { useRef, useEffect, type KeyboardEvent } from "react";
 import { useCommandBar } from "../state/commandbar";
-import { SuggestionList } from "./SuggestionList";
 import { ResultCard } from "./ResultCard";
 import { ConfirmPanel } from "./ConfirmPanel";
 import "../styles/commandbar.css";
@@ -9,16 +8,11 @@ export function CommandBar() {
   const inputRef = useRef<HTMLInputElement>(null);
   const {
     input,
-    suggestions,
-    selectedIndex,
-    clarification,
     isSubmitting,
     results,
     pendingConfirmation,
     setInput,
     submit,
-    navigateUp,
-    navigateDown,
     dismiss,
     dismissResult,
     confirmPending,
@@ -39,14 +33,6 @@ export function CommandBar() {
         e.preventDefault();
         dismiss();
         break;
-      case "ArrowUp":
-        e.preventDefault();
-        navigateUp();
-        break;
-      case "ArrowDown":
-        e.preventDefault();
-        navigateDown();
-        break;
     }
   };
 
@@ -66,8 +52,6 @@ export function CommandBar() {
           autoComplete="off"
         />
       </div>
-      {clarification && <div className="command-clarification">{clarification}</div>}
-      <SuggestionList suggestions={suggestions} selectedIndex={selectedIndex} />
       {pendingConfirmation && (
         <ConfirmPanel
           confirmation={pendingConfirmation}

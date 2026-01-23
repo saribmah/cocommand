@@ -1,7 +1,11 @@
-import type { RoutedCandidate } from "../lib/ipc";
+interface Suggestion {
+  app_id: string;
+  score: number;
+  explanation: string;
+}
 
 interface SuggestionListProps {
-  suggestions: RoutedCandidate[];
+  suggestions: Suggestion[];
   selectedIndex: number;
 }
 
