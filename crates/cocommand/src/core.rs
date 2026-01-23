@@ -1,5 +1,6 @@
 use crate::error::{CoreError, CoreResult};
-use crate::types::{ActionSummary, ConfirmationDecision, CoreResponse, Workspace};
+use crate::types::{ActionSummary, ConfirmationDecision, CoreResponse};
+use crate::workspace::Workspace;
 
 /// Primary facade for the cocommand engine.
 ///

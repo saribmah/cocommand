@@ -16,4 +16,5 @@ pub mod builtins;
 
 pub use crate::core::Core;
 pub use crate::error::{CoreError, CoreResult};
-pub use crate::types::{ActionSummary, ConfirmationDecision, CoreResponse, Workspace};
+pub use crate::types::{ActionSummary, ConfirmationDecision, CoreResponse};
+pub use crate::workspace::Workspace;

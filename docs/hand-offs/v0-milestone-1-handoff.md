@@ -1,9 +1,9 @@
 ---
-title: v0 Milestone 0 Handoff
+title: v0 Milestone 1 Handoff
 status: completed
 ---
 
-# AI Implementation Handoff — Core-0
+# AI Implementation Handoff — Core-1
 
 ## Context
 
@@ -12,7 +12,7 @@ All architecture, terminology, and behavior must follow the canonical documentat
 
 You are currently implementing:
 
-**`Core-0 — Core crate skeleton & public API`**
+**`Core-1 — Workspace v0 (schema + invariants + kernel tools)`**
 
 This milestone is part of v0 and must not include v1+ features.
 
@@ -32,7 +32,7 @@ This milestone is part of v0 and must not include v1+ features.
 - Modify files outside **Allowed Files**.
 - Introduce new crates or services.
 - Add UI logic or Tauri dependencies.
-- Implement later milestones (workspace, tools, events, routing, etc.).
+- Implement later milestones (events, tools, routing, permissions, etc.).
 
 If anything is unclear, stop and ask for clarification.
 
@@ -40,14 +40,9 @@ If anything is unclear, stop and ask for clarification.
 
 ## References (READ FIRST)
 
-- `apps/docs/src/content/docs/spec/00-overview.md`
 - `apps/docs/src/content/docs/spec/01-terminology.md`
 - `apps/docs/src/content/docs/spec/02-execution-model.md`
 - `apps/docs/src/content/docs/spec/03-workspace.md`
-- `apps/docs/src/content/docs/spec/04-permissions.md`
-- `apps/docs/src/content/docs/spec/05-routing.md`
-- `apps/docs/src/content/docs/spec/06-extensions.md`
-- `apps/docs/src/content/docs/spec/07-observability.md`
 - `apps/docs/src/content/docs/tasks/v0.md`
 - `apps/docs/src/content/docs/tasks/v0-core.md`
 
@@ -57,16 +52,15 @@ If anything is unclear, stop and ask for clarification.
 
 Implement only the following tasks:
 
-- [ ] Create a minimal `Core` struct as the primary facade for desktop/UI integration.
-- [ ] Define shared error and result types.
-- [ ] Define stable method signatures on `Core` (stubs are fine):
-  - `submit_command(text) -> CoreResponse`
-  - `confirm_action(confirmation_id, decision) -> CoreResponse`
-  - `get_workspace_snapshot() -> Workspace`
-  - `get_recent_actions(limit) -> Vec<ActionSummary>`
-- [ ] Create the module folder layout required for v0 (empty modules allowed).
-
-Do not implement business logic; only structure and interfaces.
+- [ ] Implement Workspace structs matching the Workspace Schema v0.
+- [ ] Implement invariant checks (focus validity, mounted tools referencing open instances, etc.).
+- [ ] Implement Kernel Tools as pure Rust functions:
+  - `open_application`
+  - `close_application`
+  - `focus_application`
+  - `mount_tools`
+  - `unmount_tools`
+- [ ] Implement atomic mutation application (apply patch/transactional updates).
 
 ---
 
@@ -75,19 +69,11 @@ Do not implement business logic; only structure and interfaces.
 You may create or modify only the following:
 
 ```text
-crates/cocommand/src/lib.rs
-crates/cocommand/src/core.rs
-crates/cocommand/src/error.rs
-crates/cocommand/src/types.rs
-crates/cocommand/src/command/
-crates/cocommand/src/routing/
-crates/cocommand/src/planner/
-crates/cocommand/src/workspace/
-crates/cocommand/src/permissions/
-crates/cocommand/src/tools/
-crates/cocommand/src/events/
-crates/cocommand/src/extensions/
-crates/cocommand/src/builtins/
+crates/cocommand/src/workspace.rs
+crates/cocommand/src/workspace/state.rs
+crates/cocommand/src/workspace/invariants.rs
+crates/cocommand/src/workspace/kernel_tools.rs
+crates/cocommand/src/workspace/patch.rs
 ```
 
 If a required change would affect files outside this list, stop and report.
@@ -105,18 +91,20 @@ If a required change would affect files outside this list, stop and report.
 
 ## Behavioral Requirements
 
-- `Core::new()` compiles and returns a valid instance.
-- Public method signatures are stable and documented.
-- No runtime logic is required in this milestone.
+- Workspace is the single source of truth for open instances, focus, mounts, context, policy, and journal refs.
+- Kernel tools are the only mutation entry points.
+- Invariant violations return structured errors (do not panic).
+- Kernel tools are idempotent where specified.
 
 ---
 
 ## Acceptance Criteria
 
-- [ ] `cargo check -p cocommand` passes.
-- [ ] `cargo test -p cocommand` passes with at least one placeholder test.
-- [ ] Core crate compiles without any Tauri dependency.
-- [ ] Module folders exist and are wired through `lib.rs`.
+- [ ] Workspace can be created, serialized, and deserialized.
+- [ ] Kernel tools mutate workspace only through sanctioned functions.
+- [ ] Invariant violations are detected and returned as errors.
+- [ ] `cargo check --manifest-path crates/cocommand/Cargo.toml` passes.
+- [ ] `cargo test --manifest-path crates/cocommand/Cargo.toml` passes.
 
 ---
 
@@ -133,6 +121,8 @@ If a required change would affect files outside this list, stop and report.
 
 - [ ] `cargo check --manifest-path crates/cocommand/Cargo.toml`
 - [ ] `cargo test --manifest-path crates/cocommand/Cargo.toml`
+- [ ] Unit tests for invariants (focus points to open instance, mounted tools require active instance)
+- [ ] Unit tests for kernel tool behaviors (open/focus/close/mount/unmount)
 
 ---
 

@@ -9,6 +9,8 @@ pub enum CoreError {
     InvalidInput(String),
     /// Internal error.
     Internal(String),
+    /// Post-mutation invariant was violated.
+    InvariantViolation(String),
 }
 
 impl fmt::Display for CoreError {
@@ -17,6 +19,7 @@ impl fmt::Display for CoreError {
             CoreError::NotImplemented => write!(f, "not implemented"),
             CoreError::InvalidInput(msg) => write!(f, "invalid input: {msg}"),
             CoreError::Internal(msg) => write!(f, "internal error: {msg}"),
+            CoreError::InvariantViolation(msg) => write!(f, "invariant violation: {msg}"),
         }
     }
 }
