@@ -220,6 +220,45 @@
 
 ---
 
+## UI-7 — Desktop platform provider injection (macOS)
+
+### Tasks
+
+* Instantiate macOS platform providers (e.g. `MacClipboardProvider`) in the Tauri desktop bootstrap.
+* Inject platform implementations into `Core` during initialization.
+* Ensure platform providers are wrapped in `Arc<dyn Trait>` and live for the lifetime of the app.
+* Keep all OS-specific wiring inside the desktop layer.
+
+### Targets
+
+```text
+apps/desktop/src-tauri/src/main.rs
+apps/desktop/src-tauri/src/state.rs
+crates/platform-macos/src/clipboard.rs
+```
+
+### Acceptance Criteria
+
+* Desktop app injects macOS platform providers into Core at startup.
+* Clipboard built-in reads from the real system clipboard on macOS.
+* Core remains platform-agnostic.
+
+### Definition of Done
+
+* Platform selection and wiring occur only in the desktop layer.
+* Core initialization fails fast if required platform providers are missing.
+
+### Tests
+
+* Manual smoke test on macOS:
+
+    * Copy text in another app
+    * Open Cocommand
+    * Run “show clipboard” or equivalent command
+    * Copied text appears
+
+---
+
 # Appendix — UI Definition of Done (v0)
 
 UI v0 is complete when:

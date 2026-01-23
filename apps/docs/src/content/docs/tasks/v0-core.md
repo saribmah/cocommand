@@ -421,28 +421,34 @@
 
 ---
 
-## Core-11 — macOS platform integration v0 (clipboard + hotkey hooks)
+## Core-11 — Platform abstraction & core integration v0
 
 ### Tasks
 
-* Define platform trait(s) in core for clipboard operations.
-* Implement macOS clipboard provider in platform crate (NSPasteboard).
-* Wire platform provider into built-in Clipboard.
+* Define platform abstraction traits in the core crate (e.g. `ClipboardProvider`).
+* Update built-in Clipboard application to depend **only on the platform trait**, never on OS-specific APIs.
+* Provide a `NullClipboardProvider` or `MockClipboardProvider` for tests and non-desktop environments.
 
 ### Targets
 
-* `crates/cocommand/src/platform.rs` (trait definitions)
-* `crates/platform-macos/src/lib.rs`
-* `crates/platform-macos/src/clipboard.rs`
+```text
+crates/cocommand/src/platform.rs
+crates/cocommand/src/builtins/clipboard.rs
+```
 
 ### Acceptance Criteria
 
-* Clipboard built-in reads real clipboard on macOS.
+* Core crate compiles and runs without any platform-specific dependencies.
+* Clipboard built-in reads clipboard content via the platform trait.
+* Unit tests use mock implementations only.
 
 ### Definition of Done
 
-* Core only depends on traits; platform-specific code stays isolated.
+* Core depends exclusively on platform traits.
+* No macOS (or other OS) imports exist in `crates/cocommand`.
 
 ### Tests
 
-* Manual smoke test on macOS
+* Unit test using `MockClipboardProvider` returns expected clipboard text.
+
+---
