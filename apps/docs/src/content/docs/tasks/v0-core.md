@@ -112,8 +112,6 @@
 
 * Event ordering, replay correctness tests.
 
----
-
 ## Core-3 — Tool system v0 (registry + schema validation + executor)
 
 ### Tasks
@@ -363,6 +361,10 @@ crates/cocommand/src/core.rs
         * ensure required app(s) are ready (open instance if needed + mount tools per Core-3A)
     5. Execute tool calls via executor
     6. Record events + update workspace (including follow-up references)
+* Implement preview vs open behavior:
+
+    * Read-only commands (e.g., “show last note”) return a `CoreResponse::Preview` and must not create an application instance.
+    * Commands requiring persistent interaction (e.g., “open notes”, “edit note”) create an application instance and may set focus.
 * Define how “open app” in a plan is handled:
 
     * If plan includes `open_application`, runtime executes it and then mounts tools automatically (internal policy).

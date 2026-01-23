@@ -223,6 +223,10 @@ apps/desktop/src/types/core.ts
 
 * Works without leaking sensitive content.
 
+### Data Source Requirement
+
+* The UI must load recent actions exclusively from `get_recent_actions(limit)` and must not maintain its own persistent history.
+
 ### Tests
 
 * Manual: actions show after executing tools
