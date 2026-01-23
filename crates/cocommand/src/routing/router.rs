@@ -1,5 +1,9 @@
 use crate::command::ParsedCommand;
 use crate::routing::RoutingMetadata;
+use crate::workspace::state::FollowUpContext;
+
+/// Score bonus applied to the last-used app during follow-up mode.
+const FOLLOW_UP_BIAS: f64 = 5.0;
 
 /// A single routing candidate with score and explanation.
 #[derive(Debug, Clone)]
@@ -161,6 +165,56 @@ impl Router {
         candidates.truncate(self.max_candidates);
 
         RoutingResult { candidates }
+    }
+
+    /// Route a parsed command with follow-up context bias.
+    ///
+    /// When follow-up context is active, the app that handled the previous
+    /// command receives a score bonus of +5, making it more likely to be
+    /// selected again for continuation inputs like "make it 2:30".
+    pub fn route_with_follow_up(
+        &self,
+        command: &ParsedCommand,
+        follow_up: Option<&FollowUpContext>,
+    ) -> RoutingResult {
+        let mut result = self.route(command);
+
+        if let Some(ctx) = follow_up {
+            let biased_app = &ctx.last_app_id;
+            let mut found = false;
+
+            for candidate in &mut result.candidates {
+                if candidate.app_id == *biased_app {
+                    candidate.score += FOLLOW_UP_BIAS;
+                    candidate.explanation = format!(
+                        "{}; follow-up bias (+{})",
+                        candidate.explanation, FOLLOW_UP_BIAS
+                    );
+                    found = true;
+                }
+            }
+
+            // If the biased app wasn't in the candidates at all, add it.
+            if !found {
+                result.candidates.push(RouteCandidate {
+                    app_id: biased_app.clone(),
+                    score: FOLLOW_UP_BIAS,
+                    explanation: format!("follow-up bias (+{})", FOLLOW_UP_BIAS),
+                });
+            }
+
+            // Re-sort after bias application.
+            result.candidates.sort_by(|a, b| {
+                b.score
+                    .partial_cmp(&a.score)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+                    .then_with(|| a.app_id.cmp(&b.app_id))
+            });
+
+            result.candidates.truncate(self.max_candidates);
+        }
+
+        result
     }
 }
 
@@ -335,5 +389,70 @@ mod tests {
         let result = router.route(&cmd);
 
         assert!(result.candidates.is_empty());
+    }
+
+    #[test]
+    fn follow_up_bias_boosts_existing_candidate() {
+        let mut router = Router::new();
+        router.register(clipboard_app());
+        router.register(notes_app());
+        router.register(calendar_app());
+
+        let follow_up = FollowUpContext {
+            last_command: "create event at 2pm".to_string(),
+            last_result_entity_ids: vec!["event-123".to_string()],
+            last_app_id: "calendar".to_string(),
+            expires_at: u64::MAX,
+            turn_count: 0,
+            max_turns: 3,
+        };
+
+        // "create" matches notes and calendar verbs.
+        let cmd = make_command("create something", vec![]);
+        let result = router.route_with_follow_up(&cmd, Some(&follow_up));
+
+        // Calendar should be ranked first due to follow-up bias.
+        assert!(!result.candidates.is_empty());
+        assert_eq!(result.candidates[0].app_id, "calendar");
+        assert!(result.candidates[0].explanation.contains("follow-up bias"));
+    }
+
+    #[test]
+    fn follow_up_bias_adds_missing_candidate() {
+        let mut router = Router::new();
+        router.register(clipboard_app());
+        router.register(notes_app());
+        router.register(calendar_app());
+
+        let follow_up = FollowUpContext {
+            last_command: "create event".to_string(),
+            last_result_entity_ids: vec!["event-123".to_string()],
+            last_app_id: "calendar".to_string(),
+            expires_at: u64::MAX,
+            turn_count: 0,
+            max_turns: 3,
+        };
+
+        // "make it 2:30" has no keyword matches for any app.
+        let cmd = make_command("make it 2:30", vec![]);
+        let result = router.route_with_follow_up(&cmd, Some(&follow_up));
+
+        // Calendar should appear solely from follow-up bias.
+        assert!(!result.candidates.is_empty());
+        assert_eq!(result.candidates[0].app_id, "calendar");
+        assert_eq!(result.candidates[0].score, FOLLOW_UP_BIAS);
+    }
+
+    #[test]
+    fn no_follow_up_routes_normally() {
+        let mut router = Router::new();
+        router.register(clipboard_app());
+        router.register(calendar_app());
+
+        let cmd = make_command("copy text", vec![]);
+        let result = router.route_with_follow_up(&cmd, None);
+
+        assert!(!result.candidates.is_empty());
+        assert_eq!(result.candidates[0].app_id, "clipboard");
     }
 }
