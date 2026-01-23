@@ -25,19 +25,7 @@ export function normalizeResponse(response: CoreResponse): CoreResult | null {
       return { type: "confirmation", title: response.title, body: response.body, confirmation_id: response.confirmation_id };
     case "Error":
       return { type: "error", title: response.title, body: response.body };
-    case "Routed": {
-      const top = response.candidates[0];
-      if (!top) return { type: "error", title: "No match", body: "No app matched your command." };
-      return {
-        type: "artifact",
-        title: top.app_id,
-        body: top.explanation,
-        actions: [
-          { id: "copy", label: "Copy" },
-          { id: "dismiss", label: "Dismiss" },
-        ],
-      };
-    }
+    case "Routed":
     case "ClarificationNeeded":
       return null;
   }

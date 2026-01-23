@@ -56,6 +56,14 @@ export function useCommandBar() {
           isSubmitting: false,
           results: [...s.results, result],
         }));
+      } else if (response.type === "Routed") {
+        setState((s) => ({
+          ...s,
+          suggestions: response.candidates,
+          selectedIndex: response.candidates.length > 0 ? 0 : -1,
+          clarification: null,
+          isSubmitting: false,
+        }));
       } else if (response.type === "ClarificationNeeded") {
         setState((s) => ({
           ...s,
