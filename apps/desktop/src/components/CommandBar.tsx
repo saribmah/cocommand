@@ -1,6 +1,7 @@
 import { useRef, useEffect, type KeyboardEvent } from "react";
 import { useCommandBar } from "../state/commandbar";
 import { SuggestionList } from "./SuggestionList";
+import { ResultCard } from "./ResultCard";
 import "../styles/commandbar.css";
 
 export function CommandBar() {
@@ -11,16 +12,18 @@ export function CommandBar() {
     selectedIndex,
     clarification,
     isSubmitting,
+    results,
     setInput,
     submit,
     navigateUp,
     navigateDown,
     dismiss,
+    dismissResult,
   } = useCommandBar();
 
   useEffect(() => {
     inputRef.current?.focus();
-  }, []);
+  }, [results]);
 
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     switch (e.key) {
@@ -61,6 +64,7 @@ export function CommandBar() {
       </div>
       {clarification && <div className="command-clarification">{clarification}</div>}
       <SuggestionList suggestions={suggestions} selectedIndex={selectedIndex} />
+      <ResultCard results={results} onDismiss={dismissResult} />
     </div>
   );
 }

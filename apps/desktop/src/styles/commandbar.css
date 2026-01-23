@@ -90,3 +90,96 @@
   color: rgba(0, 0, 0, 0.3);
   flex-shrink: 0;
 }
+
+/* Result Cards */
+
+.result-card-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.result-card {
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 10px;
+  overflow: hidden;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.result-card--error {
+  border-color: rgba(220, 50, 50, 0.25);
+}
+
+.result-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px 0;
+}
+
+.result-card-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1b1b1b;
+}
+
+.result-card-dismiss {
+  background: none;
+  border: none;
+  font-size: 16px;
+  color: rgba(0, 0, 0, 0.35);
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+}
+
+.result-card-dismiss:hover {
+  color: rgba(0, 0, 0, 0.6);
+}
+
+.result-card-body {
+  padding: 6px 14px 10px;
+}
+
+.result-card-body .markdown-view p {
+  margin: 0 0 4px;
+  font-size: 13px;
+  color: rgba(0, 0, 0, 0.7);
+  line-height: 1.4;
+}
+
+.result-card-body .markdown-view p:last-child {
+  margin-bottom: 0;
+}
+
+.result-card-body .markdown-view code {
+  font-size: 12px;
+  background: rgba(0, 0, 0, 0.05);
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+
+.result-card-actions {
+  display: flex;
+  gap: 8px;
+  padding: 0 14px 10px;
+}
+
+.result-card-action-btn {
+  font-size: 12px;
+  padding: 5px 12px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.9);
+  color: #1b1b1b;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.result-card-action-btn:hover {
+  background: rgba(0, 0, 0, 0.04);
+}

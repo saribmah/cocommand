@@ -1,5 +1,6 @@
 import { useState, useCallback } from "react";
-import { submitCommand, hideWindow, type CoreResponse, type RoutedCandidate } from "../lib/ipc";
+import { submitCommand, hideWindow, normalizeResponse, type CoreResponse, type RoutedCandidate } from "../lib/ipc";
+import type { CoreResult } from "../types/core";
 
 export interface CommandBarState {
   input: string;
@@ -7,6 +8,7 @@ export interface CommandBarState {
   selectedIndex: number;
   clarification: string | null;
   isSubmitting: boolean;
+  results: CoreResult[];
 }
 
 export function useCommandBar() {
@@ -16,6 +18,7 @@ export function useCommandBar() {
     selectedIndex: -1,
     clarification: null,
     isSubmitting: false,
+    results: [],
   });
 
   const setInput = useCallback((value: string) => {
@@ -29,6 +32,7 @@ export function useCommandBar() {
       selectedIndex: -1,
       clarification: null,
       isSubmitting: false,
+      results: [],
     });
   }, []);
 
@@ -40,16 +44,19 @@ export function useCommandBar() {
 
     try {
       const response: CoreResponse = await submitCommand(text);
+      const result = normalizeResponse(response);
 
-      if (response.type === "Routed") {
+      if (result) {
         setState((s) => ({
           ...s,
-          suggestions: response.candidates,
-          selectedIndex: response.candidates.length > 0 ? 0 : -1,
+          input: "",
+          suggestions: [],
+          selectedIndex: -1,
           clarification: null,
           isSubmitting: false,
+          results: [...s.results, result],
         }));
-      } else {
+      } else if (response.type === "ClarificationNeeded") {
         setState((s) => ({
           ...s,
           suggestions: [],
@@ -59,10 +66,16 @@ export function useCommandBar() {
         }));
       }
     } catch (err) {
+      const errorResult: CoreResult = {
+        type: "error",
+        title: "Error",
+        body: String(err),
+      };
       setState((s) => ({
         ...s,
         isSubmitting: false,
-        clarification: `Error: ${err}`,
+        clarification: null,
+        results: [...s.results, errorResult],
       }));
     }
   }, [state.input]);
@@ -83,13 +96,22 @@ export function useCommandBar() {
     });
   }, []);
 
+  const dismissResult = useCallback((index: number) => {
+    setState((s) => ({
+      ...s,
+      results: s.results.filter((_, i) => i !== index),
+    }));
+  }, []);
+
   const dismiss = useCallback(() => {
-    if (state.suggestions.length > 0 || state.clarification) {
+    if (state.results.length > 0) {
+      setState((s) => ({ ...s, results: [] }));
+    } else if (state.suggestions.length > 0 || state.clarification) {
       reset();
     } else {
       hideWindow();
     }
-  }, [state.suggestions.length, state.clarification, reset]);
+  }, [state.results.length, state.suggestions.length, state.clarification, reset]);
 
   return {
     ...state,
@@ -98,6 +120,7 @@ export function useCommandBar() {
     navigateUp,
     navigateDown,
     dismiss,
+    dismissResult,
     reset,
   };
 }
