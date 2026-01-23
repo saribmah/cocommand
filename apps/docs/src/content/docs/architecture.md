@@ -63,68 +63,67 @@ through their root files while hiding implementation details.
 ### Directory Structure
 
 ```
+crates/cocommand/src/
+├── lib.rs                  # Public API, re-exports
+├── command.rs              # Command module root
+├── routing.rs              # Routing module root
+├── planner.rs              # Planner module root
+├── workspace.rs            # Workspace module root
+├── permissions.rs          # Permissions module root
+├── tools.rs                # Tools module root
+├── events.rs               # Events module root
+├── extensions.rs           # Extensions module root
+├── builtins.rs             # Builtins module root
+
+├── command/                # User input → intent
+│   ├── parser.rs
+│   └── tagging.rs
+
+├── routing/                # Capability router
+│   ├── index.rs            # keyword / embedding search
+│   └── scoring.rs
+
+├── planner/                # LLM planning
+│   └── planner.rs
+
+├── workspace/              # Workspace schema + invariants
+│   ├── state.rs
+│   ├── snapshot.rs
+│   └── kernel_tools.rs
+
+├── permissions/            # Permission layer
+│   ├── scopes.rs
+│   ├── risk.rs
+│   └── enforcement.rs
+
+├── tools/                  # Tool abstractions
+│   ├── registry.rs
+│   └── invocation.rs
+
+├── events/                 # Event stream & observability
+│   ├── event.rs
+│   ├── journal.rs
+│   └── replay.rs
+
+├── extensions/             # Deno extension host interface
+│   ├── manifest.rs
+│   ├── rpc.rs
+│   └── lifecycle.rs
+
+├── builtins/               # Built-in applications
+│   ├── notes.rs
+│   ├── clipboard.rs
+│   └── composer.rs
+
+└── latency.rs              # Latency classes + execution modes
+
 apps/desktop/src-tauri/src/
-├── lib.rs                 # Crate root: module declarations
-├── agent.rs               # Agent module root
-├── agent/
-│   ├── config.rs          # Agent configuration (temperature, tokens)
-│   ├── context.rs         # Workspace lifecycle → agent context
-│   ├── processor.rs       # Control→Execution loop orchestrator
-│   ├── registry.rs        # Agent config factory
-│   ├── runner.rs          # Legacy agent runner (compatibility)
-│   ├── system.rs          # System prompt assembly
-│   ├── prompt.rs          # Prompt module root
-│   ├── prompt/
-│   │   ├── base.rs        # Identity, safety rules
-│   │   ├── control.rs     # Control phase prompts
-│   │   └── execution.rs   # Execution phase prompts
-│   ├── session.rs         # Session module root
-│   └── session/
-│       ├── message.rs     # Message types
-│       ├── phase.rs       # Phase definitions (Control, Execution)
-│       ├── state.rs       # Session state machine
-│       └── tool.rs        # Tool call types
-├── applications.rs        # Applications module root
-├── applications/
-│   ├── registry.rs        # App discovery and tool execution
-│   ├── types.rs           # Application/Tool traits
-│   └── spotify/           # Spotify app implementation
-│       ├── app.rs         # SpotifyApp definition
-│       ├── play.rs        # Play tool
-│       ├── pause.rs       # Pause tool
-│       ├── play_track.rs  # Play track tool (with schema)
-│       └── script.rs      # AppleScript utilities
-├── tool.rs                # Tool module root
-├── tool/
-│   ├── registry.rs        # Phase-based tool set builders
-│   └── window/            # Control plane tools
-│       ├── open.rs        # window_open
-│       ├── close.rs       # window_close
-│       ├── focus.rs       # window_focus
-│       ├── list_apps.rs   # window_list_apps
-│       ├── snapshot.rs    # window_get_snapshot
-│       └── restore.rs     # window_restore_workspace
-├── workspace.rs           # Workspace module root
-├── workspace/
-│   ├── service.rs         # Workspace mutations, staleness checks
-│   └── types.rs           # State and snapshot types
-├── server.rs              # Server module root
-├── server/
-│   ├── state.rs           # Server state management
-│   └── api/
-│       ├── command.rs     # POST /command endpoint
-│       ├── window.rs      # Window management endpoints
-│       ├── apps.rs        # App/tool listing endpoints
-│       └── types.rs       # Request/response types
-├── storage.rs             # Storage module root
-├── storage/
-│   ├── file.rs            # File-based persistence
-│   └── memory.rs          # In-memory store (testing)
-├── llm.rs                 # LLM module root
-└── llm/
-    ├── client.rs          # LLM client wrapper
-    ├── config.rs          # LLM configuration
-    └── selector.rs        # Model selection
+├── lib.rs                 # Tauri bootstrap + plugin setup
+├── main.rs                # Entry point
+└── window.rs              # Window commands and behavior
+
+crates/platform-macos/src/
+└── lib.rs                 # macOS integrations (NSWorkspace/EventKit)
 ```
 
 ### Module Responsibilities
