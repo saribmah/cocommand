@@ -2,7 +2,7 @@
 //!
 //! Usage: cargo run --example run_server
 
-use cocommand_core::server;
+use coco_core::server;
 
 #[tokio::main]
 async fn main() {

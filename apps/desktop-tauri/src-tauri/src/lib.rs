@@ -23,7 +23,7 @@ pub fn run() {
             let handle = app.handle();
             handle.global_shortcut().register("CmdOrCtrl+O")?;
             tauri::async_runtime::spawn(async move {
-                if let Ok(addr) = cocommand_core::server::start().await {
+                if let Ok(addr) = coco_core::server::start().await {
                     println!("Backend server listening on {}", addr);
                 }
             });

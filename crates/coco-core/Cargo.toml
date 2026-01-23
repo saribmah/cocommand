@@ -1,5 +1,5 @@
 [package]
-name = "cocommand-core"
+name = "coco-core"
 version = "0.1.0"
 edition = "2021"
 
