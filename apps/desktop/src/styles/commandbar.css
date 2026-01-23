@@ -183,3 +183,81 @@
 .result-card-action-btn:hover {
   background: rgba(0, 0, 0, 0.04);
 }
+
+/* Confirmation Panel */
+
+.confirm-panel {
+  margin-top: 6px;
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid rgba(220, 150, 50, 0.3);
+  border-radius: 10px;
+  overflow: hidden;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.confirm-panel-header {
+  padding: 10px 14px 0;
+}
+
+.confirm-panel-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1b1b1b;
+}
+
+.confirm-panel-body {
+  padding: 6px 14px 10px;
+}
+
+.confirm-panel-body .markdown-view p {
+  margin: 0 0 4px;
+  font-size: 13px;
+  color: rgba(0, 0, 0, 0.7);
+  line-height: 1.4;
+}
+
+.confirm-panel-body .markdown-view p:last-child {
+  margin-bottom: 0;
+}
+
+.confirm-panel-actions {
+  display: flex;
+  gap: 8px;
+  padding: 0 14px 8px;
+}
+
+.confirm-panel-btn {
+  font-size: 12px;
+  padding: 5px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.1s;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+}
+
+.confirm-panel-btn--cancel {
+  background: rgba(255, 255, 255, 0.9);
+  color: #1b1b1b;
+}
+
+.confirm-panel-btn--cancel:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.confirm-panel-btn--confirm {
+  background: rgba(220, 50, 50, 0.1);
+  color: #c0392b;
+  border-color: rgba(220, 50, 50, 0.25);
+}
+
+.confirm-panel-btn--confirm:hover {
+  background: rgba(220, 50, 50, 0.18);
+}
+
+.confirm-panel-hint {
+  padding: 0 14px 8px;
+  font-size: 11px;
+  color: rgba(0, 0, 0, 0.35);
+}

@@ -2,6 +2,7 @@ import { useRef, useEffect, type KeyboardEvent } from "react";
 import { useCommandBar } from "../state/commandbar";
 import { SuggestionList } from "./SuggestionList";
 import { ResultCard } from "./ResultCard";
+import { ConfirmPanel } from "./ConfirmPanel";
 import "../styles/commandbar.css";
 
 export function CommandBar() {
@@ -13,12 +14,15 @@ export function CommandBar() {
     clarification,
     isSubmitting,
     results,
+    pendingConfirmation,
     setInput,
     submit,
     navigateUp,
     navigateDown,
     dismiss,
     dismissResult,
+    confirmPending,
+    cancelPending,
   } = useCommandBar();
 
   useEffect(() => {
@@ -57,13 +61,20 @@ export function CommandBar() {
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder="Type a command..."
-          disabled={isSubmitting}
+          disabled={isSubmitting || !!pendingConfirmation}
           spellCheck={false}
           autoComplete="off"
         />
       </div>
       {clarification && <div className="command-clarification">{clarification}</div>}
       <SuggestionList suggestions={suggestions} selectedIndex={selectedIndex} />
+      {pendingConfirmation && (
+        <ConfirmPanel
+          confirmation={pendingConfirmation}
+          onConfirm={confirmPending}
+          onCancel={cancelPending}
+        />
+      )}
       <ResultCard results={results} onDismiss={dismissResult} />
     </div>
   );

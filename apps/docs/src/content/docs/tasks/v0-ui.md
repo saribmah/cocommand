@@ -38,6 +38,43 @@
 
 ---
 
+## UI-0A — Core Bridge Integration (Tauri invoke contract)
+
+### Tasks
+
+* Implement Tauri invoke handlers that exactly mirror the Core bridge contract:
+
+    * `submit_command(text) -> CoreResponse`
+    * `confirm_action(confirmation_id, decision) -> CoreResponse`
+    * `get_recent_actions(limit) -> Vec<ActionSummary>`
+    * `get_workspace_snapshot() -> Workspace` (optional for v0 UI, but useful for debugging)
+* Ensure the frontend uses these invoke calls as the only backend integration path.
+
+### Targets
+
+```text
+apps/desktop/src-tauri/src/commands.rs
+apps/desktop/src-tauri/src/state.rs
+apps/desktop/src/types/core.ts
+```
+
+### Acceptance Criteria
+
+* Frontend can submit a command and receive a `CoreResponse` without shape mismatches.
+* Confirmation response round-trip works (UI → confirm_action → updated response).
+
+### Definition of Done
+
+* UI and Core share a stable boundary: no tool IDs leak into UI.
+* All backend calls are routed through the Tauri commands layer.
+
+### Test Checklist
+
+* Manual: run a command and render Artifact
+* Manual: run destructive action and confirm
+
+---
+
 ## UI-1 — Command Bar UI (idle + input + suggestions)
 
 ### Tasks
@@ -256,6 +293,61 @@ crates/platform-macos/src/clipboard.rs
     * Open Cocommand
     * Run “show clipboard” or equivalent command
     * Copied text appears
+
+---
+
+## **UI-8 — End-to-End Wiring (UI State Machine + CoreResponse Rendering)**
+
+> This is the explicit “gel together” milestone you’re asking for.
+
+### Tasks
+
+* Implement a minimal UI state machine driven exclusively by `CoreResponse`:
+
+    * `idle` → `executing` → (`artifact` | `preview` | `confirmation` | `error`)
+* On Enter:
+
+    * call `submit_command(text)`
+    * render response
+* On Confirm:
+
+    * call `confirm_action(confirmation_id, decision=true)`
+    * render updated response
+* On Cancel:
+
+    * clear confirmation UI and return to idle
+* Implement “Follow-up cue” purely based on fields returned by core (e.g., `follow_up_active: bool` in response metadata) or by querying workspace snapshot (debug mode).
+
+### Targets
+
+```text
+apps/desktop/src/components/CommandBar.tsx
+apps/desktop/src/components/ResultCard.tsx
+apps/desktop/src/components/ConfirmPanel.tsx
+apps/desktop/src/state/commandbar.ts
+apps/desktop/src/types/core.ts
+```
+
+### Acceptance Criteria
+
+* Running a safe command shows an Artifact result.
+* Running a preview command shows a Preview result.
+* Running a destructive command shows Confirmation, and confirming executes and returns Artifact/Preview.
+* The UI never calls tools directly; all actions go through core.
+
+### Definition of Done
+
+* UI is fully driven by the `CoreResponse` contract (no hidden coupling).
+* At least 3 sample flows work end-to-end:
+
+    1. Calculator command → Artifact
+    2. Show last note → Preview
+    3. Delete last note → Confirmation → Artifact/Preview
+
+### Test Checklist
+
+* Manual smoke checklist for the 3 flows above
+* Optional: component-level tests for response rendering
 
 ---
 

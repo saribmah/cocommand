@@ -452,3 +452,49 @@ crates/cocommand/src/builtins/clipboard.rs
 * Unit test using `MockClipboardProvider` returns expected clipboard text.
 
 ---
+
+## Core-12 — Desktop Bridge Contract (Core API + Response Types)
+
+### Tasks
+
+* Define stable request/response types used by the desktop UI:
+
+    * `SubmitCommandRequest { text: String }`
+    * `CoreResponse` (see response variants below)
+    * `ConfirmActionRequest { confirmation_id: String, decision: bool }`
+    * `ActionSummary` for Recent Actions UI
+* Implement `Core::submit_command(text)` and `Core::confirm_action(...)` to return **only** `CoreResponse`.
+* Ensure responses are fully serializable (serde) and contain no non-serializable types.
+
+### CoreResponse (v0) — Required Variants
+
+* `Artifact`: a shell-renderable result with optional actions
+* `Preview`: read-only preview payload (e.g., last note)
+* `Confirmation`: confirmation prompt payload (risk actions)
+* `Error`: user-displayable error payload
+
+### Targets
+
+```text
+crates/cocommand/src/core.rs
+crates/cocommand/src/types.rs
+crates/cocommand/src/error.rs
+```
+
+### Acceptance Criteria
+
+* Core produces responses in a single stable shape for all command outcomes.
+* Core responses are serializable via `serde` without custom hacks.
+* Confirmation responses include a stable `confirmation_id` usable by UI.
+
+### Definition of Done
+
+* Desktop layer does not need to understand tools, workspace internals, or events to render results.
+* CoreResponse is the only format used across the Tauri boundary.
+
+### Test Checklist
+
+* Unit test: `serde_json::to_string(&CoreResponse)` succeeds for each variant.
+* Unit test: stub command produces each variant at least once.
+
+---

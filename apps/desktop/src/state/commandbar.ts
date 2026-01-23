@@ -1,6 +1,7 @@
 import { useState, useCallback } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import { submitCommand, hideWindow, normalizeResponse, type CoreResponse, type RoutedCandidate } from "../lib/ipc";
-import type { CoreResult } from "../types/core";
+import type { CoreResult, ConfirmationResult } from "../types/core";
 
 export interface CommandBarState {
   input: string;
@@ -9,6 +10,7 @@ export interface CommandBarState {
   clarification: string | null;
   isSubmitting: boolean;
   results: CoreResult[];
+  pendingConfirmation: ConfirmationResult | null;
 }
 
 export function useCommandBar() {
@@ -19,6 +21,7 @@ export function useCommandBar() {
     clarification: null,
     isSubmitting: false,
     results: [],
+    pendingConfirmation: null,
   });
 
   const setInput = useCallback((value: string) => {
@@ -33,6 +36,7 @@ export function useCommandBar() {
       clarification: null,
       isSubmitting: false,
       results: [],
+      pendingConfirmation: null,
     });
   }, []);
 
@@ -46,7 +50,17 @@ export function useCommandBar() {
       const response: CoreResponse = await submitCommand(text);
       const result = normalizeResponse(response);
 
-      if (result) {
+      if (response.type === "Confirmation") {
+        setState((s) => ({
+          ...s,
+          input: "",
+          suggestions: [],
+          selectedIndex: -1,
+          clarification: null,
+          isSubmitting: false,
+          pendingConfirmation: result as ConfirmationResult,
+        }));
+      } else if (result) {
         setState((s) => ({
           ...s,
           input: "",
@@ -111,15 +125,61 @@ export function useCommandBar() {
     }));
   }, []);
 
+  const confirmPending = useCallback(async () => {
+    if (!state.pendingConfirmation) return;
+    const confirmationId = state.pendingConfirmation.confirmation_id;
+
+    try {
+      const response: CoreResponse = await invoke("confirm_action", {
+        confirmation_id: confirmationId,
+        decision: "approve",
+      });
+      const result = normalizeResponse(response);
+      setState((s) => ({
+        ...s,
+        pendingConfirmation: null,
+        results: result ? [...s.results, result] : s.results,
+      }));
+    } catch (err) {
+      const errorResult: CoreResult = {
+        type: "error",
+        title: "Confirmation Failed",
+        body: String(err),
+      };
+      setState((s) => ({
+        ...s,
+        pendingConfirmation: null,
+        results: [...s.results, errorResult],
+      }));
+    }
+  }, [state.pendingConfirmation]);
+
+  const cancelPending = useCallback(async () => {
+    if (!state.pendingConfirmation) return;
+    const confirmationId = state.pendingConfirmation.confirmation_id;
+
+    try {
+      await invoke("confirm_action", {
+        confirmation_id: confirmationId,
+        decision: "deny",
+      });
+    } catch {
+      // Ignore errors on cancel — just clear the UI
+    }
+    setState((s) => ({ ...s, pendingConfirmation: null }));
+  }, [state.pendingConfirmation]);
+
   const dismiss = useCallback(() => {
-    if (state.results.length > 0) {
+    if (state.pendingConfirmation) {
+      cancelPending();
+    } else if (state.results.length > 0) {
       setState((s) => ({ ...s, results: [] }));
     } else if (state.suggestions.length > 0 || state.clarification) {
       reset();
     } else {
       hideWindow();
     }
-  }, [state.results.length, state.suggestions.length, state.clarification, reset]);
+  }, [state.pendingConfirmation, state.results.length, state.suggestions.length, state.clarification, cancelPending, reset]);
 
   return {
     ...state,
@@ -129,6 +189,8 @@ export function useCommandBar() {
     navigateDown,
     dismiss,
     dismissResult,
+    confirmPending,
+    cancelPending,
     reset,
   };
 }
