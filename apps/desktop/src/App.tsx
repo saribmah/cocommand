@@ -1,9 +1,10 @@
 import "./App.css";
+import { CommandBar } from "./components/CommandBar";
 
 function App() {
   return (
     <main className="container">
-      <h1>COCOmmand</h1>
+      <CommandBar />
     </main>
   );
 }
