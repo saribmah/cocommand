@@ -1,1 +1,7 @@
-//! LLM-based planner for multi-step action plans (Core-7).
+//! Planner module for generating ordered tool-call plans (Core-7).
+
+pub mod plan;
+pub mod planner;
+
+pub use plan::{Plan, PlannedToolCall};
+pub use planner::{Planner, StubPlanner};
