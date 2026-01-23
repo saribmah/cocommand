@@ -19,3 +19,4 @@ llm-kit-provider-utils = "0.1"
 reqwest = { version = "0.12", features = ["json", "blocking"] }
 dotenvy = "0.15"
 dirs = "5"
+url = { version = "2", features = ["serde"] }
