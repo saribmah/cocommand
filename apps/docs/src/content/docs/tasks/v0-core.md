@@ -157,6 +157,53 @@
 
 ---
 
+## Core-3A — Tool Assembly & Mounting Policy (runtime-managed)
+
+### Tasks
+
+* Define the v0 tool assembly policy:
+
+    * Kernel tools are always available.
+    * Application tools become available only when the runtime marks an application instance as **active** and mounts its tools.
+    * Tool mounting is **runtime-managed** (system-owned) and must not be required as an LLM action.
+* Implement a runtime helper API (pick one and document it):
+
+    * **Option A:** `ensure_application_ready(app_id, ui, focus) -> instance_id`
+      Opens instance if needed and mounts its tools in one operation.
+    * **Option B:** After executing `open_application`, the runtime automatically calls `mount_application_tools(instance_id)` (internal).
+* Implement budget enforcement for mounts:
+
+    * Define `max_mounted_apps` and `max_mounted_tools_per_app` (v0 defaults are OK).
+    * If mounting would exceed budget, unmount tools from least-recently-used inactive instances first.
+* Ensure mounts are **derived / recomputable** and do not need to be persisted.
+
+### Targets
+
+```text
+crates/cocommand/src/workspace/kernel_tools.rs
+crates/cocommand/src/tools/registry.rs
+crates/cocommand/src/tools/executor.rs
+crates/cocommand/src/core.rs
+```
+
+### Acceptance Criteria
+
+* The LLM/planner does not need to explicitly call a `mount_application_tools` tool to use application tools.
+* After the runtime “ensures” an app instance is ready, tools for that instance can be executed successfully.
+* Mount budgets are enforced deterministically.
+
+### Definition of Done
+
+* There is a single, documented place in the runtime responsible for mounting/unmounting tools.
+* Mounting behavior is consistent across built-ins and extensions.
+
+### Test Checklist
+
+* Unit test: `ensure_application_ready(notes)` results in tools mounted for that instance (registry has those tools).
+* Unit test: mounting beyond budget evicts older mounts deterministically.
+
+---
+
 ## Core-4 — Permissions v0 (scopes + risk + enforcement + confirmation)
 
 ### Tasks
@@ -299,6 +346,66 @@
 ### Tests
 
 * Stub planner outputs expected tool calls
+
+---
+
+## Core-7A — Execution Orchestration Loop (route → plan → ensure → execute)
+
+### Tasks
+
+* Implement the core orchestration loop for `Core::submit_command(text)`:
+
+    1. Parse command and tags (`CommandRequest`)
+    2. Route to candidates (`RouterOutput`)
+    3. Plan to actions (`Plan` with proposed steps)
+    4. For each step requiring an app tool:
+
+        * ensure required app(s) are ready (open instance if needed + mount tools per Core-3A)
+    5. Execute tool calls via executor
+    6. Record events + update workspace (including follow-up references)
+* Define how “open app” in a plan is handled:
+
+    * If plan includes `open_application`, runtime executes it and then mounts tools automatically (internal policy).
+    * Alternatively, planner never emits raw open; it emits “use app X” and runtime ensures it.
+* Implement a v0 “two-pass” behavior only if needed:
+
+    * Pass 1: plan selects apps/capabilities
+    * Runtime ensures mounts
+    * Pass 2: plan emits specific tool calls (optional; stub planner may not need)
+
+### Targets
+
+```text
+crates/cocommand/src/core.rs
+crates/cocommand/src/command/parser.rs
+crates/cocommand/src/routing/router.rs
+crates/cocommand/src/planner/stub.rs
+crates/cocommand/src/tools/executor.rs
+crates/cocommand/src/events/store.rs
+crates/cocommand/src/workspace/patch.rs
+```
+
+### Acceptance Criteria
+
+* `Core::submit_command` can run end-to-end without the UI knowing about tools/mounting.
+* Multi-step commands can open/mount apps as required without LLM micromanagement.
+
+### Definition of Done
+
+* The runtime (Core) is the single orchestrator of:
+
+    * routing output
+    * planner output
+    * tool execution
+    * mounting/unmounting decisions
+    * event recording
+
+### Test Checklist
+
+* End-to-end unit test using stub planner:
+
+    * “edit last note” triggers ensure(notes) then notes.update tool call
+* Test that tools are not callable before ensure/mount
 
 ---
 

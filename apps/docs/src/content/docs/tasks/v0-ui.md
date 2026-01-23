@@ -335,6 +335,10 @@ apps/desktop/src/types/core.ts
 * Running a destructive command shows Confirmation, and confirming executes and returns Artifact/Preview.
 * The UI never calls tools directly; all actions go through core.
 
+### Behavioral Requirement
+
+* UI must not attempt to manage tool mounting/opening logic. The UI calls `submit_command` and renders the returned `CoreResponse`; the core runtime handles routing, planning, instance lifecycle, and tool availability.
+
 ### Definition of Done
 
 * UI is fully driven by the `CoreResponse` contract (no hidden coupling).
