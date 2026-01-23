@@ -1,13 +1,13 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-- `apps/desktop-tauri/`: Tauri + React app (UI, IPC, window behavior). Frontend code in `apps/desktop-tauri/src/` and Rust backend in `apps/desktop-tauri/src-tauri/`.
+- `apps/desktop/`: Tauri + React app (UI, IPC, window behavior). Frontend code in `apps/desktop/src/` and Rust backend in `apps/desktop/src-tauri/`.
 - `docs/`, `SPEC.md`, `ARCHITECTURE.md`: Product concept and architecture context.
 
 ## Build, Test, and Development Commands
-- `bun tauri dev` (run in `apps/desktop-tauri/`): Start the desktop app with Vite + Rust backend.
-- `bun dev` (run in `apps/desktop-tauri/`): Start the Vite frontend only.
-- `bun tauri build` (run in `apps/desktop-tauri/`): Build the desktop app.
+- `bun tauri dev` (run in `apps/desktop/`): Start the desktop app with Vite + Rust backend.
+- `bun dev` (run in `apps/desktop/`): Start the Vite frontend only.
+- `bun tauri build` (run in `apps/desktop/`): Build the desktop app.
 - `bun run validate:command` (repo root): Validate command example JSON against schema.
 - `bun run validate:workflow` (repo root): Validate workflow example JSON against schema.
 

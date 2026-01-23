@@ -61,7 +61,7 @@ through their root files while hiding implementation details.
 ### Directory Structure
 
 ```
-apps/desktop-tauri/src-tauri/src/
+apps/desktop/src-tauri/src/
 ├── lib.rs                 # Crate root: module declarations
 ├── agent.rs               # Agent module root
 ├── agent/

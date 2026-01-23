@@ -1,5 +1,5 @@
 [package]
-name = "cocommand"
+name = "cocommand-desktop"
 version = "0.1.0"
 description = "CoCommand App"
 authors = ["you"]
@@ -21,8 +21,8 @@ tauri-build = { version = "2", features = [] }
 tauri = { version = "2", features = ["macos-private-api"] }
 tauri-plugin-opener = "2"
 tauri-plugin-global-shortcut = "2"
-coco-core = { path = "../../../crates/coco-core" }
-coco-platform-macos = { path = "../../../crates/coco-platform-macos" }
+cocommand = { path = "../../../crates/cocommand" }
+cocommand-platform-macos = { path = "../../../crates/platform-macos" }
 dotenvy = "0.15"
 
 [dev-dependencies]
