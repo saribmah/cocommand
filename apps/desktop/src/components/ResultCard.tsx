@@ -7,11 +7,8 @@ interface ResultCardProps {
   onDismiss?: (index: number) => void;
 }
 
-const MAX_VISIBLE = 2;
-
 export function ResultCard({ results, onAction, onDismiss }: ResultCardProps) {
-  const offset = Math.max(0, results.length - MAX_VISIBLE);
-  const visible = results.slice(-MAX_VISIBLE);
+  const visible = results.slice(-1);
 
   if (visible.length === 0) return null;
 
@@ -24,7 +21,7 @@ export function ResultCard({ results, onAction, onDismiss }: ResultCardProps) {
             {onDismiss && (
               <button
                 className="result-card-dismiss"
-                onClick={() => onDismiss(offset + i)}
+                onClick={() => onDismiss(0)}
                 aria-label="Dismiss"
               >
                 &times;

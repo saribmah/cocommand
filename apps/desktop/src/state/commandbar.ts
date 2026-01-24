@@ -84,7 +84,7 @@ export function useCommandBar() {
           ...s,
           input: "",
           isSubmitting: false,
-          results: [...s.results, result],
+          results: [result],
         }));
       }
       await syncFollowUp();
@@ -97,7 +97,7 @@ export function useCommandBar() {
       setState((s) => ({
         ...s,
         isSubmitting: false,
-        results: [...s.results, errorResult],
+        results: [errorResult],
       }));
     }
   }, [state.input, syncFollowUp]);
@@ -119,7 +119,7 @@ export function useCommandBar() {
       setState((s) => ({
         ...s,
         pendingConfirmation: null,
-        results: [...s.results, result],
+        results: [result],
       }));
     } catch (err) {
       const errorResult: CoreResult = {
@@ -130,7 +130,7 @@ export function useCommandBar() {
       setState((s) => ({
         ...s,
         pendingConfirmation: null,
-        results: [...s.results, errorResult],
+        results: [errorResult],
       }));
     }
     await syncFollowUp();
