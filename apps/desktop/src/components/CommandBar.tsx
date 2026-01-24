@@ -50,7 +50,7 @@ export function CommandBar() {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder={followUpActive ? "Refine the previous result\u2026" : "Type a command..."}
+          placeholder={followUpActive ? "Refine the previous result\u2026" : "How can I help..."}
           disabled={isSubmitting || !!pendingConfirmation}
           spellCheck={false}
           autoComplete="off"

@@ -1,6 +1,8 @@
-# cocommand.ai
+# <img src="apps/desktop/public/logo_dark.png" width="45" height="45" />
 
-AI-native command bar for macOS. A single entry point for natural-language commands — type what you want, and Cocommand interprets intent, routes to the correct tool, and returns a result or execution plan.
+![cocommand](README-header.png)
+
+COCO is an AI-native command bar for macOS. A single entry point for natural-language commands — type what you want, and Cocommand interprets intent, routes to the correct tool, and returns a result or execution plan.
 
 ## Prerequisites
 
