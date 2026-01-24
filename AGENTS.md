@@ -23,6 +23,7 @@ Run commands from the repo root unless noted.
 ## Testing Guidelines
 - No dedicated test framework is set up yet.
 - Use the validation scripts (`validate:command`, `validate:workflow`) to catch schema regressions.
+- Desktop E2E (Tauri IPC/core flow) tests live under `apps/desktop/src-tauri/` and run with `cargo test -p cocommand-desktop`.
 - If you add tests in a new area, document how to run them in this file and in the PR description.
 
 ## Commit & Pull Request Guidelines

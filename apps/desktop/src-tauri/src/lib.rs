@@ -4,6 +4,8 @@ use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 mod commands;
 mod state;
 mod window;
+#[cfg(test)]
+mod e2e;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
