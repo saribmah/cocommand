@@ -6,6 +6,9 @@ use super::event::Event;
 ///
 /// Events are stored in insertion order. This is the v0 in-memory
 /// implementation with no persistence.
+///
+/// Deprecated: Use [`crate::storage::EventLog`] trait via [`crate::storage::MemoryStorage`] instead.
+#[deprecated(note = "Use storage::EventLog trait via MemoryStorage instead")]
 pub struct EventStore {
     events: Vec<Event>,
 }

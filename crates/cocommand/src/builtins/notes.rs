@@ -318,7 +318,7 @@ fn set_notes(workspace: &mut crate::workspace::Workspace, notes: &[serde_json::V
 mod tests {
     use super::*;
     use std::collections::HashMap;
-    use crate::events::EventStore;
+    use crate::storage::{MemoryStorage, Storage};
     use crate::tools::schema::ExecutionContext;
     use crate::workspace::{ApplicationInstance, ApplicationStatus, Workspace};
 
@@ -356,10 +356,10 @@ mod tests {
     fn list_returns_empty_when_no_notes() {
         let tool = list_tool();
         let mut ws = Workspace::new("test".to_string());
-        let mut es = EventStore::new();
+        let mut storage: Box<dyn Storage> = Box::new(MemoryStorage::new());
         let mut ctx = ExecutionContext {
             workspace: &mut ws,
-            event_store: &mut es,
+            event_log: storage.event_log_mut(),
         };
         let result = (tool.handler)(&json!({}), &mut ctx).unwrap();
         assert_eq!(result["count"], 0);
@@ -372,10 +372,10 @@ mod tests {
             make_note("1", "First", "a"),
             make_note("2", "Second", "b"),
         ]);
-        let mut es = EventStore::new();
+        let mut storage: Box<dyn Storage> = Box::new(MemoryStorage::new());
         let mut ctx = ExecutionContext {
             workspace: &mut ws,
-            event_store: &mut es,
+            event_log: storage.event_log_mut(),
         };
         let result = (tool.handler)(&json!({}), &mut ctx).unwrap();
         assert_eq!(result["count"], 2);
@@ -390,10 +390,10 @@ mod tests {
             make_note("1", "Old", "old content"),
             make_note("2", "New", "new content"),
         ]);
-        let mut es = EventStore::new();
+        let mut storage: Box<dyn Storage> = Box::new(MemoryStorage::new());
         let mut ctx = ExecutionContext {
             workspace: &mut ws,
-            event_store: &mut es,
+            event_log: storage.event_log_mut(),
         };
         let result = (tool.handler)(&json!({}), &mut ctx).unwrap();
         assert_eq!(result["found"], true);
@@ -405,10 +405,10 @@ mod tests {
     fn latest_returns_not_found_when_empty() {
         let tool = latest_tool();
         let mut ws = Workspace::new("test".to_string());
-        let mut es = EventStore::new();
+        let mut storage: Box<dyn Storage> = Box::new(MemoryStorage::new());
         let mut ctx = ExecutionContext {
             workspace: &mut ws,
-            event_store: &mut es,
+            event_log: storage.event_log_mut(),
         };
         let result = (tool.handler)(&json!({}), &mut ctx).unwrap();
         assert_eq!(result["found"], false);
@@ -418,10 +418,10 @@ mod tests {
     fn create_adds_note() {
         let tool = create_tool();
         let mut ws = Workspace::new("test".to_string());
-        let mut es = EventStore::new();
+        let mut storage: Box<dyn Storage> = Box::new(MemoryStorage::new());
         let mut ctx = ExecutionContext {
             workspace: &mut ws,
-            event_store: &mut es,
+            event_log: storage.event_log_mut(),
         };
         let args = json!({"title": "My Note", "content": "Hello world"});
         let result = (tool.handler)(&args, &mut ctx).unwrap();
@@ -440,10 +440,10 @@ mod tests {
         let mut ws = setup_workspace_with_notes(vec![
             make_note("note-1", "Original", "original content"),
         ]);
-        let mut es = EventStore::new();
+        let mut storage: Box<dyn Storage> = Box::new(MemoryStorage::new());
         let mut ctx = ExecutionContext {
             workspace: &mut ws,
-            event_store: &mut es,
+            event_log: storage.event_log_mut(),
         };
         let args = json!({"id": "note-1", "title": "Updated", "content": "new content"});
         let result = (tool.handler)(&args, &mut ctx).unwrap();
@@ -458,10 +458,10 @@ mod tests {
         let mut ws = setup_workspace_with_notes(vec![
             make_note("note-1", "Exists", "content"),
         ]);
-        let mut es = EventStore::new();
+        let mut storage: Box<dyn Storage> = Box::new(MemoryStorage::new());
         let mut ctx = ExecutionContext {
             workspace: &mut ws,
-            event_store: &mut es,
+            event_log: storage.event_log_mut(),
         };
         let args = json!({"id": "nonexistent"});
         let result = (tool.handler)(&args, &mut ctx).unwrap();
@@ -475,10 +475,10 @@ mod tests {
             make_note("note-1", "To Delete", "content"),
             make_note("note-2", "To Keep", "content"),
         ]);
-        let mut es = EventStore::new();
+        let mut storage: Box<dyn Storage> = Box::new(MemoryStorage::new());
         let mut ctx = ExecutionContext {
             workspace: &mut ws,
-            event_store: &mut es,
+            event_log: storage.event_log_mut(),
         };
         let args = json!({"id": "note-1"});
         let result = (tool.handler)(&args, &mut ctx).unwrap();
@@ -495,10 +495,10 @@ mod tests {
         let mut ws = setup_workspace_with_notes(vec![
             make_note("note-1", "Exists", "content"),
         ]);
-        let mut es = EventStore::new();
+        let mut storage: Box<dyn Storage> = Box::new(MemoryStorage::new());
         let mut ctx = ExecutionContext {
             workspace: &mut ws,
-            event_store: &mut es,
+            event_log: storage.event_log_mut(),
         };
         let args = json!({"id": "nonexistent"});
         let result = (tool.handler)(&args, &mut ctx).unwrap();

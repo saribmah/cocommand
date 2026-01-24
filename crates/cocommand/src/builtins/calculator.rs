@@ -303,7 +303,7 @@ fn parse_primary(tokens: &[Token], pos: &mut usize) -> crate::error::CoreResult<
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::events::EventStore;
+    use crate::storage::{MemoryStorage, Storage};
     use crate::tools::schema::ExecutionContext;
     use crate::workspace::Workspace;
 
@@ -362,10 +362,10 @@ mod tests {
     fn eval_tool_returns_result() {
         let tool = eval_tool();
         let mut ws = Workspace::new("test".to_string());
-        let mut es = EventStore::new();
+        let mut storage: Box<dyn Storage> = Box::new(MemoryStorage::new());
         let mut ctx = ExecutionContext {
             workspace: &mut ws,
-            event_store: &mut es,
+            event_log: storage.event_log_mut(),
         };
         let args = json!({"expression": "2 + 2"});
         let result = (tool.handler)(&args, &mut ctx).unwrap();
@@ -377,10 +377,10 @@ mod tests {
     fn parse_tool_valid_expression() {
         let tool = parse_tool();
         let mut ws = Workspace::new("test".to_string());
-        let mut es = EventStore::new();
+        let mut storage: Box<dyn Storage> = Box::new(MemoryStorage::new());
         let mut ctx = ExecutionContext {
             workspace: &mut ws,
-            event_store: &mut es,
+            event_log: storage.event_log_mut(),
         };
         let args = json!({"expression": "3 * 4"});
         let result = (tool.handler)(&args, &mut ctx).unwrap();
@@ -392,10 +392,10 @@ mod tests {
     fn parse_tool_invalid_expression() {
         let tool = parse_tool();
         let mut ws = Workspace::new("test".to_string());
-        let mut es = EventStore::new();
+        let mut storage: Box<dyn Storage> = Box::new(MemoryStorage::new());
         let mut ctx = ExecutionContext {
             workspace: &mut ws,
-            event_store: &mut es,
+            event_log: storage.event_log_mut(),
         };
         let args = json!({"expression": "3 * * 4"});
         let result = (tool.handler)(&args, &mut ctx).unwrap();

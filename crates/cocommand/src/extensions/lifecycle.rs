@@ -361,6 +361,7 @@ impl Drop for ExtensionHost {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::storage::Storage;
     use std::io::Cursor;
 
     /// Create a mock host with pre-configured stdin/stdout for testing.
@@ -561,10 +562,10 @@ mod tests {
         // Invoke the tool
         let tool = registry.lookup("my-app", "my_app.create_ticket").unwrap();
         let mut workspace = crate::workspace::Workspace::new("test".to_string());
-        let mut event_store = crate::events::EventStore::new();
+        let mut storage: Box<dyn Storage> = Box::new(crate::storage::MemoryStorage::new());
         let mut ctx = crate::tools::schema::ExecutionContext {
             workspace: &mut workspace,
-            event_store: &mut event_store,
+            event_log: storage.event_log_mut(),
         };
         let result = (tool.handler)(
             &json!({"title": "Integration test ticket", "priority": "high"}),

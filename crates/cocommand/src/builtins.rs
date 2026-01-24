@@ -37,35 +37,35 @@ pub fn register_builtins_with(
 mod tests {
     use super::*;
     use crate::command::ParsedCommand;
-    use crate::events::EventStore;
     use crate::permissions::PermissionStore;
     use crate::platform::MockClipboardProvider;
+    use crate::storage::{MemoryStorage, Storage};
     use crate::tools::executor::{execute_tool, ToolExecutionOutcome};
     use crate::workspace::Workspace;
     use serde_json::json;
     use uuid::Uuid;
 
-    fn setup() -> (ToolRegistry, Router, Workspace, EventStore, PermissionStore) {
+    fn setup() -> (ToolRegistry, Router, Workspace, Box<dyn Storage>, PermissionStore) {
         setup_with_clipboard(Arc::new(MockClipboardProvider::new(vec![])))
     }
 
     fn setup_with_clipboard(
         provider: Arc<dyn ClipboardProvider>,
-    ) -> (ToolRegistry, Router, Workspace, EventStore, PermissionStore) {
+    ) -> (ToolRegistry, Router, Workspace, Box<dyn Storage>, PermissionStore) {
         let mut registry = ToolRegistry::new();
         let mut router = Router::new();
         register_builtins_with(&mut registry, &mut router, provider);
         let workspace = Workspace::new("test-session".to_string());
-        let event_store = EventStore::new();
+        let storage: Box<dyn Storage> = Box::new(MemoryStorage::new());
         let permission_store = PermissionStore::new();
-        (registry, router, workspace, event_store, permission_store)
+        (registry, router, workspace, storage, permission_store)
     }
 
     // --- End-to-end: route → execute ---
 
     #[test]
     fn end_to_end_show_last_note() {
-        let (registry, router, mut workspace, mut event_store, permission_store) = setup();
+        let (registry, router, mut workspace, mut storage, permission_store) = setup();
 
         // Seed a note in workspace (keyed by APP_ID)
         let note = json!({
@@ -99,7 +99,7 @@ mod tests {
         let result = execute_tool(
             &registry,
             &mut workspace,
-            &mut event_store,
+            storage.event_log_mut(),
             &permission_store,
             notes::APP_ID,
             "notes.latest",
@@ -119,7 +119,7 @@ mod tests {
 
     #[test]
     fn end_to_end_delete_note_needs_confirmation() {
-        let (registry, router, mut workspace, mut event_store, permission_store) = setup();
+        let (registry, router, mut workspace, mut storage, permission_store) = setup();
 
         // Seed a note
         let note = json!({
@@ -153,7 +153,7 @@ mod tests {
         let result = execute_tool(
             &registry,
             &mut workspace,
-            &mut event_store,
+            storage.event_log_mut(),
             &permission_store,
             notes::APP_ID,
             "notes.delete",
@@ -169,7 +169,7 @@ mod tests {
 
     #[test]
     fn all_builtins_register_routing_metadata() {
-        let (_registry, router, _workspace, _event_store, _permission_store) = setup();
+        let (_registry, router, _workspace, _storage, _permission_store) = setup();
 
         let cmd = ParsedCommand {
             raw_text: "calculate 2+2".to_string(),
@@ -198,13 +198,13 @@ mod tests {
 
     #[test]
     fn calculator_eval_end_to_end() {
-        let (registry, _router, mut workspace, mut event_store, permission_store) = setup();
+        let (registry, _router, mut workspace, mut storage, permission_store) = setup();
 
         // Kernel tools are accessible from any instance_id
         let result = execute_tool(
             &registry,
             &mut workspace,
-            &mut event_store,
+            storage.event_log_mut(),
             &permission_store,
             "any-instance",
             "calculator.eval",
@@ -226,13 +226,13 @@ mod tests {
             json!({"text": "old copy"}),
             json!({"text": "latest copy"}),
         ]));
-        let (registry, _router, mut workspace, mut event_store, permission_store) =
+        let (registry, _router, mut workspace, mut storage, permission_store) =
             setup_with_clipboard(provider);
 
         let result = execute_tool(
             &registry,
             &mut workspace,
-            &mut event_store,
+            storage.event_log_mut(),
             &permission_store,
             "any-instance",
             "clipboard.latest",

@@ -121,7 +121,7 @@ fn latest_tool(provider: Arc<dyn ClipboardProvider>) -> ToolDefinition {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::events::EventStore;
+    use crate::storage::{MemoryStorage, Storage};
     use crate::platform::MockClipboardProvider;
     use crate::tools::schema::ExecutionContext;
     use crate::workspace::Workspace;
@@ -131,10 +131,10 @@ mod tests {
         let provider = Arc::new(MockClipboardProvider::new(vec![]));
         let tool = list_tool(provider);
         let mut ws = Workspace::new("test".to_string());
-        let mut es = EventStore::new();
+        let mut storage: Box<dyn Storage> = Box::new(MemoryStorage::new());
         let mut ctx = ExecutionContext {
             workspace: &mut ws,
-            event_store: &mut es,
+            event_log: storage.event_log_mut(),
         };
         let result = (tool.handler)(&json!({}), &mut ctx).unwrap();
         assert_eq!(result["count"], 0);
@@ -150,10 +150,10 @@ mod tests {
         ]));
         let tool = list_tool(provider);
         let mut ws = Workspace::new("test".to_string());
-        let mut es = EventStore::new();
+        let mut storage: Box<dyn Storage> = Box::new(MemoryStorage::new());
         let mut ctx = ExecutionContext {
             workspace: &mut ws,
-            event_store: &mut es,
+            event_log: storage.event_log_mut(),
         };
         let result = (tool.handler)(&json!({}), &mut ctx).unwrap();
         assert_eq!(result["count"], 3);
@@ -171,10 +171,10 @@ mod tests {
         ]));
         let tool = list_tool(provider);
         let mut ws = Workspace::new("test".to_string());
-        let mut es = EventStore::new();
+        let mut storage: Box<dyn Storage> = Box::new(MemoryStorage::new());
         let mut ctx = ExecutionContext {
             workspace: &mut ws,
-            event_store: &mut es,
+            event_log: storage.event_log_mut(),
         };
         let result = (tool.handler)(&json!({"limit": 2}), &mut ctx).unwrap();
         assert_eq!(result["count"], 2);
@@ -188,10 +188,10 @@ mod tests {
         ]));
         let tool = latest_tool(provider);
         let mut ws = Workspace::new("test".to_string());
-        let mut es = EventStore::new();
+        let mut storage: Box<dyn Storage> = Box::new(MemoryStorage::new());
         let mut ctx = ExecutionContext {
             workspace: &mut ws,
-            event_store: &mut es,
+            event_log: storage.event_log_mut(),
         };
         let result = (tool.handler)(&json!({}), &mut ctx).unwrap();
         assert_eq!(result["found"], true);
@@ -203,10 +203,10 @@ mod tests {
         let provider = Arc::new(MockClipboardProvider::new(vec![]));
         let tool = latest_tool(provider);
         let mut ws = Workspace::new("test".to_string());
-        let mut es = EventStore::new();
+        let mut storage: Box<dyn Storage> = Box::new(MemoryStorage::new());
         let mut ctx = ExecutionContext {
             workspace: &mut ws,
-            event_store: &mut es,
+            event_log: storage.event_log_mut(),
         };
         let result = (tool.handler)(&json!({}), &mut ctx).unwrap();
         assert_eq!(result["found"], false);

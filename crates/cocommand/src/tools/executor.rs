@@ -4,8 +4,8 @@ use std::time::SystemTime;
 use uuid::Uuid;
 
 use crate::events::event::Event;
-use crate::events::EventStore;
 use crate::permissions::{enforce_permissions, EnforcementResult, PermissionStore};
+use crate::storage::EventLog;
 use crate::workspace::{ConfirmationPending, Workspace, WorkspaceMode, WorkspacePatch};
 
 use super::invocation::{InvocationStatus, ToolInvocationRecord};
@@ -39,7 +39,7 @@ pub enum ToolExecutionOutcome {
 pub fn execute_tool(
     registry: &ToolRegistry,
     workspace: &mut Workspace,
-    event_store: &mut EventStore,
+    event_log: &mut dyn EventLog,
     permission_store: &PermissionStore,
     instance_id: &str,
     tool_id: &str,
@@ -87,7 +87,7 @@ pub fn execute_tool(
     match enforce_permissions(tool, permission_store, tool_call_id) {
         EnforcementResult::Allowed => {
             // Emit authorized event
-            event_store.append(Event::ToolCallAuthorized {
+            event_log.append(Event::ToolCallAuthorized {
                 id: Uuid::new_v4(),
                 timestamp: SystemTime::now(),
                 tool_call_id,
@@ -104,7 +104,7 @@ pub fn execute_tool(
                 workspace_hash(workspace),
             );
             // Emit denied event
-            event_store.append(Event::ToolCallDenied {
+            event_log.append(Event::ToolCallDenied {
                 id: Uuid::new_v4(),
                 timestamp: SystemTime::now(),
                 tool_call_id,
@@ -135,14 +135,14 @@ pub fn execute_tool(
     let started_at = SystemTime::now();
     let mut ctx = ExecutionContext {
         workspace,
-        event_store,
+        event_log,
     };
     let handler_result = (tool.handler)(&args, &mut ctx);
     let ended_at = SystemTime::now();
 
-    // After handler, re-borrow workspace and event_store from ctx
+    // After handler, re-borrow workspace and event_log from ctx
     let workspace = ctx.workspace;
-    let event_store = ctx.event_store;
+    let event_log = ctx.event_log;
 
     // 6. Capture hash_after
     let hash_after = workspace_hash(workspace);
@@ -162,14 +162,14 @@ pub fn execute_tool(
             );
 
             // 8. Emit events
-            event_store.append(Event::ToolCallExecuted {
+            event_log.append(Event::ToolCallExecuted {
                 id: Uuid::new_v4(),
                 timestamp: SystemTime::now(),
                 tool_call_id,
                 invocation: invocation.clone(),
             });
 
-            event_store.append(Event::ToolResultRecorded {
+            event_log.append(Event::ToolResultRecorded {
                 id: Uuid::new_v4(),
                 timestamp: SystemTime::now(),
                 tool_call_id,
@@ -178,7 +178,7 @@ pub fn execute_tool(
 
             // WorkspacePatched only for kernel tools that changed the workspace
             if is_kernel && hash_before != hash_after {
-                event_store.append(Event::WorkspacePatched {
+                event_log.append(Event::WorkspacePatched {
                     id: Uuid::new_v4(),
                     timestamp: SystemTime::now(),
                     patch: WorkspacePatch {
@@ -205,7 +205,7 @@ pub fn execute_tool(
             invocation.error_code = Some(format!("{e}"));
 
             // 8. Emit ToolCallExecuted with Failed status
-            event_store.append(Event::ToolCallExecuted {
+            event_log.append(Event::ToolCallExecuted {
                 id: Uuid::new_v4(),
                 timestamp: SystemTime::now(),
                 tool_call_id,
@@ -233,7 +233,9 @@ fn workspace_hash(workspace: &Workspace) -> String {
 mod tests {
     use super::*;
     use crate::error::CoreError;
+    use crate::events::Event;
     use crate::permissions::PermissionStore;
+    use crate::storage::{MemoryStorage, Storage};
     use crate::tools::schema::{RiskLevel, ToolDefinition, ToolHandler};
     use crate::tools::registry::ToolRegistry;
     use serde_json::json;
@@ -270,19 +272,19 @@ mod tests {
         }
     }
 
-    fn setup() -> (ToolRegistry, Workspace, EventStore, PermissionStore) {
+    fn setup() -> (ToolRegistry, Workspace, Box<dyn Storage>, PermissionStore) {
         let registry = ToolRegistry::new();
         let workspace = Workspace::new("test-session".to_string());
-        let event_store = EventStore::new();
+        let storage: Box<dyn Storage> = Box::new(MemoryStorage::new());
         let permission_store = PermissionStore::new();
-        (registry, workspace, event_store, permission_store)
+        (registry, workspace, storage, permission_store)
     }
 
     #[test]
     fn unknown_tool_returns_denied() {
-        let (registry, mut workspace, mut event_store, permission_store) = setup();
+        let (registry, mut workspace, mut storage, permission_store) = setup();
         let result = execute_tool(
-            &registry, &mut workspace, &mut event_store, &permission_store,
+            &registry, &mut workspace, storage.event_log_mut(), &permission_store,
             "inst-1", "nonexistent", json!({}), Uuid::new_v4(),
         );
         assert!(matches!(result, ToolExecutionOutcome::Denied { .. }));
@@ -290,12 +292,12 @@ mod tests {
 
     #[test]
     fn invalid_args_returns_denied() {
-        let (mut registry, mut workspace, mut event_store, permission_store) = setup();
+        let (mut registry, mut workspace, mut storage, permission_store) = setup();
         registry.register_kernel_tool(make_tool("my_tool", true, make_handler_ok(json!("ok"))));
 
         // Missing required "name" field
         let result = execute_tool(
-            &registry, &mut workspace, &mut event_store, &permission_store,
+            &registry, &mut workspace, storage.event_log_mut(), &permission_store,
             "inst-1", "my_tool", json!({}), Uuid::new_v4(),
         );
         assert!(matches!(result, ToolExecutionOutcome::Denied { .. }));
@@ -303,13 +305,13 @@ mod tests {
 
     #[test]
     fn valid_tool_returns_correct_result() {
-        let (mut registry, mut workspace, mut event_store, permission_store) = setup();
+        let (mut registry, mut workspace, mut storage, permission_store) = setup();
         registry.register_kernel_tool(make_tool(
             "echo", true, make_handler_ok(json!({"echo": "hello"})),
         ));
 
         let result = execute_tool(
-            &registry, &mut workspace, &mut event_store, &permission_store,
+            &registry, &mut workspace, storage.event_log_mut(), &permission_store,
             "inst-1", "echo", json!({"name": "test"}), Uuid::new_v4(),
         );
 
@@ -322,13 +324,13 @@ mod tests {
 
     #[test]
     fn invocation_record_has_correct_fields() {
-        let (mut registry, mut workspace, mut event_store, permission_store) = setup();
+        let (mut registry, mut workspace, mut storage, permission_store) = setup();
         registry.register_kernel_tool(make_tool(
             "my_tool", true, make_handler_ok(json!(null)),
         ));
 
         let result = execute_tool(
-            &registry, &mut workspace, &mut event_store, &permission_store,
+            &registry, &mut workspace, storage.event_log_mut(), &permission_store,
             "inst-1", "my_tool", json!({"name": "x"}), Uuid::new_v4(),
         );
 
@@ -343,21 +345,21 @@ mod tests {
 
     #[test]
     fn tool_call_executed_event_emitted() {
-        let (mut registry, mut workspace, mut event_store, permission_store) = setup();
+        let (mut registry, mut workspace, mut storage, permission_store) = setup();
         registry.register_kernel_tool(make_tool(
             "my_tool", true, make_handler_ok(json!(null)),
         ));
 
         let call_id = Uuid::new_v4();
         execute_tool(
-            &registry, &mut workspace, &mut event_store, &permission_store,
+            &registry, &mut workspace, storage.event_log_mut(), &permission_store,
             "inst-1", "my_tool", json!({"name": "x"}), call_id,
         );
 
-        let events = event_store.events();
-        let executed = events.iter().find(|e| matches!(e, Event::ToolCallExecuted { .. }));
+        let records = storage.event_log().tail(100);
+        let executed = records.iter().find(|r| matches!(&r.event, Event::ToolCallExecuted { .. }));
         assert!(executed.is_some());
-        if let Event::ToolCallExecuted { tool_call_id, invocation, .. } = executed.unwrap() {
+        if let Event::ToolCallExecuted { tool_call_id, invocation, .. } = &executed.unwrap().event {
             assert_eq!(*tool_call_id, call_id);
             assert_eq!(invocation.status, InvocationStatus::Success);
         }
@@ -365,27 +367,27 @@ mod tests {
 
     #[test]
     fn tool_result_recorded_event_emitted_on_success() {
-        let (mut registry, mut workspace, mut event_store, permission_store) = setup();
+        let (mut registry, mut workspace, mut storage, permission_store) = setup();
         registry.register_kernel_tool(make_tool(
             "my_tool", true, make_handler_ok(json!({"data": 42})),
         ));
 
         execute_tool(
-            &registry, &mut workspace, &mut event_store, &permission_store,
+            &registry, &mut workspace, storage.event_log_mut(), &permission_store,
             "inst-1", "my_tool", json!({"name": "x"}), Uuid::new_v4(),
         );
 
-        let events = event_store.events();
-        let recorded = events.iter().find(|e| matches!(e, Event::ToolResultRecorded { .. }));
+        let records = storage.event_log().tail(100);
+        let recorded = records.iter().find(|r| matches!(&r.event, Event::ToolResultRecorded { .. }));
         assert!(recorded.is_some());
-        if let Event::ToolResultRecorded { result, .. } = recorded.unwrap() {
+        if let Event::ToolResultRecorded { result, .. } = &recorded.unwrap().event {
             assert_eq!(*result, json!({"data": 42}));
         }
     }
 
     #[test]
     fn kernel_tool_emits_workspace_patched_on_mutation() {
-        let (mut registry, mut workspace, mut event_store, permission_store) = setup();
+        let (mut registry, mut workspace, mut storage, permission_store) = setup();
         let tool = ToolDefinition {
             tool_id: "mutator".to_string(),
             input_schema: json!({}),
@@ -397,19 +399,19 @@ mod tests {
         registry.register_kernel_tool(tool);
 
         let result = execute_tool(
-            &registry, &mut workspace, &mut event_store, &permission_store,
+            &registry, &mut workspace, storage.event_log_mut(), &permission_store,
             "inst-1", "mutator", json!({}), Uuid::new_v4(),
         );
         assert!(matches!(result, ToolExecutionOutcome::Executed(_)));
 
-        let events = event_store.events();
-        let patched = events.iter().find(|e| matches!(e, Event::WorkspacePatched { .. }));
+        let records = storage.event_log().tail(100);
+        let patched = records.iter().find(|r| matches!(&r.event, Event::WorkspacePatched { .. }));
         assert!(patched.is_some());
     }
 
     #[test]
     fn kernel_tool_noop_does_not_emit_workspace_patched() {
-        let (mut registry, mut workspace, mut event_store, permission_store) = setup();
+        let (mut registry, mut workspace, mut storage, permission_store) = setup();
         let tool = ToolDefinition {
             tool_id: "noop".to_string(),
             input_schema: json!({}),
@@ -421,18 +423,18 @@ mod tests {
         registry.register_kernel_tool(tool);
 
         execute_tool(
-            &registry, &mut workspace, &mut event_store, &permission_store,
+            &registry, &mut workspace, storage.event_log_mut(), &permission_store,
             "inst-1", "noop", json!({}), Uuid::new_v4(),
         );
 
-        let events = event_store.events();
-        let patched = events.iter().any(|e| matches!(e, Event::WorkspacePatched { .. }));
+        let records = storage.event_log().tail(100);
+        let patched = records.iter().any(|r| matches!(&r.event, Event::WorkspacePatched { .. }));
         assert!(!patched);
     }
 
     #[test]
     fn handler_failure_returns_denied() {
-        let (mut registry, mut workspace, mut event_store, permission_store) = setup();
+        let (mut registry, mut workspace, mut storage, permission_store) = setup();
         let tool = ToolDefinition {
             tool_id: "fail_tool".to_string(),
             input_schema: json!({}),
@@ -444,7 +446,7 @@ mod tests {
         registry.register_instance_tool("inst-1".to_string(), tool);
 
         let result = execute_tool(
-            &registry, &mut workspace, &mut event_store, &permission_store,
+            &registry, &mut workspace, storage.event_log_mut(), &permission_store,
             "inst-1", "fail_tool", json!({}), Uuid::new_v4(),
         );
         assert!(matches!(result, ToolExecutionOutcome::Denied { .. }));
@@ -452,7 +454,7 @@ mod tests {
 
     #[test]
     fn failed_handler_still_emits_tool_call_executed() {
-        let (mut registry, mut workspace, mut event_store, permission_store) = setup();
+        let (mut registry, mut workspace, mut storage, permission_store) = setup();
         let tool = ToolDefinition {
             tool_id: "fail_tool".to_string(),
             input_schema: json!({}),
@@ -465,14 +467,14 @@ mod tests {
 
         let call_id = Uuid::new_v4();
         execute_tool(
-            &registry, &mut workspace, &mut event_store, &permission_store,
+            &registry, &mut workspace, storage.event_log_mut(), &permission_store,
             "inst-1", "fail_tool", json!({}), call_id,
         );
 
-        let events = event_store.events();
-        let executed = events.iter().find(|e| matches!(e, Event::ToolCallExecuted { .. }));
+        let records = storage.event_log().tail(100);
+        let executed = records.iter().find(|r| matches!(&r.event, Event::ToolCallExecuted { .. }));
         assert!(executed.is_some());
-        if let Event::ToolCallExecuted { tool_call_id, invocation, .. } = executed.unwrap() {
+        if let Event::ToolCallExecuted { tool_call_id, invocation, .. } = &executed.unwrap().event {
             assert_eq!(*tool_call_id, call_id);
             assert_eq!(invocation.status, InvocationStatus::Failed);
             assert!(invocation.error_code.is_some());
@@ -483,7 +485,7 @@ mod tests {
 
     #[test]
     fn safe_tool_empty_store_executes() {
-        let (mut registry, mut workspace, mut event_store, permission_store) = setup();
+        let (mut registry, mut workspace, mut storage, permission_store) = setup();
         let tool = ToolDefinition {
             tool_id: "safe_tool".to_string(),
             input_schema: json!({}),
@@ -495,7 +497,7 @@ mod tests {
         registry.register_instance_tool("inst-1".to_string(), tool);
 
         let result = execute_tool(
-            &registry, &mut workspace, &mut event_store, &permission_store,
+            &registry, &mut workspace, storage.event_log_mut(), &permission_store,
             "inst-1", "safe_tool", json!({}), Uuid::new_v4(),
         );
         assert!(matches!(result, ToolExecutionOutcome::Executed(_)));
@@ -503,7 +505,7 @@ mod tests {
 
     #[test]
     fn destructive_tool_empty_store_needs_confirmation() {
-        let (mut registry, mut workspace, mut event_store, permission_store) = setup();
+        let (mut registry, mut workspace, mut storage, permission_store) = setup();
         let tool = ToolDefinition {
             tool_id: "delete_all".to_string(),
             input_schema: json!({}),
@@ -515,7 +517,7 @@ mod tests {
         registry.register_instance_tool("inst-1".to_string(), tool);
 
         let result = execute_tool(
-            &registry, &mut workspace, &mut event_store, &permission_store,
+            &registry, &mut workspace, storage.event_log_mut(), &permission_store,
             "inst-1", "delete_all", json!({}), Uuid::new_v4(),
         );
         assert!(matches!(result, ToolExecutionOutcome::NeedsConfirmation { .. }));
@@ -523,7 +525,7 @@ mod tests {
 
     #[test]
     fn confirm_tool_empty_store_needs_confirmation() {
-        let (mut registry, mut workspace, mut event_store, permission_store) = setup();
+        let (mut registry, mut workspace, mut storage, permission_store) = setup();
         let tool = ToolDefinition {
             tool_id: "write_file".to_string(),
             input_schema: json!({}),
@@ -535,7 +537,7 @@ mod tests {
         registry.register_instance_tool("inst-1".to_string(), tool);
 
         let result = execute_tool(
-            &registry, &mut workspace, &mut event_store, &permission_store,
+            &registry, &mut workspace, storage.event_log_mut(), &permission_store,
             "inst-1", "write_file", json!({}), Uuid::new_v4(),
         );
         assert!(matches!(result, ToolExecutionOutcome::NeedsConfirmation { .. }));
@@ -543,7 +545,7 @@ mod tests {
 
     #[test]
     fn stored_deny_returns_denied_with_event() {
-        let (mut registry, mut workspace, mut event_store, mut permission_store) = setup();
+        let (mut registry, mut workspace, mut storage, mut permission_store) = setup();
         let tool = ToolDefinition {
             tool_id: "write_file".to_string(),
             input_schema: json!({}),
@@ -562,14 +564,14 @@ mod tests {
         );
 
         let result = execute_tool(
-            &registry, &mut workspace, &mut event_store, &permission_store,
+            &registry, &mut workspace, storage.event_log_mut(), &permission_store,
             "inst-1", "write_file", json!({}), Uuid::new_v4(),
         );
         assert!(matches!(result, ToolExecutionOutcome::Denied { .. }));
 
         // ToolCallDenied event should be emitted
-        let events = event_store.events();
-        let denied = events.iter().find(|e| matches!(e, Event::ToolCallDenied { .. }));
+        let records = storage.event_log().tail(100);
+        let denied = records.iter().find(|r| matches!(&r.event, Event::ToolCallDenied { .. }));
         assert!(denied.is_some());
 
         // Workspace mode should NOT change for denied tools
@@ -578,7 +580,7 @@ mod tests {
 
     #[test]
     fn stored_allow_executes_confirm_tool() {
-        let (mut registry, mut workspace, mut event_store, mut permission_store) = setup();
+        let (mut registry, mut workspace, mut storage, mut permission_store) = setup();
         let tool = ToolDefinition {
             tool_id: "write_file".to_string(),
             input_schema: json!({}),
@@ -597,7 +599,7 @@ mod tests {
         );
 
         let result = execute_tool(
-            &registry, &mut workspace, &mut event_store, &permission_store,
+            &registry, &mut workspace, storage.event_log_mut(), &permission_store,
             "inst-1", "write_file", json!({}), Uuid::new_v4(),
         );
         assert!(matches!(result, ToolExecutionOutcome::Executed(_)));
@@ -605,7 +607,7 @@ mod tests {
 
     #[test]
     fn needs_confirmation_sets_workspace_state() {
-        let (mut registry, mut workspace, mut event_store, permission_store) = setup();
+        let (mut registry, mut workspace, mut storage, permission_store) = setup();
         let tool = ToolDefinition {
             tool_id: "risky_tool".to_string(),
             input_schema: json!({}),
@@ -617,7 +619,7 @@ mod tests {
         registry.register_instance_tool("inst-1".to_string(), tool);
 
         let result = execute_tool(
-            &registry, &mut workspace, &mut event_store, &permission_store,
+            &registry, &mut workspace, storage.event_log_mut(), &permission_store,
             "inst-1", "risky_tool", json!({}), Uuid::new_v4(),
         );
 
@@ -630,7 +632,7 @@ mod tests {
 
     #[test]
     fn tool_call_authorized_event_emitted_for_allowed() {
-        let (mut registry, mut workspace, mut event_store, permission_store) = setup();
+        let (mut registry, mut workspace, mut storage, permission_store) = setup();
         let tool = ToolDefinition {
             tool_id: "safe_tool".to_string(),
             input_schema: json!({}),
@@ -642,12 +644,12 @@ mod tests {
         registry.register_instance_tool("inst-1".to_string(), tool);
 
         execute_tool(
-            &registry, &mut workspace, &mut event_store, &permission_store,
+            &registry, &mut workspace, storage.event_log_mut(), &permission_store,
             "inst-1", "safe_tool", json!({}), Uuid::new_v4(),
         );
 
-        let events = event_store.events();
-        let authorized = events.iter().find(|e| matches!(e, Event::ToolCallAuthorized { .. }));
+        let records = storage.event_log().tail(100);
+        let authorized = records.iter().find(|r| matches!(&r.event, Event::ToolCallAuthorized { .. }));
         assert!(authorized.is_some());
     }
 }
