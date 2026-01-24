@@ -4,7 +4,6 @@ use uuid::Uuid;
 use crate::command;
 use crate::error::CoreResult;
 use crate::events::Event;
-use crate::events::redaction::{redact_event, RedactedEvent};
 use crate::routing::Router;
 use crate::storage::Storage;
 use crate::types::{ActionSummary, ArtifactAction, CoreResponse, RoutedCandidate};
@@ -183,17 +182,16 @@ impl Core {
 
     /// Retrieve recent actions up to `limit`.
     ///
-    /// Tails the event log, redacts sensitive fields, and maps each record
-    /// to an [`ActionSummary`]. The UI never sees raw user text or error details.
+    /// Returns pre-computed summaries from the event log. Summaries are
+    /// derived from structural metadata at write time and never contain
+    /// raw user text or sensitive content.
     pub fn get_recent_actions(&self, limit: usize) -> CoreResult<Vec<ActionSummary>> {
         let records = self.storage.event_log().tail(limit);
         let summaries = records
             .into_iter()
-            .map(|record| {
-                let id = record.event.id().to_string();
-                let redacted = redact_event(&record.event);
-                let description = Self::describe_redacted_event(&redacted);
-                ActionSummary { id, description }
+            .map(|record| ActionSummary {
+                id: record.event.id().to_string(),
+                description: record.summary,
             })
             .collect();
         Ok(summaries)
@@ -239,29 +237,6 @@ impl Core {
         Self::PREVIEW_VERBS
             .iter()
             .any(|v| first_word.eq_ignore_ascii_case(v))
-    }
-
-    /// Map a redacted event to a human-readable description for ActionSummary.
-    ///
-    /// Operates on the redacted view so sensitive content (user text, error
-    /// details, tool args/results) is never exposed to the UI.
-    fn describe_redacted_event(event: &RedactedEvent) -> String {
-        match event {
-            RedactedEvent::UserMessage { .. } => "Command received".to_string(),
-            RedactedEvent::ToolCallProposed { tool_id, .. } => {
-                format!("Proposed: {}", tool_id)
-            }
-            RedactedEvent::ToolCallAuthorized { .. } => "Tool call authorized".to_string(),
-            RedactedEvent::ToolCallDenied { .. } => "Tool call denied".to_string(),
-            RedactedEvent::ToolCallExecuted { invocation, .. } => {
-                format!("Executed: {}", invocation.tool_id)
-            }
-            RedactedEvent::ToolResultRecorded { .. } => "Result recorded".to_string(),
-            RedactedEvent::WorkspacePatched { .. } => "Workspace updated".to_string(),
-            RedactedEvent::ErrorRaised { code, .. } => {
-                format!("Error ({})", code)
-            }
-        }
     }
 
     /// Build artifact actions based on the current workspace mode.
@@ -575,7 +550,7 @@ mod tests {
     }
 
     #[test]
-    fn get_recent_actions_returns_redacted_summaries() {
+    fn get_recent_actions_returns_safe_summaries() {
         let mut core = Core::new(make_storage());
         core.router_mut().register(calendar_metadata());
 
@@ -584,9 +559,9 @@ mod tests {
 
         let actions = core.get_recent_actions(10).unwrap();
         assert_eq!(actions.len(), 2);
-        // Descriptions are derived from redacted events — no raw user text.
-        assert_eq!(actions[0].description, "Command received");
-        assert_eq!(actions[1].description, "Command received");
+        // Summaries include char count but never raw user text.
+        assert_eq!(actions[0].description, "Command (18 chars)");
+        assert_eq!(actions[1].description, "Command (15 chars)");
         // IDs are valid UUIDs.
         assert!(!actions[0].id.is_empty());
         assert_ne!(actions[0].id, actions[1].id);
@@ -603,9 +578,9 @@ mod tests {
 
         let actions = core.get_recent_actions(2).unwrap();
         assert_eq!(actions.len(), 2);
-        // tail returns the last N — all are "Command received" since text is redacted.
-        assert_eq!(actions[0].description, "Command received");
-        assert_eq!(actions[1].description, "Command received");
+        // tail returns the last N; summaries distinguish by char count.
+        assert_eq!(actions[0].description, "Command (6 chars)");
+        assert_eq!(actions[1].description, "Command (5 chars)");
     }
 
     // --- Serde serialization tests (required by Core-12 test checklist) ---

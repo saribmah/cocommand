@@ -2,7 +2,7 @@
 
 use crate::events::Event;
 
-use super::types::EventRecord;
+use super::types::{event_summary, EventRecord};
 
 /// Append-only event log with deterministic sequencing.
 pub trait EventLog: Send + Sync {
@@ -28,9 +28,11 @@ pub(crate) struct MemoryEventLog {
 
 impl EventLog for MemoryEventLog {
     fn append(&mut self, event: Event) -> EventRecord {
+        let summary = event_summary(&event);
         let record = EventRecord {
             seq: self.next_seq,
             event,
+            summary,
         };
         self.next_seq += 1;
         self.records.push(record.clone());
@@ -141,9 +143,11 @@ mod tests {
     fn event_record_accessors() {
         let event = make_event("hello");
         let expected_id = event.id();
-        let record = EventRecord { seq: 42, event };
+        let summary = event_summary(&event);
+        let record = EventRecord { seq: 42, event, summary };
 
         assert_eq!(record.id(), expected_id);
         assert_eq!(record.seq, 42);
+        assert_eq!(record.summary, "Command (5 chars)");
     }
 }

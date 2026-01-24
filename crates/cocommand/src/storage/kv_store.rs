@@ -44,7 +44,11 @@ impl KvStore for MemoryKvStore {
     fn keys(&self, namespace: &str) -> Vec<String> {
         self.data
             .get(namespace)
-            .map(|ns| ns.keys().cloned().collect())
+            .map(|ns| {
+                let mut keys: Vec<String> = ns.keys().cloned().collect();
+                keys.sort();
+                keys
+            })
             .unwrap_or_default()
     }
 }
@@ -95,16 +99,14 @@ mod tests {
     }
 
     #[test]
-    fn keys_returns_namespace_keys() {
+    fn keys_returns_sorted_namespace_keys() {
         let mut kv = MemoryKvStore::default();
-        kv.set("settings", "a", json!(1));
         kv.set("settings", "b", json!(2));
+        kv.set("settings", "a", json!(1));
         kv.set("extensions", "c", json!(3));
 
-        let mut keys = kv.keys("settings");
-        keys.sort();
-        assert_eq!(keys, vec!["a", "b"]);
-
+        // Returned in sorted order regardless of insertion order.
+        assert_eq!(kv.keys("settings"), vec!["a", "b"]);
         assert_eq!(kv.keys("extensions"), vec!["c"]);
         assert!(kv.keys("unknown").is_empty());
     }

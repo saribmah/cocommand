@@ -14,4 +14,4 @@ pub use kv_store::KvStore;
 pub use memory::MemoryStorage;
 pub use snapshot_store::SnapshotStore;
 pub use traits::Storage;
-pub use types::{ClipboardEntry, EventRecord, WorkspaceSnapshot};
+pub use types::{event_summary, ClipboardEntry, EventRecord, WorkspaceSnapshot};
