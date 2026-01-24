@@ -12,6 +12,7 @@ pub mod workspace;
 pub mod permissions;
 pub mod tools;
 pub mod events;
+pub mod storage;
 pub mod extensions;
 pub mod builtins;
 
