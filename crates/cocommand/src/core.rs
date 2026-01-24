@@ -4,6 +4,7 @@ use uuid::Uuid;
 use crate::command;
 use crate::error::CoreResult;
 use crate::events::Event;
+use crate::events::redaction::{redact_event, RedactedEvent};
 use crate::routing::Router;
 use crate::storage::Storage;
 use crate::types::{ActionSummary, ArtifactAction, CoreResponse, RoutedCandidate};
@@ -182,17 +183,17 @@ impl Core {
 
     /// Retrieve recent actions up to `limit`.
     ///
-    /// Tails the event log and maps each record to an [`ActionSummary`].
+    /// Tails the event log, redacts sensitive fields, and maps each record
+    /// to an [`ActionSummary`]. The UI never sees raw user text or error details.
     pub fn get_recent_actions(&self, limit: usize) -> CoreResult<Vec<ActionSummary>> {
         let records = self.storage.event_log().tail(limit);
         let summaries = records
             .into_iter()
             .map(|record| {
-                let description = Self::describe_event(&record.event);
-                ActionSummary {
-                    id: record.event.id().to_string(),
-                    description,
-                }
+                let id = record.event.id().to_string();
+                let redacted = redact_event(&record.event);
+                let description = Self::describe_redacted_event(&redacted);
+                ActionSummary { id, description }
             })
             .collect();
         Ok(summaries)
@@ -240,31 +241,25 @@ impl Core {
             .any(|v| first_word.eq_ignore_ascii_case(v))
     }
 
-    /// Map an event to a human-readable description for ActionSummary.
-    fn describe_event(event: &Event) -> String {
+    /// Map a redacted event to a human-readable description for ActionSummary.
+    ///
+    /// Operates on the redacted view so sensitive content (user text, error
+    /// details, tool args/results) is never exposed to the UI.
+    fn describe_redacted_event(event: &RedactedEvent) -> String {
         match event {
-            Event::UserMessage { text, .. } => {
-                let preview: String = text.chars().take(80).collect();
-                if text.len() > 80 {
-                    format!("Command: {}...", preview)
-                } else {
-                    format!("Command: {}", preview)
-                }
-            }
-            Event::ToolCallProposed { tool_id, .. } => {
+            RedactedEvent::UserMessage { .. } => "Command received".to_string(),
+            RedactedEvent::ToolCallProposed { tool_id, .. } => {
                 format!("Proposed: {}", tool_id)
             }
-            Event::ToolCallAuthorized { .. } => "Tool call authorized".to_string(),
-            Event::ToolCallDenied { reason, .. } => {
-                format!("Tool call denied: {}", reason)
-            }
-            Event::ToolCallExecuted { invocation, .. } => {
+            RedactedEvent::ToolCallAuthorized { .. } => "Tool call authorized".to_string(),
+            RedactedEvent::ToolCallDenied { .. } => "Tool call denied".to_string(),
+            RedactedEvent::ToolCallExecuted { invocation, .. } => {
                 format!("Executed: {}", invocation.tool_id)
             }
-            Event::ToolResultRecorded { .. } => "Result recorded".to_string(),
-            Event::WorkspacePatched { .. } => "Workspace updated".to_string(),
-            Event::ErrorRaised { message, .. } => {
-                format!("Error: {}", message)
+            RedactedEvent::ToolResultRecorded { .. } => "Result recorded".to_string(),
+            RedactedEvent::WorkspacePatched { .. } => "Workspace updated".to_string(),
+            RedactedEvent::ErrorRaised { code, .. } => {
+                format!("Error ({})", code)
             }
         }
     }
@@ -580,7 +575,7 @@ mod tests {
     }
 
     #[test]
-    fn get_recent_actions_returns_summaries_after_commands() {
+    fn get_recent_actions_returns_redacted_summaries() {
         let mut core = Core::new(make_storage());
         core.router_mut().register(calendar_metadata());
 
@@ -589,8 +584,12 @@ mod tests {
 
         let actions = core.get_recent_actions(10).unwrap();
         assert_eq!(actions.len(), 2);
-        assert!(actions[0].description.contains("Command: schedule a meeting"));
-        assert!(actions[1].description.contains("Command: create an event"));
+        // Descriptions are derived from redacted events — no raw user text.
+        assert_eq!(actions[0].description, "Command received");
+        assert_eq!(actions[1].description, "Command received");
+        // IDs are valid UUIDs.
+        assert!(!actions[0].id.is_empty());
+        assert_ne!(actions[0].id, actions[1].id);
     }
 
     #[test]
@@ -604,9 +603,9 @@ mod tests {
 
         let actions = core.get_recent_actions(2).unwrap();
         assert_eq!(actions.len(), 2);
-        // tail returns the last N, so we get the most recent ones.
-        assert!(actions[0].description.contains("second"));
-        assert!(actions[1].description.contains("third"));
+        // tail returns the last N — all are "Command received" since text is redacted.
+        assert_eq!(actions[0].description, "Command received");
+        assert_eq!(actions[1].description, "Command received");
     }
 
     // --- Serde serialization tests (required by Core-12 test checklist) ---

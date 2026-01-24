@@ -76,7 +76,7 @@ mod tests {
         let storage: Box<dyn Storage> = Box::new(MemoryStorage::new());
         assert!(storage.event_log().is_empty());
         assert!(storage.snapshots().load().is_none());
-        assert!(storage.kv().get("x").is_none());
+        assert!(storage.kv().get("settings", "x").is_none());
         assert!(storage.clipboard().is_empty());
     }
 
@@ -87,7 +87,7 @@ mod tests {
         storage.event_log_mut().append(make_event("test"));
         assert_eq!(storage.event_log().len(), 1);
 
-        storage.kv_mut().set("k", json!("v"));
-        assert_eq!(storage.kv().get("k"), Some(json!("v")));
+        storage.kv_mut().set("settings", "k", json!("v"));
+        assert_eq!(storage.kv().get("settings", "k"), Some(json!("v")));
     }
 }
