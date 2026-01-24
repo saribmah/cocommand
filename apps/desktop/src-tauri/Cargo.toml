@@ -23,7 +23,13 @@ tauri-plugin-opener = "2"
 tauri-plugin-global-shortcut = "2"
 cocommand = { path = "../../../crates/cocommand" }
 cocommand-platform-macos = { path = "../../../crates/platform-macos" }
+llm-kit-openai = "0.1.0"
+llm-kit-provider = "0.1.2"
+llm-kit-openai-compatible = "0.1.1"
+serde = { version = "1", features = ["derive"] }
 dotenvy = "0.15"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal"] }
+serde_json = "1"
+uuid = { version = "1", features = ["v4"] }

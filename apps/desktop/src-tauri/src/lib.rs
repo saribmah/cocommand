@@ -1,7 +1,11 @@
 use tauri::{Manager, WindowEvent};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 
+mod commands;
+mod state;
 mod window;
+#[cfg(test)]
+mod e2e;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -9,6 +13,7 @@ pub fn run() {
     let _ = dotenvy::from_path(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(".env"));
 
     tauri::Builder::default()
+        .manage(state::AppState::new())
         .plugin(tauri_plugin_opener::init())
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
@@ -37,7 +42,13 @@ pub fn run() {
             }
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![window::hide_window,])
+        .invoke_handler(tauri::generate_handler![
+            window::hide_window,
+            commands::submit_command,
+            commands::confirm_action,
+            commands::get_workspace_snapshot,
+            commands::get_recent_actions,
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

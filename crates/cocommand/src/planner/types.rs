@@ -1,0 +1,82 @@
+use crate::command::ParsedCommand;
+use crate::routing::RouteCandidate;
+use crate::tools::RiskLevel;
+use crate::workspace::Workspace;
+use llm_kit_core::tool::ToolSet;
+
+/// Minimal tool metadata exposed to planners.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ToolSpec {
+    pub tool_id: String,
+    pub input_schema: serde_json::Value,
+    pub output_schema: serde_json::Value,
+    pub risk_level: RiskLevel,
+    pub is_kernel: bool,
+}
+
+/// Structured input to a planner.
+#[derive(Clone)]
+pub struct PlannerInput {
+    pub command: ParsedCommand,
+    pub candidates: Vec<RouteCandidate>,
+    pub workspace: Workspace,
+    pub tools: Vec<ToolSpec>,
+    pub toolset: Option<ToolSet>,
+}
+
+/// Metadata about how a plan was produced.
+#[derive(Debug, Clone, PartialEq)]
+pub struct PlanMetadata {
+    pub planner_id: String,
+    pub model: Option<String>,
+    pub reasoning: Option<String>,
+    pub prompt_tokens: Option<u32>,
+    pub completion_tokens: Option<u32>,
+    pub total_tokens: Option<u32>,
+}
+
+impl PlanMetadata {
+    pub fn stub() -> Self {
+        Self {
+            planner_id: "stub".to_string(),
+            model: None,
+            reasoning: None,
+            prompt_tokens: None,
+            completion_tokens: None,
+            total_tokens: None,
+        }
+    }
+}
+
+/// Planner output containing a tool-call plan plus metadata.
+#[derive(Debug, Clone, PartialEq)]
+pub struct PlannerOutput {
+    pub plan: super::plan::Plan,
+    pub metadata: PlanMetadata,
+    pub response_text: Option<String>,
+    pub tool_errors: Vec<serde_json::Value>,
+}
+
+impl PlannerOutput {
+    pub fn new(
+        plan: super::plan::Plan,
+        metadata: PlanMetadata,
+        response_text: Option<String>,
+        tool_errors: Vec<serde_json::Value>,
+    ) -> Self {
+        Self {
+            plan,
+            metadata,
+            response_text,
+            tool_errors,
+        }
+    }
+}
+
+/// Planner error types.
+#[derive(Debug, Clone, PartialEq)]
+pub enum PlannerError {
+    ProviderUnavailable(String),
+    InvalidResponse(String),
+    Internal(String),
+}
