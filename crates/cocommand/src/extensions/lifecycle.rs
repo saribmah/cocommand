@@ -563,9 +563,11 @@ mod tests {
         let tool = registry.lookup("my-app", "my_app.create_ticket").unwrap();
         let mut workspace = crate::workspace::Workspace::new("test".to_string());
         let mut storage: Box<dyn Storage> = Box::new(crate::storage::MemoryStorage::new());
+        let (event_log, clipboard_store) = storage.split_event_clipboard_mut();
         let mut ctx = crate::tools::schema::ExecutionContext {
             workspace: &mut workspace,
-            event_log: storage.event_log_mut(),
+            event_log,
+            clipboard_store,
         };
         let result = (tool.handler)(
             &json!({"title": "Integration test ticket", "priority": "high"}),

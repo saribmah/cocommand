@@ -53,6 +53,10 @@ impl Storage for MemoryStorage {
     fn clipboard_mut(&mut self) -> &mut dyn ClipboardStore {
         &mut self.clipboard
     }
+
+    fn split_event_clipboard_mut(&mut self) -> (&mut dyn EventLog, &mut dyn ClipboardStore) {
+        (&mut self.event_log, &mut self.clipboard)
+    }
 }
 
 #[cfg(test)]

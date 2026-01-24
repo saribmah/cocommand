@@ -5,7 +5,7 @@ use uuid::Uuid;
 
 use crate::events::event::Event;
 use crate::permissions::{enforce_permissions, EnforcementResult, PermissionStore};
-use crate::storage::EventLog;
+use crate::storage::{ClipboardStore, EventLog};
 use crate::workspace::{ConfirmationPending, Workspace, WorkspaceMode, WorkspacePatch};
 
 use super::invocation::{InvocationStatus, ToolInvocationRecord};
@@ -40,6 +40,7 @@ pub fn execute_tool(
     registry: &ToolRegistry,
     workspace: &mut Workspace,
     event_log: &mut dyn EventLog,
+    clipboard_store: &mut dyn ClipboardStore,
     permission_store: &PermissionStore,
     instance_id: &str,
     tool_id: &str,
@@ -136,6 +137,7 @@ pub fn execute_tool(
     let mut ctx = ExecutionContext {
         workspace,
         event_log,
+        clipboard_store,
     };
     let handler_result = (tool.handler)(&args, &mut ctx);
     let ended_at = SystemTime::now();
@@ -283,8 +285,9 @@ mod tests {
     #[test]
     fn unknown_tool_returns_denied() {
         let (registry, mut workspace, mut storage, permission_store) = setup();
+        let (event_log, clipboard_store) = storage.split_event_clipboard_mut();
         let result = execute_tool(
-            &registry, &mut workspace, storage.event_log_mut(), &permission_store,
+            &registry, &mut workspace, event_log, clipboard_store, &permission_store,
             "inst-1", "nonexistent", json!({}), Uuid::new_v4(),
         );
         assert!(matches!(result, ToolExecutionOutcome::Denied { .. }));
@@ -295,9 +298,10 @@ mod tests {
         let (mut registry, mut workspace, mut storage, permission_store) = setup();
         registry.register_kernel_tool(make_tool("my_tool", true, make_handler_ok(json!("ok"))));
 
+        let (event_log, clipboard_store) = storage.split_event_clipboard_mut();
         // Missing required "name" field
         let result = execute_tool(
-            &registry, &mut workspace, storage.event_log_mut(), &permission_store,
+            &registry, &mut workspace, event_log, clipboard_store, &permission_store,
             "inst-1", "my_tool", json!({}), Uuid::new_v4(),
         );
         assert!(matches!(result, ToolExecutionOutcome::Denied { .. }));
@@ -310,8 +314,9 @@ mod tests {
             "echo", true, make_handler_ok(json!({"echo": "hello"})),
         ));
 
+        let (event_log, clipboard_store) = storage.split_event_clipboard_mut();
         let result = execute_tool(
-            &registry, &mut workspace, storage.event_log_mut(), &permission_store,
+            &registry, &mut workspace, event_log, clipboard_store, &permission_store,
             "inst-1", "echo", json!({"name": "test"}), Uuid::new_v4(),
         );
 
@@ -329,8 +334,9 @@ mod tests {
             "my_tool", true, make_handler_ok(json!(null)),
         ));
 
+        let (event_log, clipboard_store) = storage.split_event_clipboard_mut();
         let result = execute_tool(
-            &registry, &mut workspace, storage.event_log_mut(), &permission_store,
+            &registry, &mut workspace, event_log, clipboard_store, &permission_store,
             "inst-1", "my_tool", json!({"name": "x"}), Uuid::new_v4(),
         );
 
@@ -351,8 +357,9 @@ mod tests {
         ));
 
         let call_id = Uuid::new_v4();
+        let (event_log, clipboard_store) = storage.split_event_clipboard_mut();
         execute_tool(
-            &registry, &mut workspace, storage.event_log_mut(), &permission_store,
+            &registry, &mut workspace, event_log, clipboard_store, &permission_store,
             "inst-1", "my_tool", json!({"name": "x"}), call_id,
         );
 
@@ -372,8 +379,9 @@ mod tests {
             "my_tool", true, make_handler_ok(json!({"data": 42})),
         ));
 
+        let (event_log, clipboard_store) = storage.split_event_clipboard_mut();
         execute_tool(
-            &registry, &mut workspace, storage.event_log_mut(), &permission_store,
+            &registry, &mut workspace, event_log, clipboard_store, &permission_store,
             "inst-1", "my_tool", json!({"name": "x"}), Uuid::new_v4(),
         );
 
@@ -398,8 +406,9 @@ mod tests {
         };
         registry.register_kernel_tool(tool);
 
+        let (event_log, clipboard_store) = storage.split_event_clipboard_mut();
         let result = execute_tool(
-            &registry, &mut workspace, storage.event_log_mut(), &permission_store,
+            &registry, &mut workspace, event_log, clipboard_store, &permission_store,
             "inst-1", "mutator", json!({}), Uuid::new_v4(),
         );
         assert!(matches!(result, ToolExecutionOutcome::Executed(_)));
@@ -422,8 +431,9 @@ mod tests {
         };
         registry.register_kernel_tool(tool);
 
+        let (event_log, clipboard_store) = storage.split_event_clipboard_mut();
         execute_tool(
-            &registry, &mut workspace, storage.event_log_mut(), &permission_store,
+            &registry, &mut workspace, event_log, clipboard_store, &permission_store,
             "inst-1", "noop", json!({}), Uuid::new_v4(),
         );
 
@@ -445,8 +455,9 @@ mod tests {
         };
         registry.register_instance_tool("inst-1".to_string(), tool);
 
+        let (event_log, clipboard_store) = storage.split_event_clipboard_mut();
         let result = execute_tool(
-            &registry, &mut workspace, storage.event_log_mut(), &permission_store,
+            &registry, &mut workspace, event_log, clipboard_store, &permission_store,
             "inst-1", "fail_tool", json!({}), Uuid::new_v4(),
         );
         assert!(matches!(result, ToolExecutionOutcome::Denied { .. }));
@@ -466,8 +477,9 @@ mod tests {
         registry.register_instance_tool("inst-1".to_string(), tool);
 
         let call_id = Uuid::new_v4();
+        let (event_log, clipboard_store) = storage.split_event_clipboard_mut();
         execute_tool(
-            &registry, &mut workspace, storage.event_log_mut(), &permission_store,
+            &registry, &mut workspace, event_log, clipboard_store, &permission_store,
             "inst-1", "fail_tool", json!({}), call_id,
         );
 
@@ -496,8 +508,9 @@ mod tests {
         };
         registry.register_instance_tool("inst-1".to_string(), tool);
 
+        let (event_log, clipboard_store) = storage.split_event_clipboard_mut();
         let result = execute_tool(
-            &registry, &mut workspace, storage.event_log_mut(), &permission_store,
+            &registry, &mut workspace, event_log, clipboard_store, &permission_store,
             "inst-1", "safe_tool", json!({}), Uuid::new_v4(),
         );
         assert!(matches!(result, ToolExecutionOutcome::Executed(_)));
@@ -516,8 +529,9 @@ mod tests {
         };
         registry.register_instance_tool("inst-1".to_string(), tool);
 
+        let (event_log, clipboard_store) = storage.split_event_clipboard_mut();
         let result = execute_tool(
-            &registry, &mut workspace, storage.event_log_mut(), &permission_store,
+            &registry, &mut workspace, event_log, clipboard_store, &permission_store,
             "inst-1", "delete_all", json!({}), Uuid::new_v4(),
         );
         assert!(matches!(result, ToolExecutionOutcome::NeedsConfirmation { .. }));
@@ -536,8 +550,9 @@ mod tests {
         };
         registry.register_instance_tool("inst-1".to_string(), tool);
 
+        let (event_log, clipboard_store) = storage.split_event_clipboard_mut();
         let result = execute_tool(
-            &registry, &mut workspace, storage.event_log_mut(), &permission_store,
+            &registry, &mut workspace, event_log, clipboard_store, &permission_store,
             "inst-1", "write_file", json!({}), Uuid::new_v4(),
         );
         assert!(matches!(result, ToolExecutionOutcome::NeedsConfirmation { .. }));
@@ -563,8 +578,9 @@ mod tests {
             PermissionDecision::Deny,
         );
 
+        let (event_log, clipboard_store) = storage.split_event_clipboard_mut();
         let result = execute_tool(
-            &registry, &mut workspace, storage.event_log_mut(), &permission_store,
+            &registry, &mut workspace, event_log, clipboard_store, &permission_store,
             "inst-1", "write_file", json!({}), Uuid::new_v4(),
         );
         assert!(matches!(result, ToolExecutionOutcome::Denied { .. }));
@@ -598,8 +614,9 @@ mod tests {
             PermissionDecision::Allow,
         );
 
+        let (event_log, clipboard_store) = storage.split_event_clipboard_mut();
         let result = execute_tool(
-            &registry, &mut workspace, storage.event_log_mut(), &permission_store,
+            &registry, &mut workspace, event_log, clipboard_store, &permission_store,
             "inst-1", "write_file", json!({}), Uuid::new_v4(),
         );
         assert!(matches!(result, ToolExecutionOutcome::Executed(_)));
@@ -618,8 +635,9 @@ mod tests {
         };
         registry.register_instance_tool("inst-1".to_string(), tool);
 
+        let (event_log, clipboard_store) = storage.split_event_clipboard_mut();
         let result = execute_tool(
-            &registry, &mut workspace, storage.event_log_mut(), &permission_store,
+            &registry, &mut workspace, event_log, clipboard_store, &permission_store,
             "inst-1", "risky_tool", json!({}), Uuid::new_v4(),
         );
 
@@ -643,8 +661,9 @@ mod tests {
         };
         registry.register_instance_tool("inst-1".to_string(), tool);
 
+        let (event_log, clipboard_store) = storage.split_event_clipboard_mut();
         execute_tool(
-            &registry, &mut workspace, storage.event_log_mut(), &permission_store,
+            &registry, &mut workspace, event_log, clipboard_store, &permission_store,
             "inst-1", "safe_tool", json!({}), Uuid::new_v4(),
         );
 

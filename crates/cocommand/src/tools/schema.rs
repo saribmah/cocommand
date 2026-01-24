@@ -3,7 +3,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::error::CoreResult;
-use crate::storage::EventLog;
+use crate::storage::{ClipboardStore, EventLog};
 use crate::workspace::Workspace;
 
 /// Risk classification for a tool.
@@ -25,6 +25,7 @@ pub type ToolHandler =
 pub struct ExecutionContext<'a> {
     pub workspace: &'a mut Workspace,
     pub event_log: &'a mut dyn EventLog,
+    pub clipboard_store: &'a mut dyn ClipboardStore,
 }
 
 /// Complete tool definition including schema, risk level, and handler.

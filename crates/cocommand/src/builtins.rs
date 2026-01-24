@@ -96,10 +96,12 @@ mod tests {
         assert_eq!(routing_result.candidates[0].app_id, "notes");
 
         // Execute notes.latest (kernel tool, instance_id doesn't matter for lookup)
+        let (event_log, clipboard_store) = storage.split_event_clipboard_mut();
         let result = execute_tool(
             &registry,
             &mut workspace,
-            storage.event_log_mut(),
+            event_log,
+            clipboard_store,
             &permission_store,
             notes::APP_ID,
             "notes.latest",
@@ -150,10 +152,12 @@ mod tests {
         assert_eq!(routing_result.candidates[0].app_id, "notes");
 
         // Execute notes.delete — should require confirmation (Destructive risk)
+        let (event_log, clipboard_store) = storage.split_event_clipboard_mut();
         let result = execute_tool(
             &registry,
             &mut workspace,
-            storage.event_log_mut(),
+            event_log,
+            clipboard_store,
             &permission_store,
             notes::APP_ID,
             "notes.delete",
@@ -201,10 +205,12 @@ mod tests {
         let (registry, _router, mut workspace, mut storage, permission_store) = setup();
 
         // Kernel tools are accessible from any instance_id
+        let (event_log, clipboard_store) = storage.split_event_clipboard_mut();
         let result = execute_tool(
             &registry,
             &mut workspace,
-            storage.event_log_mut(),
+            event_log,
+            clipboard_store,
             &permission_store,
             "any-instance",
             "calculator.eval",
@@ -229,10 +235,12 @@ mod tests {
         let (registry, _router, mut workspace, mut storage, permission_store) =
             setup_with_clipboard(provider);
 
+        let (event_log, clipboard_store) = storage.split_event_clipboard_mut();
         let result = execute_tool(
             &registry,
             &mut workspace,
-            storage.event_log_mut(),
+            event_log,
+            clipboard_store,
             &permission_store,
             "any-instance",
             "clipboard.latest",

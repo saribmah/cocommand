@@ -357,9 +357,11 @@ mod tests {
         let tool = list_tool();
         let mut ws = Workspace::new("test".to_string());
         let mut storage: Box<dyn Storage> = Box::new(MemoryStorage::new());
+        let (event_log, clipboard_store) = storage.split_event_clipboard_mut();
         let mut ctx = ExecutionContext {
             workspace: &mut ws,
-            event_log: storage.event_log_mut(),
+            event_log,
+            clipboard_store,
         };
         let result = (tool.handler)(&json!({}), &mut ctx).unwrap();
         assert_eq!(result["count"], 0);
@@ -373,9 +375,11 @@ mod tests {
             make_note("2", "Second", "b"),
         ]);
         let mut storage: Box<dyn Storage> = Box::new(MemoryStorage::new());
+        let (event_log, clipboard_store) = storage.split_event_clipboard_mut();
         let mut ctx = ExecutionContext {
             workspace: &mut ws,
-            event_log: storage.event_log_mut(),
+            event_log,
+            clipboard_store,
         };
         let result = (tool.handler)(&json!({}), &mut ctx).unwrap();
         assert_eq!(result["count"], 2);
@@ -391,9 +395,11 @@ mod tests {
             make_note("2", "New", "new content"),
         ]);
         let mut storage: Box<dyn Storage> = Box::new(MemoryStorage::new());
+        let (event_log, clipboard_store) = storage.split_event_clipboard_mut();
         let mut ctx = ExecutionContext {
             workspace: &mut ws,
-            event_log: storage.event_log_mut(),
+            event_log,
+            clipboard_store,
         };
         let result = (tool.handler)(&json!({}), &mut ctx).unwrap();
         assert_eq!(result["found"], true);
@@ -406,9 +412,11 @@ mod tests {
         let tool = latest_tool();
         let mut ws = Workspace::new("test".to_string());
         let mut storage: Box<dyn Storage> = Box::new(MemoryStorage::new());
+        let (event_log, clipboard_store) = storage.split_event_clipboard_mut();
         let mut ctx = ExecutionContext {
             workspace: &mut ws,
-            event_log: storage.event_log_mut(),
+            event_log,
+            clipboard_store,
         };
         let result = (tool.handler)(&json!({}), &mut ctx).unwrap();
         assert_eq!(result["found"], false);
@@ -419,9 +427,11 @@ mod tests {
         let tool = create_tool();
         let mut ws = Workspace::new("test".to_string());
         let mut storage: Box<dyn Storage> = Box::new(MemoryStorage::new());
+        let (event_log, clipboard_store) = storage.split_event_clipboard_mut();
         let mut ctx = ExecutionContext {
             workspace: &mut ws,
-            event_log: storage.event_log_mut(),
+            event_log,
+            clipboard_store,
         };
         let args = json!({"title": "My Note", "content": "Hello world"});
         let result = (tool.handler)(&args, &mut ctx).unwrap();
@@ -441,9 +451,11 @@ mod tests {
             make_note("note-1", "Original", "original content"),
         ]);
         let mut storage: Box<dyn Storage> = Box::new(MemoryStorage::new());
+        let (event_log, clipboard_store) = storage.split_event_clipboard_mut();
         let mut ctx = ExecutionContext {
             workspace: &mut ws,
-            event_log: storage.event_log_mut(),
+            event_log,
+            clipboard_store,
         };
         let args = json!({"id": "note-1", "title": "Updated", "content": "new content"});
         let result = (tool.handler)(&args, &mut ctx).unwrap();
@@ -459,9 +471,11 @@ mod tests {
             make_note("note-1", "Exists", "content"),
         ]);
         let mut storage: Box<dyn Storage> = Box::new(MemoryStorage::new());
+        let (event_log, clipboard_store) = storage.split_event_clipboard_mut();
         let mut ctx = ExecutionContext {
             workspace: &mut ws,
-            event_log: storage.event_log_mut(),
+            event_log,
+            clipboard_store,
         };
         let args = json!({"id": "nonexistent"});
         let result = (tool.handler)(&args, &mut ctx).unwrap();
@@ -476,9 +490,11 @@ mod tests {
             make_note("note-2", "To Keep", "content"),
         ]);
         let mut storage: Box<dyn Storage> = Box::new(MemoryStorage::new());
+        let (event_log, clipboard_store) = storage.split_event_clipboard_mut();
         let mut ctx = ExecutionContext {
             workspace: &mut ws,
-            event_log: storage.event_log_mut(),
+            event_log,
+            clipboard_store,
         };
         let args = json!({"id": "note-1"});
         let result = (tool.handler)(&args, &mut ctx).unwrap();
@@ -496,9 +512,11 @@ mod tests {
             make_note("note-1", "Exists", "content"),
         ]);
         let mut storage: Box<dyn Storage> = Box::new(MemoryStorage::new());
+        let (event_log, clipboard_store) = storage.split_event_clipboard_mut();
         let mut ctx = ExecutionContext {
             workspace: &mut ws,
-            event_log: storage.event_log_mut(),
+            event_log,
+            clipboard_store,
         };
         let args = json!({"id": "nonexistent"});
         let result = (tool.handler)(&args, &mut ctx).unwrap();

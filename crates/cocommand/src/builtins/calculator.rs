@@ -363,9 +363,11 @@ mod tests {
         let tool = eval_tool();
         let mut ws = Workspace::new("test".to_string());
         let mut storage: Box<dyn Storage> = Box::new(MemoryStorage::new());
+        let (event_log, clipboard_store) = storage.split_event_clipboard_mut();
         let mut ctx = ExecutionContext {
             workspace: &mut ws,
-            event_log: storage.event_log_mut(),
+            event_log,
+            clipboard_store,
         };
         let args = json!({"expression": "2 + 2"});
         let result = (tool.handler)(&args, &mut ctx).unwrap();
@@ -378,9 +380,11 @@ mod tests {
         let tool = parse_tool();
         let mut ws = Workspace::new("test".to_string());
         let mut storage: Box<dyn Storage> = Box::new(MemoryStorage::new());
+        let (event_log, clipboard_store) = storage.split_event_clipboard_mut();
         let mut ctx = ExecutionContext {
             workspace: &mut ws,
-            event_log: storage.event_log_mut(),
+            event_log,
+            clipboard_store,
         };
         let args = json!({"expression": "3 * 4"});
         let result = (tool.handler)(&args, &mut ctx).unwrap();
@@ -393,9 +397,11 @@ mod tests {
         let tool = parse_tool();
         let mut ws = Workspace::new("test".to_string());
         let mut storage: Box<dyn Storage> = Box::new(MemoryStorage::new());
+        let (event_log, clipboard_store) = storage.split_event_clipboard_mut();
         let mut ctx = ExecutionContext {
             workspace: &mut ws,
-            event_log: storage.event_log_mut(),
+            event_log,
+            clipboard_store,
         };
         let args = json!({"expression": "3 * * 4"});
         let result = (tool.handler)(&args, &mut ctx).unwrap();

@@ -15,4 +15,8 @@ pub trait Storage: Send + Sync {
     fn kv_mut(&mut self) -> &mut dyn KvStore;
     fn clipboard(&self) -> &dyn ClipboardStore;
     fn clipboard_mut(&mut self) -> &mut dyn ClipboardStore;
+
+    /// Split mutable access to event log and clipboard store simultaneously.
+    /// Required for tool execution where handlers may need both.
+    fn split_event_clipboard_mut(&mut self) -> (&mut dyn EventLog, &mut dyn ClipboardStore);
 }
