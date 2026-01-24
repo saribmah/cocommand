@@ -15,6 +15,7 @@ pub mod events;
 pub mod storage;
 pub mod extensions;
 pub mod builtins;
+pub mod llm;
 
 pub use crate::core::Core;
 pub use crate::error::{CoreError, CoreResult};

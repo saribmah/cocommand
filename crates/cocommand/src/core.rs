@@ -4,11 +4,16 @@ use uuid::Uuid;
 use crate::command;
 use crate::error::CoreResult;
 use crate::events::Event;
+use crate::permissions::PermissionStore;
 use crate::routing::Router;
 use crate::storage::Storage;
 use crate::types::{ActionSummary, ArtifactAction, CoreResponse, RoutedCandidate};
 use crate::workspace::state::{Timestamp, WorkspaceMode};
 use crate::workspace::Workspace;
+use crate::tools::registry::ToolRegistry;
+use crate::llm::{build_toolset, ToolRuntime};
+use llm_kit_core::tool::ToolSet;
+use std::sync::{Arc, Mutex};
 
 /// Primary facade for the cocommand engine.
 ///
@@ -16,9 +21,11 @@ use crate::workspace::Workspace;
 /// Responses are returned as [`CoreResponse`] — the single stable shape
 /// used across the Tauri boundary.
 pub struct Core {
-    workspace: Workspace,
+    workspace: Arc<Mutex<Workspace>>,
     router: Router,
-    storage: Box<dyn Storage>,
+    storage: Arc<Mutex<Box<dyn Storage>>>,
+    registry: Arc<Mutex<ToolRegistry>>,
+    permission_store: Arc<Mutex<PermissionStore>>,
 }
 
 impl Core {
@@ -27,8 +34,9 @@ impl Core {
     /// If the storage contains a previously saved workspace snapshot,
     /// the workspace is restored from it (with ephemeral state sanitized).
     /// Otherwise a fresh workspace is created.
-    pub fn new(mut storage: Box<dyn Storage>) -> Self {
-        let snapshot = storage.snapshots().load();
+    pub fn new(storage: Box<dyn Storage>) -> Self {
+        let storage = Arc::new(Mutex::new(storage));
+        let snapshot = storage.lock().expect("storage lock").snapshots().load();
 
         let workspace = match snapshot {
             Some(snap) => match serde_json::from_value::<Workspace>(snap.data) {
@@ -52,7 +60,11 @@ impl Core {
                 }
                 Err(_) => {
                     // Log a warning so corrupt snapshots are observable.
-                    storage.event_log_mut().append(Event::ErrorRaised {
+                    storage
+                        .lock()
+                        .expect("storage lock")
+                        .event_log_mut()
+                        .append(Event::ErrorRaised {
                         id: Uuid::new_v4(),
                         timestamp: SystemTime::now(),
                         code: "snapshot_corrupt".to_string(),
@@ -66,15 +78,23 @@ impl Core {
         };
 
         Core {
-            workspace,
+            workspace: Arc::new(Mutex::new(workspace)),
             router: Router::new(),
             storage,
+            registry: Arc::new(Mutex::new(ToolRegistry::new())),
+            permission_store: Arc::new(Mutex::new(PermissionStore::new())),
         }
     }
 
     /// Create a `Core` with an existing workspace, router, and storage (for testing).
     pub fn with_state(workspace: Workspace, router: Router, storage: Box<dyn Storage>) -> Self {
-        Core { workspace, router, storage }
+        Core {
+            workspace: Arc::new(Mutex::new(workspace)),
+            router,
+            storage: Arc::new(Mutex::new(storage)),
+            registry: Arc::new(Mutex::new(ToolRegistry::new())),
+            permission_store: Arc::new(Mutex::new(PermissionStore::new())),
+        }
     }
 
     /// Submit a natural-language command for processing.
@@ -85,21 +105,24 @@ impl Core {
     const PREVIEW_VERBS: &'static [&'static str] = &["show", "view", "get", "display", "preview", "read"];
 
     pub fn submit_command(&mut self, text: &str) -> CoreResult<CoreResponse> {
+        let mut storage = self.storage.lock().expect("storage lock");
+        let mut workspace = self.workspace.lock().expect("workspace lock");
+
         // Log the user message event.
-        self.storage.event_log_mut().append(Event::UserMessage {
+        storage.event_log_mut().append(Event::UserMessage {
             id: Uuid::new_v4(),
             timestamp: SystemTime::now(),
             text: text.to_string(),
         });
 
         // If a confirmation is pending, the user must resolve it first.
-        if let Some(cp) = &self.workspace.confirmation_pending {
+        if let Some(cp) = &workspace.confirmation_pending {
             let response = CoreResponse::Confirmation {
                 confirmation_id: cp.confirmation_id.clone(),
                 prompt: format!("Pending action: {}", cp.tool_id),
                 description: "Please confirm or deny before submitting new commands.".to_string(),
             };
-            self.save_snapshot();
+            self.save_snapshot_locked(&mut workspace, &mut *storage);
             return Ok(response);
         }
 
@@ -107,12 +130,12 @@ impl Core {
         let now = Self::now();
 
         // Check follow-up validity and route accordingly.
-        let follow_up_ctx = if self.workspace.is_follow_up_valid(now) {
-            self.workspace.follow_up.clone()
-        } else if self.workspace.follow_up.is_some() {
+        let follow_up_ctx = if workspace.is_follow_up_valid(now) {
+            workspace.follow_up.clone()
+        } else if workspace.follow_up.is_some() {
             // TTL expired or turns exhausted — expire and return error.
-            self.workspace.expire_follow_up();
-            self.save_snapshot();
+            workspace.expire_follow_up();
+            self.save_snapshot_locked(&mut workspace, &mut *storage);
             return Ok(CoreResponse::Error {
                 message: "Follow-up expired. Please provide the full command.".to_string(),
             });
@@ -126,7 +149,7 @@ impl Core {
 
         // If we're in follow-up, consume a turn.
         if follow_up_ctx.is_some() {
-            self.workspace.consume_follow_up_turn();
+            workspace.consume_follow_up_turn();
         }
 
         // Build the artifact content from routing candidates.
@@ -157,11 +180,11 @@ impl Core {
                 "Routed to {} (score: {:.1}): {}",
                 top.app_id, top.score, top.explanation
             );
-            let actions = self.build_artifact_actions();
+            let actions = self.build_artifact_actions(&workspace);
             CoreResponse::Artifact { content, actions }
         };
 
-        self.save_snapshot();
+        self.save_snapshot_locked(&mut workspace, &mut *storage);
         Ok(response)
     }
 
@@ -172,7 +195,8 @@ impl Core {
         entity_ids: Vec<String>,
         app_id: String,
     ) {
-        self.workspace.enter_follow_up(command, entity_ids, app_id);
+        let mut workspace = self.workspace.lock().expect("workspace lock");
+        workspace.enter_follow_up(command, entity_ids, app_id);
     }
 
     /// Confirm or deny a pending action.
@@ -185,12 +209,14 @@ impl Core {
         confirmation_id: &str,
         decision: bool,
     ) -> CoreResult<CoreResponse> {
-        let pending = self.workspace.confirmation_pending.as_ref();
+        let mut workspace = self.workspace.lock().expect("workspace lock");
+        let mut storage = self.storage.lock().expect("storage lock");
+        let pending = workspace.confirmation_pending.as_ref();
 
         match pending {
             Some(cp) if cp.confirmation_id == confirmation_id => {
                 let tool_id = cp.tool_id.clone();
-                self.workspace.clear_confirmation();
+                workspace.clear_confirmation();
 
                 let response = if decision {
                     CoreResponse::Artifact {
@@ -204,7 +230,7 @@ impl Core {
                     }
                 };
 
-                self.save_snapshot();
+                self.save_snapshot_locked(&mut workspace, &mut *storage);
                 Ok(response)
             }
             Some(_) => Ok(CoreResponse::Error {
@@ -220,7 +246,7 @@ impl Core {
 
     /// Retrieve a snapshot of the current workspace state.
     pub fn get_workspace_snapshot(&self) -> CoreResult<Workspace> {
-        Ok(self.workspace.clone())
+        Ok(self.workspace.lock().expect("workspace lock").clone())
     }
 
     /// Retrieve recent actions up to `limit`.
@@ -229,7 +255,8 @@ impl Core {
     /// derived from structural metadata at write time and never contain
     /// raw user text or sensitive content.
     pub fn get_recent_actions(&self, limit: usize) -> CoreResult<Vec<ActionSummary>> {
-        let records = self.storage.event_log().tail(limit);
+        let storage = self.storage.lock().expect("storage lock");
+        let records = storage.event_log().tail(limit);
         let summaries = records
             .into_iter()
             .map(|record| ActionSummary {
@@ -241,13 +268,13 @@ impl Core {
     }
 
     /// Get a reference to the storage backend.
-    pub fn storage(&self) -> &dyn Storage {
-        &*self.storage
+    pub fn storage(&self) -> std::sync::MutexGuard<'_, Box<dyn Storage>> {
+        self.storage.lock().expect("storage lock")
     }
 
     /// Get a mutable reference to the storage backend.
-    pub fn storage_mut(&mut self) -> &mut dyn Storage {
-        &mut *self.storage
+    pub fn storage_mut(&mut self) -> std::sync::MutexGuard<'_, Box<dyn Storage>> {
+        self.storage.lock().expect("storage lock")
     }
 
     /// Get a mutable reference to the router for registration.
@@ -256,14 +283,40 @@ impl Core {
     }
 
     /// Get a reference to the workspace.
-    pub fn workspace(&self) -> &Workspace {
-        &self.workspace
+    pub fn workspace(&self) -> Workspace {
+        self.workspace.lock().expect("workspace lock").clone()
     }
 
     /// Get a mutable reference to the workspace (for testing).
     #[cfg(test)]
-    pub fn workspace_mut(&mut self) -> &mut Workspace {
-        &mut self.workspace
+    pub fn workspace_mut(&mut self) -> std::sync::MutexGuard<'_, Workspace> {
+        self.workspace.lock().expect("workspace lock")
+    }
+
+    /// Build a tool runtime for llm-kit execution.
+    pub fn tool_runtime(&self, instance_id: impl Into<String>) -> Arc<ToolRuntime> {
+        Arc::new(ToolRuntime {
+            registry: Arc::clone(&self.registry),
+            workspace: Arc::clone(&self.workspace),
+            storage: Arc::clone(&self.storage),
+            permission_store: Arc::clone(&self.permission_store),
+            instance_id: instance_id.into(),
+        })
+    }
+
+    /// Build a llm-kit ToolSet wired to this core.
+    pub fn build_llm_toolset(&self, instance_id: impl Into<String>) -> ToolSet {
+        build_toolset(self.tool_runtime(instance_id))
+    }
+
+    /// Access the tool registry (for registration).
+    pub fn registry_mut(&mut self) -> std::sync::MutexGuard<'_, ToolRegistry> {
+        self.registry.lock().expect("registry lock")
+    }
+
+    /// Access the permission store (for updates).
+    pub fn permission_store_mut(&mut self) -> std::sync::MutexGuard<'_, PermissionStore> {
+        self.permission_store.lock().expect("permission store lock")
     }
 
     /// Get the current unix timestamp in seconds.
@@ -283,20 +336,24 @@ impl Core {
     }
 
     /// Persist the current workspace state as a snapshot in storage.
-    fn save_snapshot(&mut self) {
-        if let Ok(data) = serde_json::to_value(&self.workspace) {
+    fn save_snapshot_locked(
+        &self,
+        workspace: &mut Workspace,
+        storage: &mut Box<dyn Storage>,
+    ) {
+        if let Ok(data) = serde_json::to_value(&*workspace) {
             let snapshot = crate::storage::types::WorkspaceSnapshot {
-                session_id: self.workspace.session_id.clone(),
+                session_id: workspace.session_id.clone(),
                 captured_at: SystemTime::now(),
                 data,
             };
-            self.storage.snapshots_mut().save(snapshot);
+            storage.snapshots_mut().save(snapshot);
         }
     }
 
     /// Build artifact actions based on the current workspace mode.
-    fn build_artifact_actions(&self) -> Vec<ArtifactAction> {
-        if let Some(cp) = &self.workspace.confirmation_pending {
+    fn build_artifact_actions(&self, workspace: &Workspace) -> Vec<ArtifactAction> {
+        if let Some(cp) = &workspace.confirmation_pending {
             vec![ArtifactAction {
                 id: cp.confirmation_id.clone(),
                 label: format!("Confirm: {}", cp.tool_id),
@@ -393,12 +450,15 @@ mod tests {
         let mut core = Core::new(make_storage());
         core.router_mut().register(calendar_metadata());
 
-        core.workspace.confirmation_pending = Some(ConfirmationPending {
-            confirmation_id: "confirm-pending".to_string(),
-            tool_id: "dangerous_op".to_string(),
-            args: serde_json::json!({}),
-            requested_at: 500,
-        });
+        {
+            let mut ws = core.workspace_mut();
+            ws.confirmation_pending = Some(ConfirmationPending {
+                confirmation_id: "confirm-pending".to_string(),
+                tool_id: "dangerous_op".to_string(),
+                args: serde_json::json!({}),
+                requested_at: 500,
+            });
+        }
 
         let resp = core.submit_command("schedule a meeting").unwrap();
         match resp {
@@ -445,15 +505,18 @@ mod tests {
         core.router_mut().register(calendar_metadata());
 
         // Manually set follow-up with an already-expired TTL.
-        core.workspace.follow_up = Some(FollowUpContext {
-            last_command: "create event".to_string(),
-            last_result_entity_ids: vec!["event-123".to_string()],
-            last_app_id: "calendar".to_string(),
-            expires_at: 0, // Already expired (epoch).
-            turn_count: 0,
-            max_turns: FOLLOW_UP_MAX_TURNS,
-        });
-        core.workspace.mode = WorkspaceMode::FollowUpActive;
+        {
+            let mut ws = core.workspace_mut();
+            ws.follow_up = Some(FollowUpContext {
+                last_command: "create event".to_string(),
+                last_result_entity_ids: vec!["event-123".to_string()],
+                last_app_id: "calendar".to_string(),
+                expires_at: 0, // Already expired (epoch).
+                turn_count: 0,
+                max_turns: FOLLOW_UP_MAX_TURNS,
+            });
+            ws.mode = WorkspaceMode::FollowUpActive;
+        }
 
         let resp = core.submit_command("make it 2:30").unwrap();
         match resp {
@@ -511,20 +574,26 @@ mod tests {
         );
         assert_eq!(core.workspace().mode, WorkspaceMode::FollowUpActive);
 
-        core.workspace.expire_follow_up();
+        {
+            let mut ws = core.workspace_mut();
+            ws.expire_follow_up();
+        }
         assert_eq!(core.workspace().mode, WorkspaceMode::Idle);
     }
 
     #[test]
     fn confirm_action_approve_returns_artifact() {
         let mut core = Core::new(make_storage());
-        core.workspace.confirmation_pending = Some(ConfirmationPending {
-            confirmation_id: "confirm-abc".to_string(),
-            tool_id: "delete_file".to_string(),
-            args: serde_json::json!({"path": "/tmp/test"}),
-            requested_at: 1000,
-        });
-        core.workspace.mode = WorkspaceMode::AwaitingConfirmation;
+        {
+            let mut ws = core.workspace_mut();
+            ws.confirmation_pending = Some(ConfirmationPending {
+                confirmation_id: "confirm-abc".to_string(),
+                tool_id: "delete_file".to_string(),
+                args: serde_json::json!({"path": "/tmp/test"}),
+                requested_at: 1000,
+            });
+            ws.mode = WorkspaceMode::AwaitingConfirmation;
+        }
 
         let resp = core.confirm_action("confirm-abc", true).unwrap();
         match resp {
@@ -540,13 +609,16 @@ mod tests {
     #[test]
     fn confirm_action_deny_returns_artifact() {
         let mut core = Core::new(make_storage());
-        core.workspace.confirmation_pending = Some(ConfirmationPending {
-            confirmation_id: "confirm-xyz".to_string(),
-            tool_id: "rm_dir".to_string(),
-            args: serde_json::json!({}),
-            requested_at: 2000,
-        });
-        core.workspace.mode = WorkspaceMode::AwaitingConfirmation;
+        {
+            let mut ws = core.workspace_mut();
+            ws.confirmation_pending = Some(ConfirmationPending {
+                confirmation_id: "confirm-xyz".to_string(),
+                tool_id: "rm_dir".to_string(),
+                args: serde_json::json!({}),
+                requested_at: 2000,
+            });
+            ws.mode = WorkspaceMode::AwaitingConfirmation;
+        }
 
         let resp = core.confirm_action("confirm-xyz", false).unwrap();
         match resp {
@@ -561,12 +633,15 @@ mod tests {
     #[test]
     fn confirm_action_wrong_id_returns_error() {
         let mut core = Core::new(make_storage());
-        core.workspace.confirmation_pending = Some(ConfirmationPending {
-            confirmation_id: "confirm-abc".to_string(),
-            tool_id: "test_tool".to_string(),
-            args: serde_json::json!({}),
-            requested_at: 1000,
-        });
+        {
+            let mut ws = core.workspace_mut();
+            ws.confirmation_pending = Some(ConfirmationPending {
+                confirmation_id: "confirm-abc".to_string(),
+                tool_id: "test_tool".to_string(),
+                args: serde_json::json!({}),
+                requested_at: 1000,
+            });
+        }
 
         let resp = core.confirm_action("wrong-id", true).unwrap();
         match resp {
@@ -621,13 +696,16 @@ mod tests {
     #[test]
     fn core_saves_snapshot_after_confirm_action() {
         let mut core = Core::new(make_storage());
-        core.workspace.confirmation_pending = Some(ConfirmationPending {
-            confirmation_id: "snap-confirm".to_string(),
-            tool_id: "test_tool".to_string(),
-            args: serde_json::json!({}),
-            requested_at: 1000,
-        });
-        core.workspace.mode = WorkspaceMode::AwaitingConfirmation;
+        {
+            let mut ws = core.workspace_mut();
+            ws.confirmation_pending = Some(ConfirmationPending {
+                confirmation_id: "snap-confirm".to_string(),
+                tool_id: "test_tool".to_string(),
+                args: serde_json::json!({}),
+                requested_at: 1000,
+            });
+            ws.mode = WorkspaceMode::AwaitingConfirmation;
+        }
 
         core.confirm_action("snap-confirm", true).unwrap();
 
@@ -896,25 +974,31 @@ mod tests {
         );
 
         // Error: expired follow-up.
-        core.workspace.follow_up = Some(FollowUpContext {
-            last_command: "test".to_string(),
-            last_result_entity_ids: vec![],
-            last_app_id: "calendar".to_string(),
-            expires_at: 0,
-            turn_count: 0,
-            max_turns: FOLLOW_UP_MAX_TURNS,
-        });
-        core.workspace.mode = WorkspaceMode::FollowUpActive;
+        {
+            let mut ws = core.workspace_mut();
+            ws.follow_up = Some(FollowUpContext {
+                last_command: "test".to_string(),
+                last_result_entity_ids: vec![],
+                last_app_id: "calendar".to_string(),
+                expires_at: 0,
+                turn_count: 0,
+                max_turns: FOLLOW_UP_MAX_TURNS,
+            });
+            ws.mode = WorkspaceMode::FollowUpActive;
+        }
         let resp = core.submit_command("update").unwrap();
         assert!(matches!(resp, CoreResponse::Error { .. }));
 
         // Confirmation: pending confirmation blocks new commands.
-        core.workspace.confirmation_pending = Some(ConfirmationPending {
-            confirmation_id: "c-1".to_string(),
-            tool_id: "risky_tool".to_string(),
-            args: serde_json::json!({}),
-            requested_at: 100,
-        });
+        {
+            let mut ws = core.workspace_mut();
+            ws.confirmation_pending = Some(ConfirmationPending {
+                confirmation_id: "c-1".to_string(),
+                tool_id: "risky_tool".to_string(),
+                args: serde_json::json!({}),
+                requested_at: 100,
+            });
+        }
         let resp = core.submit_command("do something").unwrap();
         assert!(
             matches!(resp, CoreResponse::Confirmation { .. }),

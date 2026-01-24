@@ -1,10 +1,12 @@
-use crate::command::ParsedCommand;
-use crate::routing::RouteCandidate;
+use async_trait::async_trait;
+
 use super::plan::{Plan, PlannedToolCall};
+use super::types::{PlanMetadata, PlannerError, PlannerInput, PlannerOutput};
 
 /// Trait for planning tool call sequences from a command and routing candidates.
-pub trait Planner {
-    fn plan(&self, command: &ParsedCommand, candidates: &[RouteCandidate]) -> Plan;
+#[async_trait]
+pub trait Planner: Send + Sync {
+    async fn plan(&self, input: PlannerInput) -> Result<PlannerOutput, PlannerError>;
 }
 
 /// Deterministic stub planner for v0.
@@ -14,24 +16,30 @@ pub trait Planner {
 /// as an arg. Otherwise returns an empty plan.
 pub struct StubPlanner;
 
+#[async_trait]
 impl Planner for StubPlanner {
-    fn plan(&self, command: &ParsedCommand, candidates: &[RouteCandidate]) -> Plan {
-        match candidates.first() {
+    async fn plan(&self, input: PlannerInput) -> Result<PlannerOutput, PlannerError> {
+        let plan = match input.candidates.first() {
             Some(candidate) => {
                 let step = PlannedToolCall {
                     tool_id: format!("{}.execute", candidate.app_id),
-                    args: serde_json::json!({ "input": command.normalized_text }),
+                    args: serde_json::json!({ "input": input.command.normalized_text }),
                 };
                 Plan::new(vec![step])
             }
             None => Plan::empty(),
-        }
+        };
+
+        Ok(PlannerOutput::new(plan, PlanMetadata::stub()))
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::command::ParsedCommand;
+    use crate::routing::RouteCandidate;
+    use crate::workspace::Workspace;
 
     fn make_command(text: &str) -> ParsedCommand {
         ParsedCommand {
@@ -49,39 +57,52 @@ mod tests {
         }
     }
 
-    #[test]
-    fn stub_returns_empty_plan_for_no_candidates() {
-        let planner = StubPlanner;
-        let cmd = make_command("do something");
-        let plan = planner.plan(&cmd, &[]);
-
-        assert_eq!(plan, Plan::empty());
-        assert!(plan.steps.is_empty());
+    fn make_input(candidates: Vec<RouteCandidate>) -> PlannerInput {
+        PlannerInput {
+            command: make_command("do something"),
+            candidates,
+            workspace: Workspace::new("test-session".to_string()),
+            tools: vec![],
+        }
     }
 
-    #[test]
-    fn stub_returns_single_step_for_one_candidate() {
+    #[tokio::test]
+    async fn stub_returns_empty_plan_for_no_candidates() {
         let planner = StubPlanner;
-        let cmd = make_command("copy text");
+        let output = planner.plan(make_input(vec![])).await.unwrap();
+
+        assert_eq!(output.plan, Plan::empty());
+        assert!(output.plan.steps.is_empty());
+    }
+
+    #[tokio::test]
+    async fn stub_returns_single_step_for_one_candidate() {
+        let planner = StubPlanner;
         let candidates = vec![make_candidate("clipboard", 5.0)];
-        let plan = planner.plan(&cmd, &candidates);
+        let mut input = make_input(candidates);
+        input.command = make_command("copy text");
+        let output = planner.plan(input).await.unwrap();
 
-        assert_eq!(plan.steps.len(), 1);
-        assert_eq!(plan.steps[0].tool_id, "clipboard.execute");
-        assert_eq!(plan.steps[0].args, serde_json::json!({ "input": "copy text" }));
+        assert_eq!(output.plan.steps.len(), 1);
+        assert_eq!(output.plan.steps[0].tool_id, "clipboard.execute");
+        assert_eq!(
+            output.plan.steps[0].args,
+            serde_json::json!({ "input": "copy text" })
+        );
     }
 
-    #[test]
-    fn stub_output_is_deterministic() {
+    #[tokio::test]
+    async fn stub_output_is_deterministic() {
         let planner = StubPlanner;
-        let cmd = make_command("open file");
         let candidates = vec![
             make_candidate("files", 6.0),
             make_candidate("editor", 3.0),
         ];
 
-        let plan1 = planner.plan(&cmd, &candidates);
-        let plan2 = planner.plan(&cmd, &candidates);
+        let mut input = make_input(candidates);
+        input.command = make_command("open file");
+        let plan1 = planner.plan(input.clone()).await.unwrap();
+        let plan2 = planner.plan(input).await.unwrap();
 
         assert_eq!(plan1, plan2);
     }

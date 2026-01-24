@@ -73,6 +73,14 @@ impl ToolRegistry {
         ids
     }
 
+    /// Returns a snapshot of kernel tools as (id, definition) pairs.
+    pub fn kernel_tools(&self) -> Vec<(&str, &ToolDefinition)> {
+        self.kernel_tools
+            .iter()
+            .map(|(id, def)| (id.as_str(), def))
+            .collect()
+    }
+
     /// Number of registered kernel tools.
     pub fn kernel_tool_count(&self) -> usize {
         self.kernel_tools.len()
