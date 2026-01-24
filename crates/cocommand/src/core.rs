@@ -10,6 +10,8 @@ use crate::storage::Storage;
 use crate::types::{ActionSummary, ArtifactAction, CoreResponse, RoutedCandidate};
 use crate::workspace::state::{Timestamp, WorkspaceMode};
 use crate::workspace::Workspace;
+use crate::builtins;
+use crate::planner::{Planner, PlannerError, PlannerInput, PlannerOutput, ToolSpec, StubPlanner};
 use crate::tools::registry::ToolRegistry;
 use crate::llm::{build_toolset, ToolRuntime};
 use llm_kit_core::tool::ToolSet;
@@ -26,6 +28,7 @@ pub struct Core {
     storage: Arc<Mutex<Box<dyn Storage>>>,
     registry: Arc<Mutex<ToolRegistry>>,
     permission_store: Arc<Mutex<PermissionStore>>,
+    planner: Arc<dyn Planner>,
 }
 
 impl Core {
@@ -83,6 +86,7 @@ impl Core {
             storage,
             registry: Arc::new(Mutex::new(ToolRegistry::new())),
             permission_store: Arc::new(Mutex::new(PermissionStore::new())),
+            planner: Arc::new(StubPlanner),
         }
     }
 
@@ -94,6 +98,7 @@ impl Core {
             storage: Arc::new(Mutex::new(storage)),
             registry: Arc::new(Mutex::new(ToolRegistry::new())),
             permission_store: Arc::new(Mutex::new(PermissionStore::new())),
+            planner: Arc::new(StubPlanner),
         }
     }
 
@@ -105,86 +110,153 @@ impl Core {
     const PREVIEW_VERBS: &'static [&'static str] = &["show", "view", "get", "display", "preview", "read"];
 
     pub fn submit_command(&mut self, text: &str) -> CoreResult<CoreResponse> {
-        let mut storage = self.storage.lock().expect("storage lock");
-        let mut workspace = self.workspace.lock().expect("workspace lock");
-
-        // Log the user message event.
-        storage.event_log_mut().append(Event::UserMessage {
+        {
+            let mut storage = self.storage.lock().expect("storage lock");
+            storage.event_log_mut().append(Event::UserMessage {
             id: Uuid::new_v4(),
             timestamp: SystemTime::now(),
             text: text.to_string(),
-        });
-
-        // If a confirmation is pending, the user must resolve it first.
-        if let Some(cp) = &workspace.confirmation_pending {
-            let response = CoreResponse::Confirmation {
-                confirmation_id: cp.confirmation_id.clone(),
-                prompt: format!("Pending action: {}", cp.tool_id),
-                description: "Please confirm or deny before submitting new commands.".to_string(),
-            };
-            self.save_snapshot_locked(&mut workspace, &mut *storage);
-            return Ok(response);
+            });
         }
 
         let parsed = command::parse(text);
         let now = Self::now();
 
         // Check follow-up validity and route accordingly.
-        let follow_up_ctx = if workspace.is_follow_up_valid(now) {
-            workspace.follow_up.clone()
-        } else if workspace.follow_up.is_some() {
-            // TTL expired or turns exhausted — expire and return error.
-            workspace.expire_follow_up();
-            self.save_snapshot_locked(&mut workspace, &mut *storage);
-            return Ok(CoreResponse::Error {
-                message: "Follow-up expired. Please provide the full command.".to_string(),
-            });
-        } else {
-            None
+        let (follow_up_ctx, workspace_snapshot) = {
+            let mut workspace = self.workspace.lock().expect("workspace lock");
+
+            // If a confirmation is pending, the user must resolve it first.
+            if let Some(cp) = &workspace.confirmation_pending {
+                let response = CoreResponse::Confirmation {
+                    confirmation_id: cp.confirmation_id.clone(),
+                    prompt: format!("Pending action: {}", cp.tool_id),
+                    description: "Please confirm or deny before submitting new commands.".to_string(),
+                };
+                let mut storage = self.storage.lock().expect("storage lock");
+                self.save_snapshot_locked(&mut workspace, &mut *storage);
+                return Ok(response);
+            }
+
+            let follow_up_ctx = if workspace.is_follow_up_valid(now) {
+                workspace.follow_up.clone()
+            } else if workspace.follow_up.is_some() {
+                // TTL expired or turns exhausted — expire and return error.
+                workspace.expire_follow_up();
+                let mut storage = self.storage.lock().expect("storage lock");
+                self.save_snapshot_locked(&mut workspace, &mut *storage);
+                return Ok(CoreResponse::Error {
+                    message: "Follow-up expired. Please provide the full command.".to_string(),
+                });
+            } else {
+                None
+            };
+
+            // If we're in follow-up, consume a turn.
+            if follow_up_ctx.is_some() {
+                workspace.consume_follow_up_turn();
+            }
+
+            (follow_up_ctx, workspace.clone())
         };
 
         let routing_result = self
             .router
             .route_with_follow_up(&parsed, follow_up_ctx.as_ref());
 
-        // If we're in follow-up, consume a turn.
-        if follow_up_ctx.is_some() {
-            workspace.consume_follow_up_turn();
-        }
-
         // Build the artifact content from routing candidates.
-        let candidates: Vec<RoutedCandidate> = routing_result
-            .candidates
-            .into_iter()
+        let candidates = routing_result.candidates;
+        let routed_candidates: Vec<RoutedCandidate> = candidates
+            .iter()
             .map(|c| RoutedCandidate {
-                app_id: c.app_id,
+                app_id: c.app_id.clone(),
                 score: c.score,
-                explanation: c.explanation,
+                explanation: c.explanation.clone(),
             })
             .collect();
+
+        let is_preview = Self::is_preview_command(&parsed.normalized_text);
+        let planner_output = if !candidates.is_empty() && !is_preview {
+            let instance_id = workspace_snapshot
+                .focus
+                .clone()
+                .unwrap_or_else(|| "kernel".to_string());
+            self.run_planner(PlannerInput {
+                command: parsed.clone(),
+                candidates: candidates.clone(),
+                workspace: workspace_snapshot,
+                tools: self.collect_tool_specs(),
+                toolset: Some(self.build_llm_toolset(instance_id)),
+            })
+            .map(Some)
+            .unwrap_or_else(|err| {
+                let mut storage = self.storage.lock().expect("storage lock");
+                storage.event_log_mut().append(Event::ErrorRaised {
+                    id: Uuid::new_v4(),
+                    timestamp: SystemTime::now(),
+                    code: "planner_error".to_string(),
+                    message: format!("{err:?}"),
+                });
+                None
+            })
+        } else {
+            None
+        };
+
+        if let Some(output) = &planner_output {
+            let mut storage = self.storage.lock().expect("storage lock");
+            let event_log = storage.event_log_mut();
+            for step in &output.plan.steps {
+                event_log.append(Event::ToolCallProposed {
+                    id: Uuid::new_v4(),
+                    timestamp: SystemTime::now(),
+                    tool_id: step.tool_id.clone(),
+                    args: step.args.clone(),
+                });
+            }
+        }
+
+        {
+            let mut workspace = self.workspace.lock().expect("workspace lock");
+            if let Some(cp) = &workspace.confirmation_pending {
+                let response = CoreResponse::Confirmation {
+                    confirmation_id: cp.confirmation_id.clone(),
+                    prompt: format!("Pending action: {}", cp.tool_id),
+                    description: "Please confirm or deny before submitting new commands.".to_string(),
+                };
+                let mut storage = self.storage.lock().expect("storage lock");
+                self.save_snapshot_locked(&mut workspace, &mut *storage);
+                return Ok(response);
+            }
+        }
 
         let response = if candidates.is_empty() {
             CoreResponse::Artifact {
                 content: "No matching capabilities found.".to_string(),
                 actions: vec![],
             }
-        } else if Self::is_preview_command(&parsed.normalized_text) {
-            let top = &candidates[0];
+        } else if is_preview {
+            let top = &routed_candidates[0];
             CoreResponse::Preview {
                 title: format!("{} result", top.app_id),
                 content: top.explanation.clone(),
             }
         } else {
-            let top = &candidates[0];
+            let top = &routed_candidates[0];
             let content = format!(
                 "Routed to {} (score: {:.1}): {}",
                 top.app_id, top.score, top.explanation
             );
+            let workspace = self.workspace.lock().expect("workspace lock");
             let actions = self.build_artifact_actions(&workspace);
             CoreResponse::Artifact { content, actions }
         };
 
-        self.save_snapshot_locked(&mut workspace, &mut *storage);
+        {
+            let mut workspace = self.workspace.lock().expect("workspace lock");
+            let mut storage = self.storage.lock().expect("storage lock");
+            self.save_snapshot_locked(&mut workspace, &mut *storage);
+        }
         Ok(response)
     }
 
@@ -314,9 +386,21 @@ impl Core {
         self.registry.lock().expect("registry lock")
     }
 
+    /// Register built-in tools and router metadata.
+    pub fn register_builtins(&mut self) {
+        let mut registry = self.registry.lock().expect("registry lock");
+        let router = &mut self.router;
+        builtins::register_builtins(&mut *registry, router);
+    }
+
     /// Access the permission store (for updates).
     pub fn permission_store_mut(&mut self) -> std::sync::MutexGuard<'_, PermissionStore> {
         self.permission_store.lock().expect("permission store lock")
+    }
+
+    /// Set a custom planner implementation.
+    pub fn set_planner(&mut self, planner: Arc<dyn Planner>) {
+        self.planner = planner;
     }
 
     /// Get the current unix timestamp in seconds.
@@ -333,6 +417,34 @@ impl Core {
         Self::PREVIEW_VERBS
             .iter()
             .any(|v| first_word.eq_ignore_ascii_case(v))
+    }
+
+    fn collect_tool_specs(&self) -> Vec<ToolSpec> {
+        let registry = self.registry.lock().expect("registry lock");
+        registry
+            .kernel_tools()
+            .into_iter()
+            .map(|(id, def)| ToolSpec {
+                tool_id: id.to_string(),
+                input_schema: def.input_schema.clone(),
+                output_schema: def.output_schema.clone(),
+                risk_level: def.risk_level.clone(),
+                is_kernel: def.is_kernel,
+            })
+            .collect()
+    }
+
+    fn run_planner(&self, input: PlannerInput) -> Result<PlannerOutput, PlannerError> {
+        let future = self.planner.plan(input);
+        if let Ok(handle) = tokio::runtime::Handle::try_current() {
+            handle.block_on(future)
+        } else {
+            tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("failed to build runtime")
+                .block_on(future)
+        }
     }
 
     /// Persist the current workspace state as a snapshot in storage.

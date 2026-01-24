@@ -63,6 +63,7 @@ mod tests {
             candidates,
             workspace: Workspace::new("test-session".to_string()),
             tools: vec![],
+            toolset: None,
         }
     }
 

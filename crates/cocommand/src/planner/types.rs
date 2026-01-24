@@ -2,6 +2,7 @@ use crate::command::ParsedCommand;
 use crate::routing::RouteCandidate;
 use crate::tools::RiskLevel;
 use crate::workspace::Workspace;
+use llm_kit_core::tool::ToolSet;
 
 /// Minimal tool metadata exposed to planners.
 #[derive(Debug, Clone, PartialEq)]
@@ -14,12 +15,13 @@ pub struct ToolSpec {
 }
 
 /// Structured input to a planner.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct PlannerInput {
     pub command: ParsedCommand,
     pub candidates: Vec<RouteCandidate>,
     pub workspace: Workspace,
     pub tools: Vec<ToolSpec>,
+    pub toolset: Option<ToolSet>,
 }
 
 /// Metadata about how a plan was produced.

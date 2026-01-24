@@ -19,6 +19,7 @@ pub mod llm;
 
 pub use crate::core::Core;
 pub use crate::error::{CoreError, CoreResult};
+pub use crate::planner::LlmPlanner;
 pub use crate::types::{
     ActionSummary, ArtifactAction, ConfirmActionRequest, CoreResponse, RoutedCandidate,
     SubmitCommandRequest,
