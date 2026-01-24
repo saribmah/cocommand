@@ -7,7 +7,7 @@ use crate::events::Event;
 use crate::routing::Router;
 use crate::storage::Storage;
 use crate::types::{ActionSummary, ArtifactAction, CoreResponse, RoutedCandidate};
-use crate::workspace::state::Timestamp;
+use crate::workspace::state::{Timestamp, WorkspaceMode};
 use crate::workspace::Workspace;
 
 /// Primary facade for the cocommand engine.
@@ -23,10 +23,50 @@ pub struct Core {
 
 impl Core {
     /// Create a new `Core` instance with the given storage backend.
-    pub fn new(storage: Box<dyn Storage>) -> Self {
-        let session_id = Uuid::new_v4().to_string();
+    ///
+    /// If the storage contains a previously saved workspace snapshot,
+    /// the workspace is restored from it (with ephemeral state sanitized).
+    /// Otherwise a fresh workspace is created.
+    pub fn new(mut storage: Box<dyn Storage>) -> Self {
+        let snapshot = storage.snapshots().load();
+
+        let workspace = match snapshot {
+            Some(snap) => match serde_json::from_value::<Workspace>(snap.data) {
+                Ok(mut ws) => {
+                    // Sanitize ephemeral state that must not survive a restart.
+                    ws.confirmation_pending = None;
+                    if ws.mode == WorkspaceMode::AwaitingConfirmation {
+                        ws.mode = WorkspaceMode::Idle;
+                    }
+
+                    // Expire follow-up if TTL has passed or turns exhausted.
+                    let now = Self::now();
+                    if ws.follow_up.is_some() && !ws.is_follow_up_valid(now) {
+                        ws.follow_up = None;
+                        if ws.mode == WorkspaceMode::FollowUpActive {
+                            ws.mode = WorkspaceMode::Idle;
+                        }
+                    }
+
+                    ws
+                }
+                Err(_) => {
+                    // Log a warning so corrupt snapshots are observable.
+                    storage.event_log_mut().append(Event::ErrorRaised {
+                        id: Uuid::new_v4(),
+                        timestamp: SystemTime::now(),
+                        code: "snapshot_corrupt".to_string(),
+                        message: "Failed to deserialize workspace snapshot; starting fresh."
+                            .to_string(),
+                    });
+                    Workspace::new(Uuid::new_v4().to_string())
+                }
+            },
+            None => Workspace::new(Uuid::new_v4().to_string()),
+        };
+
         Core {
-            workspace: Workspace::new(session_id),
+            workspace,
             router: Router::new(),
             storage,
         }
@@ -54,11 +94,13 @@ impl Core {
 
         // If a confirmation is pending, the user must resolve it first.
         if let Some(cp) = &self.workspace.confirmation_pending {
-            return Ok(CoreResponse::Confirmation {
+            let response = CoreResponse::Confirmation {
                 confirmation_id: cp.confirmation_id.clone(),
                 prompt: format!("Pending action: {}", cp.tool_id),
                 description: "Please confirm or deny before submitting new commands.".to_string(),
-            });
+            };
+            self.save_snapshot();
+            return Ok(response);
         }
 
         let parsed = command::parse(text);
@@ -70,6 +112,7 @@ impl Core {
         } else if self.workspace.follow_up.is_some() {
             // TTL expired or turns exhausted — expire and return error.
             self.workspace.expire_follow_up();
+            self.save_snapshot();
             return Ok(CoreResponse::Error {
                 message: "Follow-up expired. Please provide the full command.".to_string(),
             });
@@ -97,32 +140,29 @@ impl Core {
             })
             .collect();
 
-        if candidates.is_empty() {
-            return Ok(CoreResponse::Artifact {
+        let response = if candidates.is_empty() {
+            CoreResponse::Artifact {
                 content: "No matching capabilities found.".to_string(),
                 actions: vec![],
-            });
-        }
-
-        // If the command starts with a read-only verb, return Preview.
-        if Self::is_preview_command(&parsed.normalized_text) {
+            }
+        } else if Self::is_preview_command(&parsed.normalized_text) {
             let top = &candidates[0];
-            return Ok(CoreResponse::Preview {
+            CoreResponse::Preview {
                 title: format!("{} result", top.app_id),
                 content: top.explanation.clone(),
-            });
-        }
+            }
+        } else {
+            let top = &candidates[0];
+            let content = format!(
+                "Routed to {} (score: {:.1}): {}",
+                top.app_id, top.score, top.explanation
+            );
+            let actions = self.build_artifact_actions();
+            CoreResponse::Artifact { content, actions }
+        };
 
-        let top = &candidates[0];
-        let content = format!(
-            "Routed to {} (score: {:.1}): {}",
-            top.app_id, top.score, top.explanation
-        );
-
-        // Build actions based on current workspace state.
-        let actions = self.build_artifact_actions();
-
-        Ok(CoreResponse::Artifact { content, actions })
+        self.save_snapshot();
+        Ok(response)
     }
 
     /// Activate follow-up mode after a successful command execution.
@@ -152,17 +192,20 @@ impl Core {
                 let tool_id = cp.tool_id.clone();
                 self.workspace.clear_confirmation();
 
-                if decision {
-                    Ok(CoreResponse::Artifact {
+                let response = if decision {
+                    CoreResponse::Artifact {
                         content: format!("Action confirmed: {tool_id}"),
                         actions: vec![],
-                    })
+                    }
                 } else {
-                    Ok(CoreResponse::Artifact {
+                    CoreResponse::Artifact {
                         content: format!("Action cancelled: {tool_id}"),
                         actions: vec![],
-                    })
-                }
+                    }
+                };
+
+                self.save_snapshot();
+                Ok(response)
             }
             Some(_) => Ok(CoreResponse::Error {
                 message: format!(
@@ -237,6 +280,18 @@ impl Core {
         Self::PREVIEW_VERBS
             .iter()
             .any(|v| first_word.eq_ignore_ascii_case(v))
+    }
+
+    /// Persist the current workspace state as a snapshot in storage.
+    fn save_snapshot(&mut self) {
+        if let Ok(data) = serde_json::to_value(&self.workspace) {
+            let snapshot = crate::storage::types::WorkspaceSnapshot {
+                session_id: self.workspace.session_id.clone(),
+                captured_at: SystemTime::now(),
+                data,
+            };
+            self.storage.snapshots_mut().save(snapshot);
+        }
     }
 
     /// Build artifact actions based on the current workspace mode.
@@ -540,6 +595,196 @@ mod tests {
         let core = Core::new(make_storage());
         let ws = core.get_workspace_snapshot().unwrap();
         assert_eq!(ws.mode, WorkspaceMode::Idle);
+    }
+
+    // --- Phase 5: Workspace snapshot save/load tests ---
+
+    #[test]
+    fn core_saves_snapshot_after_submit_command() {
+        let mut core = Core::new(make_storage());
+        core.router_mut().register(calendar_metadata());
+
+        // Initially no snapshot.
+        assert!(core.storage().snapshots().load().is_none());
+
+        core.submit_command("schedule a meeting").unwrap();
+
+        // Snapshot should be saved after command.
+        let snapshot = core.storage().snapshots().load().unwrap();
+        assert!(!snapshot.session_id.is_empty());
+        // Data should deserialize back to a valid Workspace.
+        let restored: Workspace =
+            serde_json::from_value(snapshot.data).expect("snapshot data is valid Workspace");
+        assert_eq!(restored.session_id, core.workspace().session_id);
+    }
+
+    #[test]
+    fn core_saves_snapshot_after_confirm_action() {
+        let mut core = Core::new(make_storage());
+        core.workspace.confirmation_pending = Some(ConfirmationPending {
+            confirmation_id: "snap-confirm".to_string(),
+            tool_id: "test_tool".to_string(),
+            args: serde_json::json!({}),
+            requested_at: 1000,
+        });
+        core.workspace.mode = WorkspaceMode::AwaitingConfirmation;
+
+        core.confirm_action("snap-confirm", true).unwrap();
+
+        let snapshot = core.storage().snapshots().load().unwrap();
+        let restored: Workspace =
+            serde_json::from_value(snapshot.data).expect("valid Workspace");
+        // Confirmation should be cleared in the snapshot.
+        assert!(restored.confirmation_pending.is_none());
+        assert_eq!(restored.mode, WorkspaceMode::Idle);
+    }
+
+    #[test]
+    fn core_restores_workspace_from_snapshot_on_new() {
+        // Pre-seed storage with a snapshot containing a specific session_id.
+        let mut storage = MemoryStorage::new();
+        let ws = Workspace::new("restored-session".to_string());
+        let data = serde_json::to_value(&ws).unwrap();
+        storage.snapshots_mut().save(crate::storage::types::WorkspaceSnapshot {
+            session_id: "restored-session".to_string(),
+            captured_at: SystemTime::now(),
+            data,
+        });
+
+        let core = Core::new(Box::new(storage));
+        assert_eq!(core.workspace().session_id, "restored-session");
+    }
+
+    #[test]
+    fn core_creates_fresh_workspace_when_no_snapshot() {
+        let core = Core::new(make_storage());
+        // Should have a valid UUID session_id, not empty.
+        assert!(!core.workspace().session_id.is_empty());
+        assert_eq!(core.workspace().mode, WorkspaceMode::Idle);
+    }
+
+    #[test]
+    fn core_handles_corrupt_snapshot_gracefully() {
+        // Pre-seed storage with invalid workspace data.
+        let mut storage = MemoryStorage::new();
+        storage.snapshots_mut().save(crate::storage::types::WorkspaceSnapshot {
+            session_id: "bad-session".to_string(),
+            captured_at: SystemTime::now(),
+            data: serde_json::json!("not a workspace object"),
+        });
+
+        // Should fall back to a fresh workspace rather than panicking.
+        let core = Core::new(Box::new(storage));
+        assert_ne!(core.workspace().session_id, "bad-session");
+        assert_eq!(core.workspace().mode, WorkspaceMode::Idle);
+
+        // Should have logged a warning event.
+        let events = core.storage().event_log().tail(10);
+        assert_eq!(events.len(), 1);
+        assert!(events[0].summary.contains("Error"));
+    }
+
+    #[test]
+    fn core_clears_confirmation_pending_on_restore() {
+        let mut ws = Workspace::new("confirm-session".to_string());
+        ws.confirmation_pending = Some(ConfirmationPending {
+            confirmation_id: "stale-confirm".to_string(),
+            tool_id: "dangerous_op".to_string(),
+            args: serde_json::json!({}),
+            requested_at: 1000,
+        });
+        ws.mode = WorkspaceMode::AwaitingConfirmation;
+
+        let mut storage = MemoryStorage::new();
+        storage.snapshots_mut().save(crate::storage::types::WorkspaceSnapshot {
+            session_id: "confirm-session".to_string(),
+            captured_at: SystemTime::now(),
+            data: serde_json::to_value(&ws).unwrap(),
+        });
+
+        let core = Core::new(Box::new(storage));
+        assert_eq!(core.workspace().session_id, "confirm-session");
+        // Ephemeral confirmation must not survive restart.
+        assert!(core.workspace().confirmation_pending.is_none());
+        assert_eq!(core.workspace().mode, WorkspaceMode::Idle);
+    }
+
+    #[test]
+    fn core_clears_expired_follow_up_on_restore() {
+        let mut ws = Workspace::new("followup-session".to_string());
+        ws.follow_up = Some(FollowUpContext {
+            last_command: "old command".to_string(),
+            last_result_entity_ids: vec!["id-1".to_string()],
+            last_app_id: "calendar".to_string(),
+            expires_at: 0, // Already expired (epoch).
+            turn_count: 0,
+            max_turns: FOLLOW_UP_MAX_TURNS,
+        });
+        ws.mode = WorkspaceMode::FollowUpActive;
+
+        let mut storage = MemoryStorage::new();
+        storage.snapshots_mut().save(crate::storage::types::WorkspaceSnapshot {
+            session_id: "followup-session".to_string(),
+            captured_at: SystemTime::now(),
+            data: serde_json::to_value(&ws).unwrap(),
+        });
+
+        let core = Core::new(Box::new(storage));
+        assert_eq!(core.workspace().session_id, "followup-session");
+        // Expired follow-up must be cleared on restore.
+        assert!(core.workspace().follow_up.is_none());
+        assert_eq!(core.workspace().mode, WorkspaceMode::Idle);
+    }
+
+    #[test]
+    fn core_preserves_valid_follow_up_on_restore() {
+        let future_ts = SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs()
+            + 600; // 10 minutes from now.
+
+        let mut ws = Workspace::new("valid-followup".to_string());
+        ws.follow_up = Some(FollowUpContext {
+            last_command: "create event".to_string(),
+            last_result_entity_ids: vec!["evt-1".to_string()],
+            last_app_id: "calendar".to_string(),
+            expires_at: future_ts,
+            turn_count: 0,
+            max_turns: FOLLOW_UP_MAX_TURNS,
+        });
+        ws.mode = WorkspaceMode::FollowUpActive;
+
+        let mut storage = MemoryStorage::new();
+        storage.snapshots_mut().save(crate::storage::types::WorkspaceSnapshot {
+            session_id: "valid-followup".to_string(),
+            captured_at: SystemTime::now(),
+            data: serde_json::to_value(&ws).unwrap(),
+        });
+
+        let core = Core::new(Box::new(storage));
+        // Valid follow-up should survive restore.
+        assert!(core.workspace().follow_up.is_some());
+        assert_eq!(core.workspace().mode, WorkspaceMode::FollowUpActive);
+        let ctx = core.workspace().follow_up.as_ref().unwrap();
+        assert_eq!(ctx.last_app_id, "calendar");
+    }
+
+    #[test]
+    fn snapshot_updates_after_each_command() {
+        let mut core = Core::new(make_storage());
+        core.router_mut().register(calendar_metadata());
+
+        core.submit_command("schedule a meeting").unwrap();
+        let snap1 = core.storage().snapshots().load().unwrap();
+
+        core.submit_command("create an event").unwrap();
+        let snap2 = core.storage().snapshots().load().unwrap();
+
+        // Snapshot is overwritten each time (single-slot semantics).
+        assert_eq!(snap1.session_id, snap2.session_id);
+        // captured_at may differ but data reflects latest state.
+        assert!(snap2.captured_at >= snap1.captured_at);
     }
 
     #[test]
