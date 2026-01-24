@@ -1,6 +1,11 @@
+use std::time::SystemTime;
+use uuid::Uuid;
+
 use crate::command;
-use crate::error::{CoreError, CoreResult};
+use crate::error::CoreResult;
+use crate::events::Event;
 use crate::routing::Router;
+use crate::storage::Storage;
 use crate::types::{ActionSummary, ArtifactAction, CoreResponse, RoutedCandidate};
 use crate::workspace::state::Timestamp;
 use crate::workspace::Workspace;
@@ -13,21 +18,23 @@ use crate::workspace::Workspace;
 pub struct Core {
     workspace: Workspace,
     router: Router,
+    storage: Box<dyn Storage>,
 }
 
 impl Core {
-    /// Create a new `Core` instance with a fresh workspace and router.
-    pub fn new() -> Self {
-        let session_id = uuid::Uuid::new_v4().to_string();
+    /// Create a new `Core` instance with the given storage backend.
+    pub fn new(storage: Box<dyn Storage>) -> Self {
+        let session_id = Uuid::new_v4().to_string();
         Core {
             workspace: Workspace::new(session_id),
             router: Router::new(),
+            storage,
         }
     }
 
-    /// Create a `Core` with an existing workspace and router (for testing).
-    pub fn with_state(workspace: Workspace, router: Router) -> Self {
-        Core { workspace, router }
+    /// Create a `Core` with an existing workspace, router, and storage (for testing).
+    pub fn with_state(workspace: Workspace, router: Router, storage: Box<dyn Storage>) -> Self {
+        Core { workspace, router, storage }
     }
 
     /// Submit a natural-language command for processing.
@@ -38,6 +45,13 @@ impl Core {
     const PREVIEW_VERBS: &'static [&'static str] = &["show", "view", "get", "display", "preview", "read"];
 
     pub fn submit_command(&mut self, text: &str) -> CoreResult<CoreResponse> {
+        // Log the user message event.
+        self.storage.event_log_mut().append(Event::UserMessage {
+            id: Uuid::new_v4(),
+            timestamp: SystemTime::now(),
+            text: text.to_string(),
+        });
+
         // If a confirmation is pending, the user must resolve it first.
         if let Some(cp) = &self.workspace.confirmation_pending {
             return Ok(CoreResponse::Confirmation {
@@ -167,8 +181,31 @@ impl Core {
     }
 
     /// Retrieve recent actions up to `limit`.
-    pub fn get_recent_actions(&self, _limit: usize) -> CoreResult<Vec<ActionSummary>> {
-        Err(CoreError::NotImplemented)
+    ///
+    /// Tails the event log and maps each record to an [`ActionSummary`].
+    pub fn get_recent_actions(&self, limit: usize) -> CoreResult<Vec<ActionSummary>> {
+        let records = self.storage.event_log().tail(limit);
+        let summaries = records
+            .into_iter()
+            .map(|record| {
+                let description = Self::describe_event(&record.event);
+                ActionSummary {
+                    id: record.event.id().to_string(),
+                    description,
+                }
+            })
+            .collect();
+        Ok(summaries)
+    }
+
+    /// Get a reference to the storage backend.
+    pub fn storage(&self) -> &dyn Storage {
+        &*self.storage
+    }
+
+    /// Get a mutable reference to the storage backend.
+    pub fn storage_mut(&mut self) -> &mut dyn Storage {
+        &mut *self.storage
     }
 
     /// Get a mutable reference to the router for registration.
@@ -203,6 +240,35 @@ impl Core {
             .any(|v| first_word.eq_ignore_ascii_case(v))
     }
 
+    /// Map an event to a human-readable description for ActionSummary.
+    fn describe_event(event: &Event) -> String {
+        match event {
+            Event::UserMessage { text, .. } => {
+                let preview: String = text.chars().take(80).collect();
+                if text.len() > 80 {
+                    format!("Command: {}...", preview)
+                } else {
+                    format!("Command: {}", preview)
+                }
+            }
+            Event::ToolCallProposed { tool_id, .. } => {
+                format!("Proposed: {}", tool_id)
+            }
+            Event::ToolCallAuthorized { .. } => "Tool call authorized".to_string(),
+            Event::ToolCallDenied { reason, .. } => {
+                format!("Tool call denied: {}", reason)
+            }
+            Event::ToolCallExecuted { invocation, .. } => {
+                format!("Executed: {}", invocation.tool_id)
+            }
+            Event::ToolResultRecorded { .. } => "Result recorded".to_string(),
+            Event::WorkspacePatched { .. } => "Workspace updated".to_string(),
+            Event::ErrorRaised { message, .. } => {
+                format!("Error: {}", message)
+            }
+        }
+    }
+
     /// Build artifact actions based on the current workspace mode.
     fn build_artifact_actions(&self) -> Vec<ArtifactAction> {
         if let Some(cp) = &self.workspace.confirmation_pending {
@@ -220,9 +286,14 @@ impl Core {
 mod tests {
     use super::*;
     use crate::routing::RoutingMetadata;
+    use crate::storage::MemoryStorage;
     use crate::workspace::state::{
         ConfirmationPending, FollowUpContext, WorkspaceMode, FOLLOW_UP_MAX_TURNS,
     };
+
+    fn make_storage() -> Box<dyn Storage> {
+        Box::new(MemoryStorage::new())
+    }
 
     fn calendar_metadata() -> RoutingMetadata {
         RoutingMetadata {
@@ -246,12 +317,12 @@ mod tests {
 
     #[test]
     fn core_new_returns_instance() {
-        let _core = Core::new();
+        let _core = Core::new(make_storage());
     }
 
     #[test]
     fn submit_command_returns_artifact() {
-        let mut core = Core::new();
+        let mut core = Core::new(make_storage());
         core.router_mut().register(calendar_metadata());
 
         let resp = core.submit_command("schedule a meeting").unwrap();
@@ -266,7 +337,7 @@ mod tests {
 
     #[test]
     fn submit_command_no_candidates_returns_artifact() {
-        let mut core = Core::new();
+        let mut core = Core::new(make_storage());
         // No apps registered — should still return Artifact with "no match" message.
         let resp = core.submit_command("do something unknown").unwrap();
         match resp {
@@ -279,7 +350,7 @@ mod tests {
 
     #[test]
     fn submit_command_preview_verb_returns_preview() {
-        let mut core = Core::new();
+        let mut core = Core::new(make_storage());
         core.router_mut().register(notes_metadata());
 
         let resp = core.submit_command("show last note").unwrap();
@@ -294,7 +365,7 @@ mod tests {
 
     #[test]
     fn submit_command_pending_confirmation_returns_confirmation() {
-        let mut core = Core::new();
+        let mut core = Core::new(make_storage());
         core.router_mut().register(calendar_metadata());
 
         core.workspace.confirmation_pending = Some(ConfirmationPending {
@@ -320,7 +391,7 @@ mod tests {
 
     #[test]
     fn follow_up_within_ttl_biases_router() {
-        let mut core = Core::new();
+        let mut core = Core::new(make_storage());
         core.router_mut().register(calendar_metadata());
         core.router_mut().register(notes_metadata());
 
@@ -345,7 +416,7 @@ mod tests {
     #[test]
     fn follow_up_after_ttl_expiry_triggers_error() {
         let ws = Workspace::new("test-session".to_string());
-        let mut core = Core::with_state(ws, Router::new());
+        let mut core = Core::with_state(ws, Router::new(), make_storage());
         core.router_mut().register(calendar_metadata());
 
         // Manually set follow-up with an already-expired TTL.
@@ -373,7 +444,7 @@ mod tests {
 
     #[test]
     fn follow_up_turn_limit_exhausts_context() {
-        let mut core = Core::new();
+        let mut core = Core::new(make_storage());
         core.router_mut().register(calendar_metadata());
 
         core.activate_follow_up(
@@ -404,7 +475,7 @@ mod tests {
 
     #[test]
     fn workspace_mode_transitions_correctly() {
-        let mut core = Core::new();
+        let mut core = Core::new(make_storage());
 
         assert_eq!(core.workspace().mode, WorkspaceMode::Idle);
 
@@ -421,7 +492,7 @@ mod tests {
 
     #[test]
     fn confirm_action_approve_returns_artifact() {
-        let mut core = Core::new();
+        let mut core = Core::new(make_storage());
         core.workspace.confirmation_pending = Some(ConfirmationPending {
             confirmation_id: "confirm-abc".to_string(),
             tool_id: "delete_file".to_string(),
@@ -443,7 +514,7 @@ mod tests {
 
     #[test]
     fn confirm_action_deny_returns_artifact() {
-        let mut core = Core::new();
+        let mut core = Core::new(make_storage());
         core.workspace.confirmation_pending = Some(ConfirmationPending {
             confirmation_id: "confirm-xyz".to_string(),
             tool_id: "rm_dir".to_string(),
@@ -464,7 +535,7 @@ mod tests {
 
     #[test]
     fn confirm_action_wrong_id_returns_error() {
-        let mut core = Core::new();
+        let mut core = Core::new(make_storage());
         core.workspace.confirmation_pending = Some(ConfirmationPending {
             confirmation_id: "confirm-abc".to_string(),
             tool_id: "test_tool".to_string(),
@@ -483,7 +554,7 @@ mod tests {
 
     #[test]
     fn confirm_action_no_pending_returns_error() {
-        let mut core = Core::new();
+        let mut core = Core::new(make_storage());
 
         let resp = core.confirm_action("any-id", true).unwrap();
         match resp {
@@ -496,16 +567,46 @@ mod tests {
 
     #[test]
     fn get_workspace_snapshot_returns_workspace() {
-        let core = Core::new();
+        let core = Core::new(make_storage());
         let ws = core.get_workspace_snapshot().unwrap();
         assert_eq!(ws.mode, WorkspaceMode::Idle);
     }
 
     #[test]
-    fn get_recent_actions_returns_not_implemented() {
-        let core = Core::new();
-        let err = core.get_recent_actions(10).unwrap_err();
-        assert!(matches!(err, CoreError::NotImplemented));
+    fn get_recent_actions_empty_when_no_events() {
+        let core = Core::new(make_storage());
+        let actions = core.get_recent_actions(10).unwrap();
+        assert!(actions.is_empty());
+    }
+
+    #[test]
+    fn get_recent_actions_returns_summaries_after_commands() {
+        let mut core = Core::new(make_storage());
+        core.router_mut().register(calendar_metadata());
+
+        core.submit_command("schedule a meeting").unwrap();
+        core.submit_command("create an event").unwrap();
+
+        let actions = core.get_recent_actions(10).unwrap();
+        assert_eq!(actions.len(), 2);
+        assert!(actions[0].description.contains("Command: schedule a meeting"));
+        assert!(actions[1].description.contains("Command: create an event"));
+    }
+
+    #[test]
+    fn get_recent_actions_respects_limit() {
+        let mut core = Core::new(make_storage());
+        core.router_mut().register(calendar_metadata());
+
+        core.submit_command("first").unwrap();
+        core.submit_command("second").unwrap();
+        core.submit_command("third").unwrap();
+
+        let actions = core.get_recent_actions(2).unwrap();
+        assert_eq!(actions.len(), 2);
+        // tail returns the last N, so we get the most recent ones.
+        assert!(actions[0].description.contains("second"));
+        assert!(actions[1].description.contains("third"));
     }
 
     // --- Serde serialization tests (required by Core-12 test checklist) ---
@@ -559,7 +660,7 @@ mod tests {
 
     #[test]
     fn stub_command_produces_each_variant() {
-        let mut core = Core::new();
+        let mut core = Core::new(make_storage());
         core.router_mut().register(calendar_metadata());
         core.router_mut().register(notes_metadata());
 
