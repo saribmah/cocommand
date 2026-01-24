@@ -1042,9 +1042,10 @@ mod tests {
 
         let core = Core::new(Box::new(storage));
         // Valid follow-up should survive restore.
-        assert!(core.workspace().follow_up.is_some());
-        assert_eq!(core.workspace().mode, WorkspaceMode::FollowUpActive);
-        let ctx = core.workspace().follow_up.as_ref().unwrap();
+        let workspace = core.workspace();
+        assert!(workspace.follow_up.is_some());
+        assert_eq!(workspace.mode, WorkspaceMode::FollowUpActive);
+        let ctx = workspace.follow_up.as_ref().unwrap();
         assert_eq!(ctx.last_app_id, "calendar");
     }
 
