@@ -3,9 +3,11 @@
   max-width: 680px;
   display: flex;
   flex-direction: column;
+  height: 100%;
 }
 
 .command-input-wrapper {
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -16,6 +18,13 @@
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.command-results {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 6px 0 12px;
 }
 
 .follow-up-badge {
@@ -118,7 +127,7 @@
 .result-card {
   background: rgba(255, 255, 255, 0.94);
   border: 1px solid rgba(0, 0, 0, 0.1);
-  border-radius: 10px;
+  border-radius: 12px;
   overflow: hidden;
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);

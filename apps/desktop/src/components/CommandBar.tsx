@@ -56,14 +56,16 @@ export function CommandBar() {
           autoComplete="off"
         />
       </div>
-      {pendingConfirmation && (
-        <ConfirmPanel
-          confirmation={pendingConfirmation}
-          onConfirm={confirmPending}
-          onCancel={cancelPending}
-        />
-      )}
-      <ResultCard results={results} onDismiss={dismissResult} />
+      <div className="command-results">
+        {pendingConfirmation && (
+          <ConfirmPanel
+            confirmation={pendingConfirmation}
+            onConfirm={confirmPending}
+            onCancel={cancelPending}
+          />
+        )}
+        <ResultCard results={results} onDismiss={dismissResult} />
+      </div>
     </div>
   );
 }

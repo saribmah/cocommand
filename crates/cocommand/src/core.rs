@@ -29,6 +29,7 @@ pub struct Core {
     registry: Arc<Mutex<ToolRegistry>>,
     permission_store: Arc<Mutex<PermissionStore>>,
     planner: Arc<dyn Planner>,
+    planner_label: String,
 }
 
 impl Core {
@@ -87,6 +88,7 @@ impl Core {
             registry: Arc::new(Mutex::new(ToolRegistry::new())),
             permission_store: Arc::new(Mutex::new(PermissionStore::new())),
             planner: Arc::new(StubPlanner),
+            planner_label: "stub".to_string(),
         }
     }
 
@@ -99,6 +101,7 @@ impl Core {
             registry: Arc::new(Mutex::new(ToolRegistry::new())),
             permission_store: Arc::new(Mutex::new(PermissionStore::new())),
             planner: Arc::new(StubPlanner),
+            planner_label: "stub".to_string(),
         }
     }
 
@@ -176,12 +179,17 @@ impl Core {
             .collect();
 
         let is_preview = Self::is_preview_command(&parsed.normalized_text);
+        let mut planner_error: Option<String> = None;
         let planner_output = if !candidates.is_empty() && !is_preview {
             let instance_id = workspace_snapshot
                 .focus
                 .clone()
                 .unwrap_or_else(|| "kernel".to_string());
-            self.run_planner(PlannerInput {
+            println!(
+                "[planner] using={} instance_id={} command={}",
+                self.planner_label, instance_id, parsed.raw_text
+            );
+            let output = self.run_planner(PlannerInput {
                 command: parsed.clone(),
                 candidates: candidates.clone(),
                 workspace: workspace_snapshot,
@@ -190,6 +198,7 @@ impl Core {
             })
             .map(Some)
             .unwrap_or_else(|err| {
+                println!("[planner] error={err:?}");
                 let mut storage = self.storage.lock().expect("storage lock");
                 storage.event_log_mut().append(Event::ErrorRaised {
                     id: Uuid::new_v4(),
@@ -197,13 +206,27 @@ impl Core {
                     code: "planner_error".to_string(),
                     message: format!("{err:?}"),
                 });
+                planner_error = Some(format!("{err:?}"));
                 None
             })
+            .or_else(|| {
+                println!("[planner] output=None");
+                None
+            });
+            if output.is_some() {
+                println!("[planner] output=Some");
+            }
+            output
         } else {
             None
         };
 
         if let Some(output) = &planner_output {
+            println!(
+                "[planner] done id={} steps={}",
+                output.metadata.planner_id,
+                output.plan.steps.len()
+            );
             let mut storage = self.storage.lock().expect("storage lock");
             let event_log = storage.event_log_mut();
             for step in &output.plan.steps {
@@ -242,14 +265,53 @@ impl Core {
                 content: top.explanation.clone(),
             }
         } else {
-            let top = &routed_candidates[0];
-            let content = format!(
-                "Routed to {} (score: {:.1}): {}",
-                top.app_id, top.score, top.explanation
-            );
-            let workspace = self.workspace.lock().expect("workspace lock");
-            let actions = self.build_artifact_actions(&workspace);
-            CoreResponse::Artifact { content, actions }
+            if let Some(message) = planner_error {
+                CoreResponse::Error { message }
+            } else
+            if let Some(output) = &planner_output {
+                println!(
+                    "[planner] response_text_present={} tool_errors={}",
+                    output
+                        .response_text
+                        .as_ref()
+                        .map(|t| !t.trim().is_empty())
+                        .unwrap_or(false),
+                    output.tool_errors.len()
+                );
+                if let Some(error_msg) = planner_error_message(output) {
+                    CoreResponse::Error { message: error_msg }
+                } else if let Some(text) = output
+                    .response_text
+                    .as_ref()
+                    .map(|t| t.trim())
+                    .filter(|t| !t.is_empty())
+                {
+                    let workspace = self.workspace.lock().expect("workspace lock");
+                    let actions = self.build_artifact_actions(&workspace);
+                    CoreResponse::Artifact {
+                        content: text.to_string(),
+                        actions,
+                    }
+                } else {
+                    let top = &routed_candidates[0];
+                    let content = format!(
+                        "Routed to {} (score: {:.1}): {}",
+                        top.app_id, top.score, top.explanation
+                    );
+                    let workspace = self.workspace.lock().expect("workspace lock");
+                    let actions = self.build_artifact_actions(&workspace);
+                    CoreResponse::Artifact { content, actions }
+                }
+            } else {
+                let top = &routed_candidates[0];
+                let content = format!(
+                    "Routed to {} (score: {:.1}): {}",
+                    top.app_id, top.score, top.explanation
+                );
+                let workspace = self.workspace.lock().expect("workspace lock");
+                let actions = self.build_artifact_actions(&workspace);
+                CoreResponse::Artifact { content, actions }
+            }
         };
 
         {
@@ -401,6 +463,13 @@ impl Core {
     /// Set a custom planner implementation.
     pub fn set_planner(&mut self, planner: Arc<dyn Planner>) {
         self.planner = planner;
+        self.planner_label = "custom".to_string();
+    }
+
+    /// Set a custom planner with a label for logging.
+    pub fn set_planner_with_label(&mut self, planner: Arc<dyn Planner>, label: impl Into<String>) {
+        self.planner = planner;
+        self.planner_label = label.into();
     }
 
     /// Get the current unix timestamp in seconds.
@@ -473,6 +542,25 @@ impl Core {
         } else {
             vec![]
         }
+    }
+}
+
+fn planner_error_message(output: &PlannerOutput) -> Option<String> {
+    let error = output.tool_errors.first()?;
+    let error_type = error
+        .as_object()
+        .and_then(|obj| obj.get("type"))
+        .and_then(|value| value.as_str());
+
+    match error_type {
+        Some("tool_denied") => error
+            .as_object()
+            .and_then(|obj| obj.get("reason"))
+            .and_then(|value| value.as_str())
+            .map(|value| value.to_string())
+            .or_else(|| Some("Tool execution denied.".to_string())),
+        Some("approval_required") => Some("Approval required.".to_string()),
+        _ => Some("Tool execution failed.".to_string()),
     }
 }
 

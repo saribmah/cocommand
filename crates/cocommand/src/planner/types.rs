@@ -53,11 +53,23 @@ impl PlanMetadata {
 pub struct PlannerOutput {
     pub plan: super::plan::Plan,
     pub metadata: PlanMetadata,
+    pub response_text: Option<String>,
+    pub tool_errors: Vec<serde_json::Value>,
 }
 
 impl PlannerOutput {
-    pub fn new(plan: super::plan::Plan, metadata: PlanMetadata) -> Self {
-        Self { plan, metadata }
+    pub fn new(
+        plan: super::plan::Plan,
+        metadata: PlanMetadata,
+        response_text: Option<String>,
+        tool_errors: Vec<serde_json::Value>,
+    ) -> Self {
+        Self {
+            plan,
+            metadata,
+            response_text,
+            tool_errors,
+        }
     }
 }
 

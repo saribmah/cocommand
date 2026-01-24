@@ -30,7 +30,7 @@ impl Planner for StubPlanner {
             None => Plan::empty(),
         };
 
-        Ok(PlannerOutput::new(plan, PlanMetadata::stub()))
+        Ok(PlannerOutput::new(plan, PlanMetadata::stub(), None, vec![]))
     }
 }
 
