@@ -9,7 +9,7 @@ use crate::routing::Router;
 use crate::storage::Storage;
 use crate::types::{ActionSummary, ArtifactAction, CoreResponse, RoutedCandidate};
 use crate::workspace::state::{Timestamp, WorkspaceMode};
-use crate::workspace::Workspace;
+use crate::workspace::{load_or_create_workspace_config, Workspace, WorkspaceConfig};
 use crate::builtins;
 use crate::planner::{Planner, PlannerError, PlannerInput, PlannerOutput, ToolSpec, StubPlanner};
 use crate::tools::registry::ToolRegistry;
@@ -24,6 +24,7 @@ use std::sync::{Arc, Mutex};
 /// used across the Tauri boundary.
 pub struct Core {
     workspace: Arc<Mutex<Workspace>>,
+    workspace_config: WorkspaceConfig,
     router: Router,
     storage: Arc<Mutex<Box<dyn Storage>>>,
     registry: Arc<Mutex<ToolRegistry>>,
@@ -39,6 +40,21 @@ impl Core {
     /// the workspace is restored from it (with ephemeral state sanitized).
     /// Otherwise a fresh workspace is created.
     pub fn new(storage: Box<dyn Storage>) -> Self {
+        let workspace_config = WorkspaceConfig::default_new();
+        Self::new_with_config(storage, workspace_config)
+    }
+
+    /// Create a new `Core` instance with the given storage backend and workspace folder.
+    pub fn new_with_workspace_dir(
+        storage: Box<dyn Storage>,
+        workspace_dir: &std::path::Path,
+    ) -> CoreResult<Self> {
+        let workspace_config = load_or_create_workspace_config(workspace_dir)?;
+        Ok(Self::new_with_config(storage, workspace_config))
+    }
+
+    /// Create a new `Core` instance with the given storage backend and workspace config.
+    pub fn new_with_config(storage: Box<dyn Storage>, workspace_config: WorkspaceConfig) -> Self {
         let storage = Arc::new(Mutex::new(storage));
         let snapshot = storage.lock().expect("storage lock").snapshots().load();
 
@@ -83,6 +99,7 @@ impl Core {
 
         Core {
             workspace: Arc::new(Mutex::new(workspace)),
+            workspace_config,
             router: Router::new(),
             storage,
             registry: Arc::new(Mutex::new(ToolRegistry::new())),
@@ -96,6 +113,7 @@ impl Core {
     pub fn with_state(workspace: Workspace, router: Router, storage: Box<dyn Storage>) -> Self {
         Core {
             workspace: Arc::new(Mutex::new(workspace)),
+            workspace_config: WorkspaceConfig::default_new(),
             router,
             storage: Arc::new(Mutex::new(storage)),
             registry: Arc::new(Mutex::new(ToolRegistry::new())),
@@ -419,6 +437,11 @@ impl Core {
     /// Get a reference to the workspace.
     pub fn workspace(&self) -> Workspace {
         self.workspace.lock().expect("workspace lock").clone()
+    }
+
+    /// Get a copy of the workspace configuration.
+    pub fn workspace_config(&self) -> WorkspaceConfig {
+        self.workspace_config.clone()
     }
 
     /// Get a mutable reference to the workspace (for testing).

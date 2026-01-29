@@ -1,8 +1,12 @@
 use axum::{routing::get, Router};
 use std::net::SocketAddr;
+use std::path::PathBuf;
 use tokio::net::TcpListener;
 
-pub async fn start() -> Result<SocketAddr, String> {
+use crate::workspace::load_or_create_workspace_config;
+
+pub async fn start(workspace_dir: PathBuf) -> Result<SocketAddr, String> {
+    load_or_create_workspace_config(&workspace_dir).map_err(|error| error.to_string())?;
     let app = Router::new().route("/health", get(health));
     let listener = TcpListener::bind("127.0.0.1:4840")
         .await

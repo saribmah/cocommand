@@ -13,7 +13,6 @@ pub fn run() {
     let _ = dotenvy::from_path(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(".env"));
 
     tauri::Builder::default()
-        .manage(state::AppState::new())
         .plugin(tauri_plugin_opener::init())
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
@@ -25,10 +24,18 @@ pub fn run() {
                 .build(),
         )
         .setup(|app| {
+            let workspace_dir = state::resolve_workspace_dir(app.handle()).map_err(|error| {
+                std::io::Error::new(std::io::ErrorKind::Other, error)
+            })?;
+            let app_state = state::AppState::new(workspace_dir.clone()).map_err(|error| {
+                std::io::Error::new(std::io::ErrorKind::Other, error)
+            })?;
+            app.manage(app_state);
+
             let handle = app.handle();
             handle.global_shortcut().register("CmdOrCtrl+O")?;
             tauri::async_runtime::spawn(async move {
-                if let Ok(addr) = cocommand::server::start().await {
+                if let Ok(addr) = cocommand::server::start(workspace_dir).await {
                     println!("Backend server listening on {}", addr);
                 }
             });
