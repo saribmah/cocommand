@@ -22,6 +22,7 @@ impl AppState {
     pub fn workspace_dir(&self) -> &PathBuf {
         &self.workspace_dir
     }
+
 }
 
 impl AppState {

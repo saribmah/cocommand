@@ -1,11 +1,10 @@
 use serde::{Deserialize, Serialize};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use uuid::Uuid;
 
 use crate::error::{CoreError, CoreResult};
-use crate::workspace::{load_or_create_workspace_config, WorkspaceConfig};
+use crate::workspace::{WorkspaceConfig, WorkspaceInstance};
 
-const SESSION_STORE_FILENAME: &str = "sessions.json";
 const SESSION_STORE_VERSION: &str = "1.0.0";
 const DEFAULT_CONTEXT_LIMIT: usize = 50;
 
@@ -23,6 +22,7 @@ pub struct SessionRecord {
     pub started_at: u64,
     pub ended_at: Option<u64>,
     pub messages: Vec<SessionMessage>,
+    pub windows: Vec<SessionWindow>,
     pub next_seq: u64,
 }
 
@@ -39,13 +39,22 @@ pub struct SessionContext {
     pub started_at: u64,
     pub ended_at: Option<u64>,
     pub messages: Vec<SessionMessage>,
+    pub windows: Vec<SessionWindow>,
 }
 
-pub fn record_user_message(workspace_dir: &Path, text: &str) -> CoreResult<SessionContext> {
-    let config = load_or_create_workspace_config(workspace_dir)?;
-    let mut store = load_or_create_session_store(workspace_dir)?;
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SessionWindow {
+    pub window_id: String,
+    pub opened_at: u64,
+}
+
+pub fn record_user_message(
+    workspace: &WorkspaceInstance,
+    text: &str,
+) -> CoreResult<SessionContext> {
+    let mut store = load_or_create_session_store(&workspace.sessions_path())?;
     let now = now_secs();
-    let duration = config.preferences.session.duration_seconds;
+    let duration = workspace.config.preferences.session.duration_seconds;
 
     let session = get_or_start_session(&mut store, now, duration);
     let message = SessionMessage {
@@ -58,17 +67,16 @@ pub fn record_user_message(workspace_dir: &Path, text: &str) -> CoreResult<Sessi
     session.messages.push(message);
 
     let session_snapshot = session.clone();
-    save_session_store(workspace_dir, &store)?;
-    build_session_context(&config, &session_snapshot, None)
+    save_session_store(&workspace.sessions_path(), &store)?;
+    build_session_context(&workspace.config, &session_snapshot, None)
 }
 
 pub fn get_session_context(
-    workspace_dir: &Path,
+    workspace: &WorkspaceInstance,
     session_id: Option<&str>,
     limit: Option<usize>,
 ) -> CoreResult<SessionContext> {
-    let config = load_or_create_workspace_config(workspace_dir)?;
-    let store = load_or_create_session_store(workspace_dir)?;
+    let store = load_or_create_session_store(&workspace.sessions_path())?;
     let selected = match session_id {
         Some(id) => store
             .sessions
@@ -81,7 +89,47 @@ pub fn get_session_context(
             .ok_or_else(|| CoreError::InvalidInput("no sessions found".to_string()))?,
     };
 
-    build_session_context(&config, selected, limit)
+    build_session_context(&workspace.config, selected, limit)
+}
+
+pub fn open_window(
+    workspace: &WorkspaceInstance,
+    window_id: &str,
+) -> CoreResult<SessionContext> {
+    let mut store = load_or_create_session_store(&workspace.sessions_path())?;
+    let now = now_secs();
+    let duration = workspace.config.preferences.session.duration_seconds;
+    let max_windows = workspace.config.preferences.window_cache.max_windows as usize;
+
+    let session = get_or_start_session(&mut store, now, duration);
+    session.windows.push(SessionWindow {
+        window_id: window_id.to_string(),
+        opened_at: now,
+    });
+    if max_windows > 0 && session.windows.len() > max_windows {
+        let excess = session.windows.len() - max_windows;
+        session.windows.drain(0..excess);
+    }
+
+    let session_snapshot = session.clone();
+    save_session_store(&workspace.sessions_path(), &store)?;
+    build_session_context(&workspace.config, &session_snapshot, None)
+}
+
+pub fn close_window(
+    workspace: &WorkspaceInstance,
+    window_id: &str,
+) -> CoreResult<SessionContext> {
+    let mut store = load_or_create_session_store(&workspace.sessions_path())?;
+    let now = now_secs();
+    let duration = workspace.config.preferences.session.duration_seconds;
+
+    let session = get_or_start_session(&mut store, now, duration);
+    session.windows.retain(|window| window.window_id != window_id);
+
+    let session_snapshot = session.clone();
+    save_session_store(&workspace.sessions_path(), &store)?;
+    build_session_context(&workspace.config, &session_snapshot, None)
 }
 
 fn build_session_context(
@@ -102,28 +150,30 @@ fn build_session_context(
         started_at: session.started_at,
         ended_at: session.ended_at,
         messages,
+        windows: session.windows.clone(),
     })
 }
 
-fn load_or_create_session_store(dir: &Path) -> CoreResult<SessionStore> {
-    std::fs::create_dir_all(dir).map_err(|error| {
-        CoreError::Internal(format!(
-            "failed to create workspace directory {}: {error}",
-            dir.display()
-        ))
-    })?;
+fn load_or_create_session_store(path: &Path) -> CoreResult<SessionStore> {
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).map_err(|error| {
+            CoreError::Internal(format!(
+                "failed to create workspace directory {}: {error}",
+                parent.display()
+            ))
+        })?;
+    }
 
-    let path = session_store_path(dir);
     if !path.exists() {
         let store = SessionStore {
             version: SESSION_STORE_VERSION.to_string(),
             sessions: Vec::new(),
         };
-        save_session_store(dir, &store)?;
+        save_session_store(path, &store)?;
         return Ok(store);
     }
 
-    let data = std::fs::read_to_string(&path).map_err(|error| {
+    let data = std::fs::read_to_string(path).map_err(|error| {
         CoreError::Internal(format!(
             "failed to read session store {}: {error}",
             path.display()
@@ -139,15 +189,14 @@ fn load_or_create_session_store(dir: &Path) -> CoreResult<SessionStore> {
     Ok(store)
 }
 
-fn save_session_store(dir: &Path, store: &SessionStore) -> CoreResult<()> {
-    let path = session_store_path(dir);
+fn save_session_store(path: &Path, store: &SessionStore) -> CoreResult<()> {
     let data = serde_json::to_string_pretty(store).map_err(|error| {
         CoreError::Internal(format!(
             "failed to serialize session store {}: {error}",
             path.display()
         ))
     })?;
-    std::fs::write(&path, data).map_err(|error| {
+    std::fs::write(path, data).map_err(|error| {
         CoreError::Internal(format!(
             "failed to write session store {}: {error}",
             path.display()
@@ -174,15 +223,12 @@ fn get_or_start_session<'a>(
             started_at: now,
             ended_at: None,
             messages: Vec::new(),
+            windows: Vec::new(),
             next_seq: 1,
         });
     }
 
     store.sessions.last_mut().expect("session exists")
-}
-
-fn session_store_path(dir: &Path) -> PathBuf {
-    dir.join(SESSION_STORE_FILENAME)
 }
 
 fn now_secs() -> u64 {
@@ -201,12 +247,14 @@ fn now_rfc3339() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::workspace::WorkspaceInstance;
     use tempfile::tempdir;
 
     #[test]
     fn record_user_message_creates_session_store() {
         let dir = tempdir().expect("tempdir");
-        let ctx = record_user_message(dir.path(), "hello").expect("record");
+        let workspace = WorkspaceInstance::load(dir.path()).expect("workspace");
+        let ctx = record_user_message(&workspace, "hello").expect("record");
         assert_eq!(ctx.messages.len(), 1);
         assert_eq!(ctx.messages[0].text, "hello");
     }
@@ -214,9 +262,26 @@ mod tests {
     #[test]
     fn get_session_context_defaults_to_latest() {
         let dir = tempdir().expect("tempdir");
-        record_user_message(dir.path(), "first").expect("record");
-        let ctx = get_session_context(dir.path(), None, None).expect("context");
+        let workspace = WorkspaceInstance::load(dir.path()).expect("workspace");
+        record_user_message(&workspace, "first").expect("record");
+        let ctx = get_session_context(&workspace, None, None).expect("context");
         assert_eq!(ctx.messages.len(), 1);
         assert_eq!(ctx.messages[0].text, "first");
+    }
+
+    #[test]
+    fn open_window_evicts_oldest() {
+        let dir = tempdir().expect("tempdir");
+        let workspace = WorkspaceInstance::load(dir.path()).expect("workspace");
+        assert_eq!(workspace.config.preferences.window_cache.max_windows, 8);
+
+        for idx in 0..9 {
+            let window_id = format!("window-{}", idx);
+            open_window(&workspace, &window_id).expect("open");
+        }
+
+        let ctx = get_session_context(&workspace, None, None).expect("context");
+        assert_eq!(ctx.windows.len(), 8);
+        assert_eq!(ctx.windows[0].window_id, "window-1");
     }
 }

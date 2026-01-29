@@ -1,14 +1,22 @@
-use axum::{routing::get, Router};
+use axum::{
+    extract::{Query, State},
+    routing::{get, post},
+    Json, Router,
+};
+use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
 use std::path::PathBuf;
+use std::sync::Arc;
 use tokio::net::TcpListener;
 use tokio::sync::oneshot;
 
-use crate::workspace::load_or_create_workspace_config;
+use crate::sessions::{get_session_context, record_user_message, SessionMessage};
+use crate::workspace::WorkspaceInstance;
 
 pub struct ServerHandle {
     addr: SocketAddr,
     shutdown: Option<oneshot::Sender<()>>,
+    workspace: WorkspaceInstance,
 }
 
 impl ServerHandle {
@@ -25,6 +33,10 @@ impl ServerHandle {
             Ok(())
         }
     }
+
+    pub fn workspace(&self) -> &WorkspaceInstance {
+        &self.workspace
+    }
 }
 
 impl Drop for ServerHandle {
@@ -34,8 +46,13 @@ impl Drop for ServerHandle {
 }
 
 pub async fn start(workspace_dir: PathBuf) -> Result<ServerHandle, String> {
-    load_or_create_workspace_config(&workspace_dir).map_err(|error| error.to_string())?;
-    let app = Router::new().route("/health", get(health));
+    let workspace = WorkspaceInstance::load(&workspace_dir).map_err(|error| error.to_string())?;
+    let state = Arc::new(ServerState { workspace });
+    let app = Router::new()
+        .route("/health", get(health))
+        .route("/sessions/message", post(record_message))
+        .route("/sessions/context", get(session_context))
+        .with_state(state.clone());
     let listener = TcpListener::bind("127.0.0.1:0")
         .await
         .map_err(|error| error.to_string())?;
@@ -55,11 +72,70 @@ pub async fn start(workspace_dir: PathBuf) -> Result<ServerHandle, String> {
     Ok(ServerHandle {
         addr,
         shutdown: Some(shutdown_tx),
+        workspace: state.workspace.clone(),
     })
 }
 
 async fn health() -> &'static str {
     "ok"
+}
+
+#[derive(Clone)]
+struct ServerState {
+    workspace: WorkspaceInstance,
+}
+
+#[derive(Debug, Deserialize)]
+struct RecordMessageRequest {
+    text: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct SessionContextQuery {
+    session_id: Option<String>,
+    limit: Option<usize>,
+}
+
+#[derive(Debug, Serialize)]
+struct ApiSessionContext {
+    workspace_id: String,
+    session_id: String,
+    started_at: u64,
+    ended_at: Option<u64>,
+    messages: Vec<SessionMessage>,
+}
+
+async fn record_message(
+    State(state): State<Arc<ServerState>>,
+    Json(payload): Json<RecordMessageRequest>,
+) -> Result<Json<ApiSessionContext>, String> {
+    let ctx = record_user_message(&state.workspace, &payload.text).map_err(|e| e.to_string())?;
+    Ok(Json(ApiSessionContext {
+        workspace_id: ctx.workspace_id,
+        session_id: ctx.session_id,
+        started_at: ctx.started_at,
+        ended_at: ctx.ended_at,
+        messages: ctx.messages,
+    }))
+}
+
+async fn session_context(
+    State(state): State<Arc<ServerState>>,
+    Query(params): Query<SessionContextQuery>,
+) -> Result<Json<ApiSessionContext>, String> {
+    let ctx = get_session_context(
+        &state.workspace,
+        params.session_id.as_deref(),
+        params.limit,
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(Json(ApiSessionContext {
+        workspace_id: ctx.workspace_id,
+        session_id: ctx.session_id,
+        started_at: ctx.started_at,
+        ended_at: ctx.ended_at,
+        messages: ctx.messages,
+    }))
 }
 
 #[cfg(test)]

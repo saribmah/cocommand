@@ -1,7 +1,6 @@
 use tauri::{Manager, WindowEvent};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 
-mod commands;
 mod state;
 mod window;
 
@@ -54,8 +53,6 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             window::hide_window,
-            commands::record_user_message_cmd,
-            commands::get_session_context_cmd,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
