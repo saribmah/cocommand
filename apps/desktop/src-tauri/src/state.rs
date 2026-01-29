@@ -1,19 +1,19 @@
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
-use cocommand::server::ServerHandle;
+use cocommand::server::Server;
 use tauri::Manager;
 use tokio::time::{sleep, Duration};
 
 /// Shared application state for workspace/server lifecycle.
 pub struct AppState {
     pub workspace_dir: Arc<Mutex<PathBuf>>,
-    pub server_handle: Arc<Mutex<ServerHandle>>,
+    pub server: Arc<Mutex<Server>>,
 }
 
 impl AppState {
     pub fn server_addr(&self) -> String {
-        self.server_handle
+        self.server
             .lock()
             .map(|handle| handle.addr().to_string())
             .unwrap_or_else(|_| "unknown".to_string())
@@ -28,10 +28,10 @@ impl AppState {
 }
 
 impl AppState {
-    pub fn new(workspace_dir: PathBuf, server_handle: ServerHandle) -> Result<Self, String> {
+    pub fn new(workspace_dir: PathBuf, server: Server) -> Result<Self, String> {
         Ok(Self {
             workspace_dir: Arc::new(Mutex::new(workspace_dir)),
-            server_handle: Arc::new(Mutex::new(server_handle)),
+            server: Arc::new(Mutex::new(server)),
         })
     }
 
@@ -44,13 +44,13 @@ impl AppState {
         Ok(())
     }
 
-    pub fn replace_server_handle(&self, server_handle: ServerHandle) -> Result<(), String> {
+    pub fn replace_server(&self, server: Server) -> Result<(), String> {
         let mut guard = self
-            .server_handle
+            .server
             .lock()
-            .map_err(|_| "server_handle lock poisoned".to_string())?;
+            .map_err(|_| "server lock poisoned".to_string())?;
         guard.shutdown()?;
-        *guard = server_handle;
+        *guard = server;
         Ok(())
     }
 }
@@ -59,10 +59,10 @@ pub async fn start_server_with_retry(
     workspace_dir: PathBuf,
     attempts: usize,
     delay_ms: u64,
-) -> Result<ServerHandle, String> {
+) -> Result<Server, String> {
     let mut last_error: Option<String> = None;
     for attempt in 0..attempts {
-        match cocommand::server::start(workspace_dir.clone()).await {
+        match Server::new(workspace_dir.clone()).await {
             Ok(handle) => return Ok(handle),
             Err(error) => {
                 last_error = Some(error);

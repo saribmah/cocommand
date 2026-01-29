@@ -26,8 +26,8 @@ pub async fn set_workspace_dir_cmd(
 ) -> Result<String, String> {
     let new_dir = PathBuf::from(workspace_dir);
     std::fs::create_dir_all(&new_dir).map_err(|error| error.to_string())?;
-    let new_handle = start_server_with_retry(new_dir.clone(), 3, 200).await?;
-    state.replace_server_handle(new_handle)?;
+    let new_server = start_server_with_retry(new_dir.clone(), 3, 200).await?;
+    state.replace_server(new_server)?;
     state.set_workspace_dir(new_dir)?;
     save_workspace_dir(&app, &state.workspace_dir())?;
 

@@ -2,7 +2,6 @@ use std::sync::{Arc, Mutex};
 
 use crate::error::{CoreError, CoreResult};
 use crate::session::session::Session;
-use crate::session::SessionContext;
 use crate::workspace::WorkspaceInstance;
 
 pub struct SessionManager {
@@ -18,31 +17,8 @@ impl SessionManager {
         }
     }
 
-    pub fn record_message(&self, text: &str) -> CoreResult<SessionContext> {
-        let mut session = self.ensure_session()?;
-        session.record_message(text)?;
-        session.context(None)
-    }
-
-    pub fn context(
-        &self,
-        session_id: Option<&str>,
-        limit: Option<usize>,
-    ) -> CoreResult<SessionContext> {
-        let session = self.ensure_session()?;
-        session.context_with_id(session_id, limit)
-    }
-
-    pub fn open_application(&self, app_id: &str) -> CoreResult<SessionContext> {
-        let mut session = self.ensure_session()?;
-        session.open_application(app_id);
-        session.context(None)
-    }
-
-    pub fn close_application(&self, app_id: &str) -> CoreResult<SessionContext> {
-        let mut session = self.ensure_session()?;
-        session.close_application(app_id);
-        session.context(None)
+    pub fn session(&self) -> CoreResult<Session> {
+        self.ensure_session()
     }
 
     fn ensure_session(&self) -> CoreResult<Session> {
@@ -86,7 +62,9 @@ mod tests {
         let dir = tempdir().expect("tempdir");
         let workspace = Arc::new(WorkspaceInstance::load(dir.path()).expect("workspace"));
         let manager = SessionManager::new(workspace);
-        let ctx = manager.record_message("hello").expect("record");
+        let mut session = manager.session().expect("session");
+        session.record_message("hello").expect("record");
+        let ctx = session.context(None).expect("context");
         assert_eq!(ctx.messages.len(), 1);
         assert_eq!(ctx.messages[0].text, "hello");
     }
@@ -98,8 +76,8 @@ mod tests {
         workspace.config.preferences.session.duration_seconds = 0;
         let workspace = Arc::new(workspace);
         let manager = SessionManager::new(workspace.clone());
-        let first = manager.context(None, None).expect("context");
-        let second = manager.context(None, None).expect("context");
+        let first = manager.session().expect("session").context(None).expect("context");
+        let second = manager.session().expect("session").context(None).expect("context");
         assert_ne!(first.session_id, second.session_id);
     }
 }
