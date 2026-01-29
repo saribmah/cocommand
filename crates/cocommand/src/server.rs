@@ -21,7 +21,7 @@ pub struct Server {
 
 impl Server {
     pub async fn new(workspace_dir: PathBuf) -> Result<Self, String> {
-        let workspace = WorkspaceInstance::load(&workspace_dir).map_err(|error| error.to_string())?;
+        let workspace = WorkspaceInstance::new(&workspace_dir).map_err(|error| error.to_string())?;
         let workspace_arc = Arc::new(workspace.clone());
         let sessions = SessionManager::new(workspace_arc);
         let bus = Bus::new(512);

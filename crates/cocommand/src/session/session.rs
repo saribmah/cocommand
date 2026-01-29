@@ -119,7 +119,7 @@ mod tests {
     #[test]
     fn session_records_messages() {
         let dir = tempdir().expect("tempdir");
-        let workspace = Arc::new(WorkspaceInstance::load(dir.path()).expect("workspace"));
+        let workspace = Arc::new(WorkspaceInstance::new(dir.path()).expect("workspace"));
         let mut session = Session::new(workspace).expect("session");
         session.record_message("hello").expect("record");
         let ctx = session.context(None).expect("context");

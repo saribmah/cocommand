@@ -60,7 +60,7 @@ mod tests {
     #[test]
     fn manager_records_messages() {
         let dir = tempdir().expect("tempdir");
-        let workspace = Arc::new(WorkspaceInstance::load(dir.path()).expect("workspace"));
+        let workspace = Arc::new(WorkspaceInstance::new(dir.path()).expect("workspace"));
         let manager = SessionManager::new(workspace);
         let mut session = manager.session().expect("session");
         session.record_message("hello").expect("record");
@@ -72,7 +72,7 @@ mod tests {
     #[test]
     fn manager_rollover_resets_cache() {
         let dir = tempdir().expect("tempdir");
-        let mut workspace = WorkspaceInstance::load(dir.path()).expect("workspace");
+        let mut workspace = WorkspaceInstance::new(dir.path()).expect("workspace");
         workspace.config.preferences.session.duration_seconds = 0;
         let workspace = Arc::new(workspace);
         let manager = SessionManager::new(workspace.clone());
