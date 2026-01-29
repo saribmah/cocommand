@@ -7,8 +7,10 @@ use std::sync::Arc;
 use tokio::net::TcpListener;
 use tokio::sync::oneshot;
 
+use crate::bus::Bus;
 use crate::session::SessionManager;
 use crate::workspace::WorkspaceInstance;
+pub mod events;
 pub mod session;
 
 pub struct Server {
@@ -22,13 +24,19 @@ impl Server {
         let workspace = WorkspaceInstance::load(&workspace_dir).map_err(|error| error.to_string())?;
         let workspace_arc = Arc::new(workspace.clone());
         let sessions = SessionManager::new(workspace_arc);
-        let state = Arc::new(ServerState { workspace, sessions });
+        let bus = Bus::new(512);
+        let state = Arc::new(ServerState {
+            workspace,
+            sessions,
+            bus,
+        });
         let cors = CorsLayer::new()
             .allow_origin(Any)
             .allow_methods(Any)
             .allow_headers(Any);
         let app = Router::new()
             .route("/health", get(health))
+            .route("/events", get(events::stream_events))
             .route("/sessions/message", post(session::record_message))
             .route("/sessions/context", get(session::session_context))
             .with_state(state.clone())
@@ -88,6 +96,7 @@ async fn health() -> &'static str {
 pub(crate) struct ServerState {
     pub(crate) workspace: WorkspaceInstance,
     pub(crate) sessions: SessionManager,
+    pub(crate) bus: Bus,
 }
 
 #[cfg(test)]
