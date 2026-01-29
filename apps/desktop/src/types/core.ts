@@ -56,6 +56,11 @@ export interface Workspace {
   last_modified: number;
 }
 
+export interface ServerInfo {
+  addr: string;
+  workspace_dir: string;
+}
+
 // --- Normalized UI types (uniform shape for rendering) ---
 
 export interface ArtifactResult {
@@ -145,4 +150,8 @@ export async function getWorkspaceSnapshot(): Promise<Workspace> {
 
 export async function hideWindow(): Promise<void> {
   return invoke("hide_window");
+}
+
+export async function getServerInfo(): Promise<ServerInfo> {
+  return invoke("get_server_info_cmd");
 }

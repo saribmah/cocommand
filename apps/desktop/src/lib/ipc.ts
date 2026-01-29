@@ -7,6 +7,7 @@ export {
   getWorkspaceSnapshot,
   hideWindow,
   normalizeResponse,
+  getServerInfo,
 } from "../types/core";
 
 export type {
@@ -19,4 +20,5 @@ export type {
   PreviewResult,
   ConfirmationResult,
   ErrorResult,
+  ServerInfo,
 } from "../types/core";

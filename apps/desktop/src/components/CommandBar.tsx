@@ -1,5 +1,6 @@
 import { useRef, useEffect, type KeyboardEvent } from "react";
 import { useCommandBar } from "../state/commandbar";
+import { useServerStore } from "../state/server";
 import { ResultCard } from "./ResultCard";
 import { ConfirmPanel } from "./ConfirmPanel";
 import "../styles/commandbar.css";
@@ -19,6 +20,7 @@ export function CommandBar() {
     confirmPending,
     cancelPending,
   } = useCommandBar();
+  const serverInfo = useServerStore((state) => state.getInfo());
 
   useEffect(() => {
     inputRef.current?.focus();
@@ -55,6 +57,12 @@ export function CommandBar() {
           spellCheck={false}
           autoComplete="off"
         />
+        <span
+          className="server-status-badge"
+          data-status={serverInfo ? "online" : "offline"}
+        >
+          {serverInfo ? "Server online" : "Server offline"}
+        </span>
       </div>
       <div className="command-results">
         {pendingConfirmation && (
