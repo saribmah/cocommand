@@ -2,7 +2,6 @@
 
 pub mod config;
 pub mod instance;
-pub mod application_cache;
 pub use config::{
     load_or_create_workspace_config, migrate_workspace_config, workspace_config_path,
     WorkspaceApp, WorkspaceApps, WorkspaceConfig, WorkspacePreferences, WorkspaceTheme,
@@ -10,4 +9,3 @@ pub use config::{
     WORKSPACE_CONFIG_VERSION,
 };
 pub use instance::WorkspaceInstance;
-pub use application_cache::ApplicationCache;

@@ -3,6 +3,7 @@ use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
 use crate::error::{CoreError, CoreResult};
+use crate::utils::time::now_secs;
 
 pub const WORKSPACE_CONFIG_FILENAME: &str = "workspace.json";
 pub const WORKSPACE_CONFIG_VERSION: &str = "1.0.0";
@@ -143,12 +144,6 @@ fn write_workspace_config(path: &Path, config: &WorkspaceConfig) -> CoreResult<(
     Ok(())
 }
 
-fn now_secs() -> u64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs()
-}
 
 #[cfg(test)]
 mod tests {

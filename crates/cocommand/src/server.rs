@@ -10,7 +10,7 @@ use std::sync::Arc;
 use tokio::net::TcpListener;
 use tokio::sync::oneshot;
 
-use crate::sessions::{get_session_context, record_user_message, SessionMessage};
+use crate::session::{SessionContext, SessionManager, SessionMessage};
 use crate::workspace::WorkspaceInstance;
 
 pub struct ServerHandle {
@@ -47,7 +47,9 @@ impl Drop for ServerHandle {
 
 pub async fn start(workspace_dir: PathBuf) -> Result<ServerHandle, String> {
     let workspace = WorkspaceInstance::load(&workspace_dir).map_err(|error| error.to_string())?;
-    let state = Arc::new(ServerState { workspace });
+    let workspace_arc = Arc::new(workspace.clone());
+    let sessions = SessionManager::new(workspace_arc);
+    let state = Arc::new(ServerState { workspace, sessions });
     let app = Router::new()
         .route("/health", get(health))
         .route("/sessions/message", post(record_message))
@@ -80,9 +82,9 @@ async fn health() -> &'static str {
     "ok"
 }
 
-#[derive(Clone)]
 struct ServerState {
     workspace: WorkspaceInstance,
+    sessions: SessionManager,
 }
 
 #[derive(Debug, Deserialize)]
@@ -109,33 +111,32 @@ async fn record_message(
     State(state): State<Arc<ServerState>>,
     Json(payload): Json<RecordMessageRequest>,
 ) -> Result<Json<ApiSessionContext>, String> {
-    let ctx = record_user_message(&state.workspace, &payload.text).map_err(|e| e.to_string())?;
-    Ok(Json(ApiSessionContext {
-        workspace_id: ctx.workspace_id,
-        session_id: ctx.session_id,
-        started_at: ctx.started_at,
-        ended_at: ctx.ended_at,
-        messages: ctx.messages,
-    }))
+    let ctx = state
+        .sessions
+        .record_message(&payload.text)
+        .map_err(|e| e.to_string())?;
+    Ok(Json(to_api_context(ctx)))
 }
 
 async fn session_context(
     State(state): State<Arc<ServerState>>,
     Query(params): Query<SessionContextQuery>,
 ) -> Result<Json<ApiSessionContext>, String> {
-    let ctx = get_session_context(
-        &state.workspace,
-        params.session_id.as_deref(),
-        params.limit,
-    )
-    .map_err(|e| e.to_string())?;
-    Ok(Json(ApiSessionContext {
+    let ctx = state
+        .sessions
+        .context(params.session_id.as_deref(), params.limit)
+        .map_err(|e| e.to_string())?;
+    Ok(Json(to_api_context(ctx)))
+}
+
+fn to_api_context(ctx: SessionContext) -> ApiSessionContext {
+    ApiSessionContext {
         workspace_id: ctx.workspace_id,
         session_id: ctx.session_id,
         started_at: ctx.started_at,
         ended_at: ctx.ended_at,
         messages: ctx.messages,
-    }))
+    }
 }
 
 #[cfg(test)]
