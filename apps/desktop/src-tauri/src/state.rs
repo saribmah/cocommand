@@ -7,7 +7,7 @@ use tokio::time::{sleep, Duration};
 
 /// Shared application state for workspace/server lifecycle.
 pub struct AppState {
-    pub workspace_dir: PathBuf,
+    pub workspace_dir: Arc<Mutex<PathBuf>>,
     pub server_handle: Arc<Mutex<ServerHandle>>,
 }
 
@@ -19,18 +19,39 @@ impl AppState {
             .unwrap_or_else(|_| "unknown".to_string())
     }
 
-    pub fn workspace_dir(&self) -> &PathBuf {
-        &self.workspace_dir
+    pub fn workspace_dir(&self) -> PathBuf {
+        self.workspace_dir
+            .lock()
+            .map(|path| path.clone())
+            .unwrap_or_else(|_| PathBuf::new())
     }
-
 }
 
 impl AppState {
     pub fn new(workspace_dir: PathBuf, server_handle: ServerHandle) -> Result<Self, String> {
         Ok(Self {
-            workspace_dir,
+            workspace_dir: Arc::new(Mutex::new(workspace_dir)),
             server_handle: Arc::new(Mutex::new(server_handle)),
         })
+    }
+
+    pub fn set_workspace_dir(&self, workspace_dir: PathBuf) -> Result<(), String> {
+        let mut guard = self
+            .workspace_dir
+            .lock()
+            .map_err(|_| "workspace_dir lock poisoned".to_string())?;
+        *guard = workspace_dir;
+        Ok(())
+    }
+
+    pub fn replace_server_handle(&self, server_handle: ServerHandle) -> Result<(), String> {
+        let mut guard = self
+            .server_handle
+            .lock()
+            .map_err(|_| "server_handle lock poisoned".to_string())?;
+        guard.shutdown()?;
+        *guard = server_handle;
+        Ok(())
     }
 }
 

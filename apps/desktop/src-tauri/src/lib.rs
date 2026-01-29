@@ -1,8 +1,10 @@
 use tauri::{Manager, WindowEvent};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 
+mod commands;
 mod state;
 mod window;
+mod workspace_path;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -21,9 +23,9 @@ pub fn run() {
                 .build(),
         )
         .setup(|app| {
-            let workspace_dir = state::resolve_workspace_dir(app.handle()).map_err(|error| {
-                std::io::Error::new(std::io::ErrorKind::Other, error)
-            })?;
+            let workspace_dir = workspace_path::load_workspace_dir(app.handle()).map_err(
+                |error| std::io::Error::new(std::io::ErrorKind::Other, error),
+            )?;
             let server_handle = tauri::async_runtime::block_on(
                 state::start_server_with_retry(workspace_dir.clone(), 3, 200),
             )
@@ -53,6 +55,8 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             window::hide_window,
+            commands::get_workspace_dir_cmd,
+            commands::set_workspace_dir_cmd,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
