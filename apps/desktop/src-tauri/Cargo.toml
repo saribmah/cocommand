@@ -28,6 +28,7 @@ llm-kit-provider = "0.1.2"
 llm-kit-openai-compatible = "0.1.1"
 serde = { version = "1", features = ["derive"] }
 dotenvy = "0.15"
+tokio = { version = "1", features = ["time"] }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal"] }

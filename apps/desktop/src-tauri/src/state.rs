@@ -1,45 +1,56 @@
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
-use cocommand::Core;
-use cocommand::LlmPlanner;
-use cocommand::storage::MemoryStorage;
-use llm_kit_openai_compatible::OpenAICompatibleClient;
-use llm_kit_provider::LanguageModel;
+use cocommand::server::ServerHandle;
 use tauri::Manager;
+use tokio::time::{sleep, Duration};
 
-/// Shared application state holding the Core instance.
-/// Wrapped in Arc<Mutex<_>> because Core::submit_command requires &mut self.
+/// Shared application state for workspace/server lifecycle.
 pub struct AppState {
-    pub core: Arc<Mutex<Core>>,
     pub workspace_dir: PathBuf,
+    pub server_handle: Arc<Mutex<ServerHandle>>,
 }
 
 impl AppState {
-    pub fn new(workspace_dir: PathBuf) -> Result<Self, String> {
-        let storage = Box::new(MemoryStorage::new());
-        let mut core = Core::new_with_workspace_dir(storage, &workspace_dir)
-            .map_err(|e| e.to_string())?;
-        core.register_builtins();
-        if std::env::var("COCOMMAND_LLM_API_KEY").is_ok() {
-            let api_key =
-                std::env::var("COCOMMAND_LLM_API_KEY").unwrap_or_else(|_| "".to_string());
-            let model_id =
-                std::env::var("COCOMMAND_LLM_MODEL").unwrap_or_else(|_| "gpt-4o-mini".to_string());
-            let base_url =
-                std::env::var("COCOMMAND_LLM_BASE_URL").unwrap_or_else(|_| "https://openrouter.ai/api/v1".to_string());
-            let provider = OpenAICompatibleClient::new()
-                .base_url(base_url)
-                .api_key(api_key)
-                .build();
-            let model: Arc<dyn LanguageModel> = provider.model(model_id);
-            core.set_planner_with_label(Arc::new(LlmPlanner::new(model)), "llm");
-        }
+    pub fn server_addr(&self) -> String {
+        self.server_handle
+            .lock()
+            .map(|handle| handle.addr().to_string())
+            .unwrap_or_else(|_| "unknown".to_string())
+    }
+
+    pub fn workspace_dir(&self) -> &PathBuf {
+        &self.workspace_dir
+    }
+}
+
+impl AppState {
+    pub fn new(workspace_dir: PathBuf, server_handle: ServerHandle) -> Result<Self, String> {
         Ok(Self {
-            core: Arc::new(Mutex::new(core)),
             workspace_dir,
+            server_handle: Arc::new(Mutex::new(server_handle)),
         })
     }
+}
+
+pub async fn start_server_with_retry(
+    workspace_dir: PathBuf,
+    attempts: usize,
+    delay_ms: u64,
+) -> Result<ServerHandle, String> {
+    let mut last_error: Option<String> = None;
+    for attempt in 0..attempts {
+        match cocommand::server::start(workspace_dir.clone()).await {
+            Ok(handle) => return Ok(handle),
+            Err(error) => {
+                last_error = Some(error);
+                if attempt + 1 < attempts {
+                    sleep(Duration::from_millis(delay_ms)).await;
+                }
+            }
+        }
+    }
+    Err(last_error.unwrap_or_else(|| "failed to start server".to_string()))
 }
 
 pub fn resolve_workspace_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
