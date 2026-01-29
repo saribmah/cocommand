@@ -1,17 +1,14 @@
-use axum::{
-    extract::{Query, State},
-    routing::{get, post},
-    Json, Router,
-};
-use serde::{Deserialize, Serialize};
+use axum::routing::{get, post};
+use axum::Router;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::net::TcpListener;
 use tokio::sync::oneshot;
 
-use crate::session::{SessionContext, SessionManager, SessionMessage};
+use crate::session::SessionManager;
 use crate::workspace::WorkspaceInstance;
+pub mod session;
 
 pub struct Server {
     addr: SocketAddr,
@@ -27,8 +24,8 @@ impl Server {
         let state = Arc::new(ServerState { workspace, sessions });
         let app = Router::new()
             .route("/health", get(health))
-            .route("/sessions/message", post(record_message))
-            .route("/sessions/context", get(session_context))
+            .route("/sessions/message", post(session::record_message))
+            .route("/sessions/context", get(session::session_context))
             .with_state(state.clone());
         let listener = TcpListener::bind("127.0.0.1:0")
             .await
@@ -82,62 +79,9 @@ async fn health() -> &'static str {
     "ok"
 }
 
-struct ServerState {
-    workspace: WorkspaceInstance,
-    sessions: SessionManager,
-}
-
-#[derive(Debug, Deserialize)]
-struct RecordMessageRequest {
-    text: String,
-}
-
-#[derive(Debug, Deserialize)]
-struct SessionContextQuery {
-    session_id: Option<String>,
-    limit: Option<usize>,
-}
-
-#[derive(Debug, Serialize)]
-struct ApiSessionContext {
-    workspace_id: String,
-    session_id: String,
-    started_at: u64,
-    ended_at: Option<u64>,
-    messages: Vec<SessionMessage>,
-}
-
-async fn record_message(
-    State(state): State<Arc<ServerState>>,
-    Json(payload): Json<RecordMessageRequest>,
-) -> Result<Json<ApiSessionContext>, String> {
-    let mut session = state.sessions.session().map_err(|e| e.to_string())?;
-    session
-        .record_message(&payload.text)
-        .map_err(|e| e.to_string())?;
-    let ctx = session.context(None).map_err(|e| e.to_string())?;
-    Ok(Json(to_api_context(ctx)))
-}
-
-async fn session_context(
-    State(state): State<Arc<ServerState>>,
-    Query(params): Query<SessionContextQuery>,
-) -> Result<Json<ApiSessionContext>, String> {
-    let session = state.sessions.session().map_err(|e| e.to_string())?;
-    let ctx = session
-        .context_with_id(params.session_id.as_deref(), params.limit)
-        .map_err(|e| e.to_string())?;
-    Ok(Json(to_api_context(ctx)))
-}
-
-fn to_api_context(ctx: SessionContext) -> ApiSessionContext {
-    ApiSessionContext {
-        workspace_id: ctx.workspace_id,
-        session_id: ctx.session_id,
-        started_at: ctx.started_at,
-        ended_at: ctx.ended_at,
-        messages: ctx.messages,
-    }
+pub(crate) struct ServerState {
+    pub(crate) workspace: WorkspaceInstance,
+    pub(crate) sessions: SessionManager,
 }
 
 #[cfg(test)]
@@ -149,7 +93,7 @@ mod tests {
     #[tokio::test]
     async fn start_creates_workspace_config() {
         let dir = tempdir().expect("tempdir");
-    let mut server = Server::new(dir.path().to_path_buf()).await.expect("start");
+        let mut server = Server::new(dir.path().to_path_buf()).await.expect("start");
         let path = workspace_config_path(dir.path());
         assert!(path.exists());
         server.shutdown().expect("shutdown");
@@ -158,7 +102,7 @@ mod tests {
     #[tokio::test]
     async fn start_binds_random_port() {
         let dir = tempdir().expect("tempdir");
-    let mut server = Server::new(dir.path().to_path_buf()).await.expect("start");
+        let mut server = Server::new(dir.path().to_path_buf()).await.expect("start");
         let addr = server.addr();
         assert_ne!(addr.port(), 0);
         assert_ne!(addr.port(), 4840);
