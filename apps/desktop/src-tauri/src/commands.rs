@@ -11,6 +11,14 @@ pub fn get_workspace_dir_cmd(state: State<'_, AppState>) -> Result<String, Strin
 }
 
 #[tauri::command]
+pub fn get_server_info_cmd(state: State<'_, AppState>) -> Result<ServerInfoDto, String> {
+    Ok(ServerInfoDto {
+        addr: state.server_addr(),
+        workspace_dir: state.workspace_dir().display().to_string(),
+    })
+}
+
+#[tauri::command]
 pub async fn set_workspace_dir_cmd(
     workspace_dir: String,
     app: AppHandle,
@@ -18,11 +26,16 @@ pub async fn set_workspace_dir_cmd(
 ) -> Result<String, String> {
     let new_dir = PathBuf::from(workspace_dir);
     std::fs::create_dir_all(&new_dir).map_err(|error| error.to_string())?;
-    save_workspace_dir(&app, &new_dir)?;
-
     let new_handle = start_server_with_retry(new_dir.clone(), 3, 200).await?;
     state.replace_server_handle(new_handle)?;
     state.set_workspace_dir(new_dir)?;
+    save_workspace_dir(&app, &state.workspace_dir())?;
 
     Ok(state.server_addr())
+}
+
+#[derive(serde::Serialize)]
+pub struct ServerInfoDto {
+    pub addr: String,
+    pub workspace_dir: String,
 }

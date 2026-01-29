@@ -1,5 +1,7 @@
+use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use std::path::Path;
+use std::sync::{Mutex, MutexGuard};
 use uuid::Uuid;
 
 use crate::error::{CoreError, CoreResult};
@@ -7,6 +9,7 @@ use crate::workspace::{WorkspaceConfig, WorkspaceInstance};
 
 const SESSION_STORE_VERSION: &str = "1.0.0";
 const DEFAULT_CONTEXT_LIMIT: usize = 50;
+static SESSION_STORE_LOCK: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SessionMessage {
@@ -22,7 +25,6 @@ pub struct SessionRecord {
     pub started_at: u64,
     pub ended_at: Option<u64>,
     pub messages: Vec<SessionMessage>,
-    pub windows: Vec<SessionWindow>,
     pub next_seq: u64,
 }
 
@@ -39,19 +41,13 @@ pub struct SessionContext {
     pub started_at: u64,
     pub ended_at: Option<u64>,
     pub messages: Vec<SessionMessage>,
-    pub windows: Vec<SessionWindow>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SessionWindow {
-    pub window_id: String,
-    pub opened_at: u64,
 }
 
 pub fn record_user_message(
     workspace: &WorkspaceInstance,
     text: &str,
 ) -> CoreResult<SessionContext> {
+    let _guard = lock_session_store()?;
     let mut store = load_or_create_session_store(&workspace.sessions_path())?;
     let now = now_secs();
     let duration = workspace.config.preferences.session.duration_seconds;
@@ -76,6 +72,7 @@ pub fn get_session_context(
     session_id: Option<&str>,
     limit: Option<usize>,
 ) -> CoreResult<SessionContext> {
+    let _guard = lock_session_store()?;
     let store = load_or_create_session_store(&workspace.sessions_path())?;
     let selected = match session_id {
         Some(id) => store
@@ -96,40 +93,19 @@ pub fn open_window(
     workspace: &WorkspaceInstance,
     window_id: &str,
 ) -> CoreResult<SessionContext> {
-    let mut store = load_or_create_session_store(&workspace.sessions_path())?;
+    let session_id = ensure_active_session(workspace)?;
     let now = now_secs();
-    let duration = workspace.config.preferences.session.duration_seconds;
-    let max_windows = workspace.config.preferences.window_cache.max_windows as usize;
-
-    let session = get_or_start_session(&mut store, now, duration);
-    session.windows.push(SessionWindow {
-        window_id: window_id.to_string(),
-        opened_at: now,
-    });
-    if max_windows > 0 && session.windows.len() > max_windows {
-        let excess = session.windows.len() - max_windows;
-        session.windows.drain(0..excess);
-    }
-
-    let session_snapshot = session.clone();
-    save_session_store(&workspace.sessions_path(), &store)?;
-    build_session_context(&workspace.config, &session_snapshot, None)
+    workspace.open_window(&session_id, window_id, now);
+    get_session_context(workspace, Some(&session_id), None)
 }
 
 pub fn close_window(
     workspace: &WorkspaceInstance,
     window_id: &str,
 ) -> CoreResult<SessionContext> {
-    let mut store = load_or_create_session_store(&workspace.sessions_path())?;
-    let now = now_secs();
-    let duration = workspace.config.preferences.session.duration_seconds;
-
-    let session = get_or_start_session(&mut store, now, duration);
-    session.windows.retain(|window| window.window_id != window_id);
-
-    let session_snapshot = session.clone();
-    save_session_store(&workspace.sessions_path(), &store)?;
-    build_session_context(&workspace.config, &session_snapshot, None)
+    let session_id = ensure_active_session(workspace)?;
+    workspace.close_window(&session_id, window_id);
+    get_session_context(workspace, Some(&session_id), None)
 }
 
 fn build_session_context(
@@ -150,7 +126,6 @@ fn build_session_context(
         started_at: session.started_at,
         ended_at: session.ended_at,
         messages,
-        windows: session.windows.clone(),
     })
 }
 
@@ -189,6 +164,23 @@ fn load_or_create_session_store(path: &Path) -> CoreResult<SessionStore> {
     Ok(store)
 }
 
+fn ensure_active_session(workspace: &WorkspaceInstance) -> CoreResult<String> {
+    let _guard = lock_session_store()?;
+    let mut store = load_or_create_session_store(&workspace.sessions_path())?;
+    let now = now_secs();
+    let duration = workspace.config.preferences.session.duration_seconds;
+    let session = get_or_start_session(&mut store, now, duration);
+    let session_id = session.session_id.clone();
+    save_session_store(&workspace.sessions_path(), &store)?;
+    Ok(session_id)
+}
+
+fn lock_session_store() -> CoreResult<MutexGuard<'static, ()>> {
+    SESSION_STORE_LOCK
+        .lock()
+        .map_err(|_| CoreError::Internal("session store lock poisoned".to_string()))
+}
+
 fn save_session_store(path: &Path, store: &SessionStore) -> CoreResult<()> {
     let data = serde_json::to_string_pretty(store).map_err(|error| {
         CoreError::Internal(format!(
@@ -223,7 +215,6 @@ fn get_or_start_session<'a>(
             started_at: now,
             ended_at: None,
             messages: Vec::new(),
-            windows: Vec::new(),
             next_seq: 1,
         });
     }
@@ -249,6 +240,16 @@ mod tests {
     use super::*;
     use crate::workspace::WorkspaceInstance;
     use tempfile::tempdir;
+
+    fn force_expire_session(workspace: &WorkspaceInstance) {
+        let path = workspace.sessions_path();
+        let mut store = load_or_create_session_store(&path).expect("load store");
+        if let Some(last) = store.sessions.last_mut() {
+            last.started_at = 0;
+            last.ended_at = Some(0);
+        }
+        save_session_store(&path, &store).expect("save store");
+    }
 
     #[test]
     fn record_user_message_creates_session_store() {
@@ -281,7 +282,20 @@ mod tests {
         }
 
         let ctx = get_session_context(&workspace, None, None).expect("context");
-        assert_eq!(ctx.windows.len(), 8);
-        assert_eq!(ctx.windows[0].window_id, "window-1");
+        assert_eq!(ctx.messages.len(), 0);
+    }
+
+    #[test]
+    fn window_cache_resets_on_session_rollover() {
+        let dir = tempdir().expect("tempdir");
+        let mut workspace = WorkspaceInstance::load(dir.path()).expect("workspace");
+        workspace.config.preferences.session.duration_seconds = 0;
+
+        open_window(&workspace, "old-window").expect("open");
+        force_expire_session(&workspace);
+
+        open_window(&workspace, "new-window").expect("open");
+        let ctx = get_session_context(&workspace, None, None).expect("context");
+        assert_eq!(ctx.messages.len(), 0);
     }
 }
