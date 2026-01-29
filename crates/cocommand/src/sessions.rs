@@ -89,22 +89,22 @@ pub fn get_session_context(
     build_session_context(&workspace.config, selected, limit)
 }
 
-pub fn open_window(
+pub fn open_application(
     workspace: &WorkspaceInstance,
-    window_id: &str,
+    app_id: &str,
 ) -> CoreResult<SessionContext> {
     let session_id = ensure_active_session(workspace)?;
     let now = now_secs();
-    workspace.open_window(&session_id, window_id, now);
+    workspace.open_application(&session_id, app_id, now);
     get_session_context(workspace, Some(&session_id), None)
 }
 
-pub fn close_window(
+pub fn close_application(
     workspace: &WorkspaceInstance,
-    window_id: &str,
+    app_id: &str,
 ) -> CoreResult<SessionContext> {
     let session_id = ensure_active_session(workspace)?;
-    workspace.close_window(&session_id, window_id);
+    workspace.close_application(&session_id, app_id);
     get_session_context(workspace, Some(&session_id), None)
 }
 
@@ -271,14 +271,17 @@ mod tests {
     }
 
     #[test]
-    fn open_window_evicts_oldest() {
+    fn open_application_evicts_oldest() {
         let dir = tempdir().expect("tempdir");
         let workspace = WorkspaceInstance::load(dir.path()).expect("workspace");
-        assert_eq!(workspace.config.preferences.window_cache.max_windows, 8);
+        assert_eq!(
+            workspace.config.preferences.application_cache.max_applications,
+            8
+        );
 
         for idx in 0..9 {
-            let window_id = format!("window-{}", idx);
-            open_window(&workspace, &window_id).expect("open");
+            let app_id = format!("app-{}", idx);
+            open_application(&workspace, &app_id).expect("open");
         }
 
         let ctx = get_session_context(&workspace, None, None).expect("context");
@@ -286,15 +289,15 @@ mod tests {
     }
 
     #[test]
-    fn window_cache_resets_on_session_rollover() {
+    fn application_cache_resets_on_session_rollover() {
         let dir = tempdir().expect("tempdir");
         let mut workspace = WorkspaceInstance::load(dir.path()).expect("workspace");
         workspace.config.preferences.session.duration_seconds = 0;
 
-        open_window(&workspace, "old-window").expect("open");
+        open_application(&workspace, "old-app").expect("open");
         force_expire_session(&workspace);
 
-        open_window(&workspace, "new-window").expect("open");
+        open_application(&workspace, "new-app").expect("open");
         let ctx = get_session_context(&workspace, None, None).expect("context");
         assert_eq!(ctx.messages.len(), 0);
     }

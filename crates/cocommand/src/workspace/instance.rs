@@ -2,20 +2,20 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
 use crate::error::{CoreError, CoreResult};
+use crate::workspace::application_cache::ApplicationCache;
 use crate::workspace::config::{load_or_create_workspace_config, WorkspaceConfig};
-use crate::workspace::window_cache::WindowCache;
 
 #[derive(Debug, Clone)]
 pub struct WorkspaceInstance {
     pub workspace_dir: PathBuf,
     pub config: WorkspaceConfig,
-    window_cache_state: Arc<Mutex<WindowCacheState>>,
+    application_cache_state: Arc<Mutex<ApplicationCacheState>>,
 }
 
 #[derive(Debug, Clone)]
-struct WindowCacheState {
+struct ApplicationCacheState {
     session_id: String,
-    cache: WindowCache,
+    cache: ApplicationCache,
 }
 
 impl WorkspaceInstance {
@@ -30,14 +30,14 @@ impl WorkspaceInstance {
         }
         let config = load_or_create_workspace_config(workspace_dir)?;
         let ttl = config.preferences.session.duration_seconds;
-        let max_windows = config.preferences.window_cache.max_windows;
-        let window_cache = WindowCache::new(max_windows, ttl);
+        let max_apps = config.preferences.application_cache.max_applications;
+        let application_cache = ApplicationCache::new(max_apps, ttl);
         Ok(Self {
             workspace_dir: workspace_dir.to_path_buf(),
             config,
-            window_cache_state: Arc::new(Mutex::new(WindowCacheState {
+            application_cache_state: Arc::new(Mutex::new(ApplicationCacheState {
                 session_id: String::new(),
-                cache: window_cache,
+                cache: application_cache,
             })),
         })
     }
@@ -46,25 +46,25 @@ impl WorkspaceInstance {
         self.workspace_dir.join("sessions.json")
     }
 
-    pub fn open_window(&self, session_id: &str, window_id: &str, opened_at: u64) {
-        let cache = self.ensure_window_cache(session_id);
-        cache.open_window(window_id, opened_at);
+    pub fn open_application(&self, session_id: &str, app_id: &str, opened_at: u64) {
+        let cache = self.ensure_application_cache(session_id);
+        cache.open_application(app_id, opened_at);
     }
 
-    pub fn close_window(&self, session_id: &str, window_id: &str) {
-        let cache = self.ensure_window_cache(session_id);
-        cache.close_window(window_id);
+    pub fn close_application(&self, session_id: &str, app_id: &str) {
+        let cache = self.ensure_application_cache(session_id);
+        cache.close_application(app_id);
     }
 
-    fn ensure_window_cache(&self, session_id: &str) -> WindowCache {
+    fn ensure_application_cache(&self, session_id: &str) -> ApplicationCache {
         let mut guard = self
-            .window_cache_state
+            .application_cache_state
             .lock()
-            .expect("window cache lock");
+            .expect("application cache lock");
         if guard.session_id != session_id {
             let ttl = self.config.preferences.session.duration_seconds;
-            let max_windows = self.config.preferences.window_cache.max_windows;
-            guard.cache = WindowCache::new(max_windows, ttl);
+            let max_apps = self.config.preferences.application_cache.max_applications;
+            guard.cache = ApplicationCache::new(max_apps, ttl);
             guard.session_id = session_id.to_string();
         }
         guard.cache.clone()
