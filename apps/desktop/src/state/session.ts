@@ -7,6 +7,7 @@ interface SessionState {
   setContext: (context: SessionContext) => void;
   clear: () => void;
   sendMessage: (text: string) => Promise<SessionContext>;
+  getContext: () => SessionContext | null;
 }
 
 function buildServerUrl(addr: string, path: string): string {
@@ -14,7 +15,7 @@ function buildServerUrl(addr: string, path: string): string {
   return `${prefix}${path}`;
 }
 
-export const useSessionStore = create<SessionState>((set) => ({
+export const useSessionStore = create<SessionState>((set, get) => ({
   context: null,
   setContext: (context) => set({ context }),
   clear: () => set({ context: null }),
@@ -36,4 +37,5 @@ export const useSessionStore = create<SessionState>((set) => ({
     set({ context: data });
     return data;
   },
+  getContext: () => get().context,
 }));

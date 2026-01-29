@@ -37,6 +37,7 @@ export function useCommandBar() {
   }, []);
 
   const sendMessage = useSessionStore((store) => store.sendMessage);
+  const getSessionContext = useSessionStore((store) => store.getContext);
 
   const submit = useCallback(async () => {
     const text = state.input.trim();
@@ -46,11 +47,20 @@ export function useCommandBar() {
 
     try {
       await sendMessage(text);
+      const context = getSessionContext();
+      const latest = context?.messages?.slice(-1)[0];
+      const sessionResult: CoreResult | null = latest
+        ? {
+            type: "preview",
+            title: "Session",
+            body: latest.text,
+          }
+        : null;
       setState((s) => ({
         ...s,
         input: "",
         isSubmitting: false,
-        results: [],
+        results: sessionResult ? [sessionResult] : [],
         pendingConfirmation: null,
         followUpActive: false,
       }));
@@ -66,7 +76,7 @@ export function useCommandBar() {
         results: [errorResult],
       }));
     }
-  }, [state.input, sendMessage]);
+  }, [state.input, sendMessage, getSessionContext]);
 
   const dismissResult = useCallback((index: number) => {
     setState((s) => ({

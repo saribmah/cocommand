@@ -1,5 +1,6 @@
 use axum::routing::{get, post};
 use axum::Router;
+use tower_http::cors::{Any, CorsLayer};
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -22,11 +23,16 @@ impl Server {
         let workspace_arc = Arc::new(workspace.clone());
         let sessions = SessionManager::new(workspace_arc);
         let state = Arc::new(ServerState { workspace, sessions });
+        let cors = CorsLayer::new()
+            .allow_origin(Any)
+            .allow_methods(Any)
+            .allow_headers(Any);
         let app = Router::new()
             .route("/health", get(health))
             .route("/sessions/message", post(session::record_message))
             .route("/sessions/context", get(session::session_context))
-            .with_state(state.clone());
+            .with_state(state.clone())
+            .layer(cors);
         let listener = TcpListener::bind("127.0.0.1:0")
             .await
             .map_err(|error| error.to_string())?;
