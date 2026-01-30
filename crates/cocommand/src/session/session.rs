@@ -24,7 +24,6 @@ pub struct SessionContext {
     pub session_id: String,
     pub started_at: u64,
     pub ended_at: Option<u64>,
-    pub messages: Vec<SessionMessage>,
 }
 
 #[derive(Debug, Clone)]
@@ -98,13 +97,26 @@ impl Session {
     pub async fn context_with_id(
         &self,
         session_id: Option<&str>,
-        limit: Option<usize>,
+        _limit: Option<usize>,
     ) -> CoreResult<SessionContext> {
         if let Some(id) = session_id {
             if id != self.session_id {
                 return Err(CoreError::InvalidInput("session not found".to_string()));
             }
         }
+        Ok(SessionContext {
+            workspace_id: self.workspace.config.workspace_id.clone(),
+            session_id: self.session_id.clone(),
+            started_at: self.started_at,
+            ended_at: self.ended_at,
+        })
+    }
+
+    pub async fn messages(&self) -> CoreResult<Vec<MessageWithParts>> {
+        self.load_messages_with_parts().await
+    }
+
+    pub async fn messages_for_prompt(&self, limit: Option<usize>) -> CoreResult<Vec<SessionMessage>> {
         let cap = limit.unwrap_or(DEFAULT_CONTEXT_LIMIT);
         let messages_with_parts = self.messages().await?;
         let messages_with_parts = if messages_with_parts.len() > cap {
@@ -112,7 +124,7 @@ impl Session {
         } else {
             messages_with_parts
         };
-        let messages = messages_with_parts
+        Ok(messages_with_parts
             .into_iter()
             .enumerate()
             .map(|(index, item)| SessionMessage {
@@ -121,19 +133,7 @@ impl Session {
                 role: item.info.role,
                 text: render_message_text(&item.parts),
             })
-            .collect();
-
-        Ok(SessionContext {
-            workspace_id: self.workspace.config.workspace_id.clone(),
-            session_id: self.session_id.clone(),
-            started_at: self.started_at,
-            ended_at: self.ended_at,
-            messages,
-        })
-    }
-
-    pub async fn messages(&self) -> CoreResult<Vec<MessageWithParts>> {
-        self.load_messages_with_parts().await
+            .collect())
     }
 
     pub fn open_application(&mut self, app_id: &str) {
@@ -223,7 +223,7 @@ impl Session {
     }
 }
 
-fn render_message_text(parts: &[MessagePart]) -> String {
+pub(crate) fn render_message_text(parts: &[MessagePart]) -> String {
     parts
         .iter()
         .filter_map(|part| match part {
@@ -245,12 +245,12 @@ mod tests {
         let workspace = Arc::new(WorkspaceInstance::new(dir.path()).expect("workspace"));
         let mut session = Session::new(workspace).expect("session");
         let runtime = tokio::runtime::Runtime::new().expect("runtime");
-        let ctx = runtime
+        let messages = runtime
             .block_on(async {
                 session.record_message("hello").await.expect("record");
-                session.context(None).await.expect("context")
+                session.messages_for_prompt(None).await.expect("messages")
             });
-        assert_eq!(ctx.messages.len(), 1);
-        assert_eq!(ctx.messages[0].text, "hello");
+        assert_eq!(messages.len(), 1);
+        assert_eq!(messages[0].text, "hello");
     }
 }

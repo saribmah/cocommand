@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 use crate::server::ServerState;
-use crate::session::{SessionContext, SessionMessage};
+use crate::session::SessionContext;
 
 #[derive(Debug, Deserialize)]
 pub struct RecordMessageRequest {
@@ -26,33 +26,40 @@ pub struct ApiSessionContext {
     pub session_id: String,
     pub started_at: u64,
     pub ended_at: Option<u64>,
-    pub messages: Vec<SessionMessage>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct RecordMessageResponse {
+    pub context: ApiSessionContext,
+    pub reply: String,
 }
 
 pub(crate) async fn record_message(
     State(state): State<Arc<ServerState>>,
     Json(payload): Json<RecordMessageRequest>,
-) -> Result<Json<ApiSessionContext>, (StatusCode, String)> {
-    let ctx = state
+) -> Result<Json<RecordMessageResponse>, (StatusCode, String)> {
+    let (session_id, messages) = state
         .sessions
         .with_session_mut(|session| {
             Box::pin(async move {
                 session.record_message(&payload.text).await?;
-                session.context(None).await
+                let messages = session.messages_for_prompt(None).await?;
+                Ok((session.session_id.clone(), messages))
             })
         })
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     let reply = state
         .llm
-        .generate_reply_parts(&ctx)
+        .generate_reply_parts(&session_id, &messages)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let reply_text = crate::session::session::render_message_text(&reply);
     let ctx = state
         .sessions
         .with_session_mut(|session| {
             Box::pin(async move {
-                if session.session_id != ctx.session_id {
+                if session.session_id != session_id {
                     return Err(crate::error::CoreError::InvalidInput(
                         "session not found".to_string(),
                     ));
@@ -63,7 +70,10 @@ pub(crate) async fn record_message(
         })
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-    Ok(Json(to_api_context(ctx)))
+    Ok(Json(RecordMessageResponse {
+        context: to_api_context(ctx),
+        reply: reply_text,
+    }))
 }
 
 pub(crate) async fn session_context(
@@ -90,6 +100,5 @@ fn to_api_context(ctx: SessionContext) -> ApiSessionContext {
         session_id: ctx.session_id,
         started_at: ctx.started_at,
         ended_at: ctx.ended_at,
-        messages: ctx.messages,
     }
 }

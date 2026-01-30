@@ -7,7 +7,7 @@ use crate::error::{CoreError, CoreResult};
 use crate::llm::provider::{build_model, LlmSettings};
 use crate::llm::tools::{build_tool_set, session_messages_to_prompt};
 use crate::message::MessagePart;
-use crate::session::SessionContext;
+use crate::session::SessionMessage;
 use crate::workspace::WorkspaceInstance;
 
 pub struct LlmService {
@@ -29,15 +29,16 @@ impl LlmService {
 
     pub async fn generate_reply_parts(
         &self,
-        context: &SessionContext,
+        session_id: &str,
+        messages: &[SessionMessage],
     ) -> CoreResult<Vec<MessagePart>> {
-        let messages = session_messages_to_prompt(&context.messages);
+        let prompt_messages = session_messages_to_prompt(messages);
         log::info!(
             "llm prompt messages count={} session_id={}",
-            messages.len(),
-            context.session_id
+            prompt_messages.len(),
+            session_id
         );
-        for (index, message) in context.messages.iter().enumerate() {
+        for (index, message) in messages.iter().enumerate() {
             log::debug!(
                 "llm prompt message {}: seq={} role={} chars={}",
                 index,
@@ -46,8 +47,8 @@ impl LlmService {
                 message.text.len()
             );
         }
-        let prompt = Prompt::messages(messages).with_system(self.settings.system_prompt.clone());
-        let tools = build_tool_set(self.workspace.clone(), &context.session_id);
+        let prompt = Prompt::messages(prompt_messages).with_system(self.settings.system_prompt.clone());
+        let tools = build_tool_set(self.workspace.clone(), session_id);
 
         let result = StreamText::new(self.model.clone(), prompt)
             .temperature(self.settings.temperature)

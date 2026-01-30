@@ -1,12 +1,12 @@
 import { create } from "zustand";
-import type { SessionContext } from "../types/session";
+import type { RecordMessageResponse, SessionContext } from "../types/session";
 import { useServerStore } from "./server";
 
 interface SessionState {
   context: SessionContext | null;
   setContext: (context: SessionContext) => void;
   clear: () => void;
-  sendMessage: (text: string) => Promise<SessionContext>;
+  sendMessage: (text: string) => Promise<RecordMessageResponse>;
   getContext: () => SessionContext | null;
 }
 
@@ -34,8 +34,8 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       const errorText = await response.text();
       throw new Error(errorText || `Server error (${response.status})`);
     }
-    const data = (await response.json()) as SessionContext;
-    set({ context: data });
+    const data = (await response.json()) as RecordMessageResponse;
+    set({ context: data.context });
     return data;
   },
   getContext: () => get().context,

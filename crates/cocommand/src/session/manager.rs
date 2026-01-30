@@ -63,17 +63,17 @@ mod tests {
         let dir = tempdir().expect("tempdir");
         let workspace = Arc::new(WorkspaceInstance::new(dir.path()).expect("workspace"));
         let manager = SessionManager::new(workspace);
-        let ctx = manager
+        let messages = manager
             .with_session_mut(|session| {
                 Box::pin(async move {
                     session.record_message("hello").await?;
-                    session.context(None).await
+                    session.messages_for_prompt(None).await
                 })
             })
             .await
             .expect("record");
-        assert_eq!(ctx.messages.len(), 1);
-        assert_eq!(ctx.messages[0].text, "hello");
+        assert_eq!(messages.len(), 1);
+        assert_eq!(messages[0].text, "hello");
     }
 
     #[tokio::test]
