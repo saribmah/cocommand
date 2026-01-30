@@ -168,6 +168,10 @@ impl Session {
         self.application_cache.close_application(app_id);
     }
 
+    pub fn active_application_ids(&self) -> Vec<String> {
+        self.application_cache.list_applications()
+    }
+
     pub async fn destroy(&mut self) -> CoreResult<()> {
         self.ended_at = Some(now_secs());
         self.application_cache = ApplicationCache::new(0, 1);

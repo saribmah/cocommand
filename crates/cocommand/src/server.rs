@@ -26,9 +26,9 @@ impl Server {
         let workspace =
             WorkspaceInstance::new(&workspace_dir).await.map_err(|error| error.to_string())?;
         let workspace_arc = Arc::new(workspace.clone());
-        let sessions = SessionManager::new(workspace_arc.clone());
+        let sessions = Arc::new(SessionManager::new(workspace_arc.clone()));
         let bus = Bus::new(512);
-        let llm = LlmService::new(workspace_arc.clone()).map_err(|e| e.to_string())?;
+        let llm = LlmService::new().map_err(|e| e.to_string())?;
         let state = Arc::new(ServerState {
             workspace,
             sessions,
@@ -102,7 +102,7 @@ async fn health() -> &'static str {
 
 pub(crate) struct ServerState {
     pub(crate) workspace: WorkspaceInstance,
-    pub(crate) sessions: SessionManager,
+    pub(crate) sessions: Arc<SessionManager>,
     pub(crate) bus: Bus,
     pub(crate) llm: LlmService,
 }

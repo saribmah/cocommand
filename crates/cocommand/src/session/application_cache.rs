@@ -24,6 +24,13 @@ impl ApplicationCache {
     pub fn close_application(&self, app_id: &str) {
         self.cache.invalidate(app_id);
     }
+
+    pub fn list_applications(&self) -> Vec<String> {
+        self.cache
+            .iter()
+            .map(|(key, _)| (*key).clone())
+            .collect()
+    }
 }
 
 #[cfg(test)]

@@ -8,6 +8,7 @@ use std::sync::Arc;
 
 use crate::server::ServerState;
 use crate::session::SessionContext;
+use crate::llm::tools::build_tool_set;
 
 #[derive(Debug, Deserialize)]
 pub struct RecordMessageRequest {
@@ -38,20 +39,27 @@ pub(crate) async fn record_message(
     State(state): State<Arc<ServerState>>,
     Json(payload): Json<RecordMessageRequest>,
 ) -> Result<Json<RecordMessageResponse>, (StatusCode, String)> {
-    let (session_id, messages) = state
+    let (session_id, messages, active_apps) = state
         .sessions
         .with_session_mut(|session| {
             Box::pin(async move {
                 session.record_message(&payload.text).await?;
                 let messages = session.messages_for_prompt(None).await?;
-                Ok((session.session_id.clone(), messages))
+                let active_apps = session.active_application_ids();
+                Ok((session.session_id.clone(), messages, active_apps))
             })
         })
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let tools = build_tool_set(
+        Arc::new(state.workspace.clone()),
+        state.sessions.clone(),
+        &session_id,
+        &active_apps,
+    );
     let reply = state
         .llm
-        .generate_reply_parts(&session_id, &messages)
+        .generate_reply_parts(&messages, tools)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     let reply_text = crate::session::session::render_message_text(&reply);
