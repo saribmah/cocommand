@@ -6,8 +6,8 @@ use llm_kit_provider_utils::tool::{Tool, ToolExecutionOutput};
 use serde_json::json;
 
 use crate::application::{Application, ApplicationContext, ApplicationAction, ApplicationKind};
+use crate::message::SessionMessage;
 use crate::session::SessionManager;
-use crate::session::SessionMessage;
 use crate::workspace::WorkspaceInstance;
 
 pub fn session_messages_to_prompt(messages: &[SessionMessage]) -> Vec<Message> {

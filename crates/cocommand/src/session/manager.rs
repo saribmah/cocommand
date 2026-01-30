@@ -97,19 +97,38 @@ impl SessionManager {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::message::{messages_for_prompt, Message, MessageInfo, MessagePart, MessageWithParts, TextPart};
+    use crate::utils::time::now_rfc3339;
     use tempfile::tempdir;
+    use uuid::Uuid;
 
     #[tokio::test]
     async fn manager_records_messages() {
         let dir = tempdir().expect("tempdir");
         let workspace = WorkspaceInstance::new(dir.path()).await.expect("workspace");
+        let storage = workspace.storage.clone();
         let workspace = Arc::new(workspace);
         let manager = SessionManager::new(workspace);
         let messages = manager
             .with_session_mut(|session| {
+                let storage = storage.clone();
                 Box::pin(async move {
-                    session.record_message("hello").await?;
-                    session.messages_for_prompt(None).await
+                    let timestamp = now_rfc3339();
+                    let message = MessageWithParts {
+                        info: MessageInfo {
+                            id: Uuid::now_v7().to_string(),
+                            session_id: session.session_id.clone(),
+                            role: "user".to_string(),
+                            created_at: timestamp.clone(),
+                            updated_at: timestamp,
+                        },
+                        parts: vec![MessagePart::Text(TextPart {
+                            text: "hello".to_string(),
+                        })],
+                    };
+                    Message::store(&storage, &message).await?;
+                    let history = Message::load(&storage, &session.session_id).await?;
+                    Ok(messages_for_prompt(history, None))
                 })
             })
             .await

@@ -3,8 +3,10 @@ pub mod parts;
 pub mod convert;
 
 pub use message::{
-    AssistantMessageInfo, Message, MessageInfo, MessageRole, MessageWithParts, UserMessageInfo,
+    AssistantMessageInfo, Message, MessageInfo, MessageRole, MessageWithParts, SessionMessage,
+    UserMessageInfo,
 };
+pub use message::{messages_for_prompt, render_message_text};
 pub use parts::{
     FilePart, MessagePart, ReasoningPart, SourcePart, TextPart, ToolCallPart, ToolResultPart,
 };

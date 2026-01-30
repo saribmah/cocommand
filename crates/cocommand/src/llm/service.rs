@@ -6,8 +6,7 @@ use llm_kit_provider::LanguageModel;
 use crate::error::{CoreError, CoreResult};
 use crate::llm::provider::{build_model, LlmSettings};
 use crate::llm::tools::session_messages_to_prompt;
-use crate::message::MessagePart;
-use crate::session::SessionMessage;
+use crate::message::{MessagePart, SessionMessage};
 
 pub struct LlmService {
     model: Option<Arc<dyn LanguageModel>>,

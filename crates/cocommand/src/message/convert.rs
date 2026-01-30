@@ -7,7 +7,7 @@ use crate::message::parts::{
     FilePart, MessagePart, ReasoningPart, SourcePart, TextPart, ToolCallPart, ToolResultPart,
 };
 use llm_kit_provider::language_model::content::source::LanguageModelSource;
-use crate::session::SessionMessage;
+use crate::message::SessionMessage;
 
 pub fn session_message_to_message(message: &SessionMessage) -> Message {
     Message {

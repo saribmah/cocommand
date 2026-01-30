@@ -10,7 +10,7 @@ pub mod storage;
 pub mod message;
 
 pub use crate::error::{CoreError, CoreResult};
-pub use crate::session::{Session, SessionContext, SessionManager, SessionMessage};
+pub use crate::session::{Session, SessionContext, SessionManager};
 pub use crate::workspace::WorkspaceInstance;
 pub use crate::bus::{Bus, BusEvent, Event};
 pub use crate::application::{
@@ -19,6 +19,7 @@ pub use crate::application::{
 pub use crate::llm::LlmService;
 pub use crate::storage::{SharedStorage, Storage};
 pub use crate::message::{
-    FilePart, Message, MessagePart, MessageRole, ReasoningPart, SourcePart, TextPart, ToolCallPart,
-    ToolResultPart, outputs_to_parts, session_message_to_message, stream_result_to_parts,
+    FilePart, Message, MessagePart, MessageRole, ReasoningPart, SessionMessage, SourcePart,
+    TextPart, ToolCallPart, ToolResultPart, outputs_to_parts, session_message_to_message,
+    stream_result_to_parts,
 };

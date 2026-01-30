@@ -6,9 +6,12 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
+use crate::message::{messages_for_prompt, render_message_text, Message, MessageInfo, MessagePart, MessageWithParts, TextPart};
 use crate::server::ServerState;
 use crate::session::SessionContext;
 use crate::llm::tools::build_tool_set;
+use crate::utils::time::now_rfc3339;
+use uuid::Uuid;
 
 #[derive(Debug, Deserialize)]
 pub struct RecordMessageRequest {
@@ -39,18 +42,37 @@ pub(crate) async fn record_message(
     State(state): State<Arc<ServerState>>,
     Json(payload): Json<RecordMessageRequest>,
 ) -> Result<Json<RecordMessageResponse>, (StatusCode, String)> {
-    let (session_id, messages, active_apps) = state
+    let storage = state.workspace.storage.clone();
+    let (session_id, active_apps) = state
         .sessions
         .with_session_mut(|session| {
             Box::pin(async move {
-                session.record_message(&payload.text).await?;
-                let messages = session.messages_for_prompt(None).await?;
                 let active_apps = session.active_application_ids();
-                Ok((session.session_id.clone(), messages, active_apps))
+                Ok((session.session_id.clone(), active_apps))
             })
         })
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let timestamp = now_rfc3339();
+    let user_message = MessageWithParts {
+        info: MessageInfo {
+            id: Uuid::now_v7().to_string(),
+            session_id: session_id.clone(),
+            role: "user".to_string(),
+            created_at: timestamp.clone(),
+            updated_at: timestamp,
+        },
+        parts: vec![MessagePart::Text(TextPart {
+            text: payload.text.clone(),
+        })],
+    };
+    Message::store(&storage, &user_message)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let message_history = Message::load(&storage, &session_id)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let messages = messages_for_prompt(message_history, None);
     let tools = build_tool_set(
         Arc::new(state.workspace.clone()),
         state.sessions.clone(),
@@ -62,17 +84,30 @@ pub(crate) async fn record_message(
         .generate_reply_parts(&messages, tools)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-    let reply_text = crate::session::session::render_message_text(&reply);
+    let reply_text = render_message_text(&reply);
     let ctx = state
         .sessions
         .with_session_mut(|session| {
+            let storage = storage.clone();
+            let reply_parts = reply.clone();
             Box::pin(async move {
                 if session.session_id != session_id {
                     return Err(crate::error::CoreError::InvalidInput(
                         "session not found".to_string(),
                     ));
                 }
-                session.record_assistant_parts(reply).await?;
+                let timestamp = now_rfc3339();
+                let assistant_message = MessageWithParts {
+                    info: MessageInfo {
+                        id: Uuid::now_v7().to_string(),
+                        session_id: session_id.clone(),
+                        role: "assistant".to_string(),
+                        created_at: timestamp.clone(),
+                        updated_at: timestamp,
+                    },
+                    parts: reply_parts,
+                };
+                Message::store(&storage, &assistant_message).await?;
                 session.context(None).await
             })
         })
