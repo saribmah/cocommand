@@ -280,20 +280,14 @@ mod tests {
     use super::*;
     use tempfile::tempdir;
 
-    #[test]
-    fn session_records_messages() {
+    #[tokio::test]
+    async fn session_records_messages() {
         let dir = tempdir().expect("tempdir");
-        let workspace = runtime
-            .block_on(WorkspaceInstance::new(dir.path()))
-            .expect("workspace");
+        let workspace = WorkspaceInstance::new(dir.path()).await.expect("workspace");
         let workspace = Arc::new(workspace);
-        let mut session = runtime.block_on(Session::new(workspace)).expect("session");
-        let runtime = tokio::runtime::Runtime::new().expect("runtime");
-        let messages = runtime
-            .block_on(async {
-                session.record_message("hello").await.expect("record");
-                session.messages_for_prompt(None).await.expect("messages")
-            });
+        let mut session = Session::new(workspace).await.expect("session");
+        session.record_message("hello").await.expect("record");
+        let messages = session.messages_for_prompt(None).await.expect("messages");
         assert_eq!(messages.len(), 1);
         assert_eq!(messages[0].text, "hello");
     }

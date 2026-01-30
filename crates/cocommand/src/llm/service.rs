@@ -12,17 +12,16 @@ use crate::workspace::WorkspaceInstance;
 
 pub struct LlmService {
     workspace: Arc<WorkspaceInstance>,
-    model: Arc<dyn LanguageModel>,
+    model: Option<Arc<dyn LanguageModel>>,
     settings: LlmSettings,
 }
 
 impl LlmService {
     pub fn new(workspace: Arc<WorkspaceInstance>) -> CoreResult<Self> {
         let settings = LlmSettings::from_env()?;
-        let model = build_model(&settings)?;
         Ok(Self {
             workspace,
-            model,
+            model: build_model(&settings).ok(),
             settings,
         })
     }
@@ -32,6 +31,9 @@ impl LlmService {
         session_id: &str,
         messages: &[SessionMessage],
     ) -> CoreResult<Vec<MessagePart>> {
+        let model = self.model.as_ref().ok_or_else(|| {
+            CoreError::InvalidInput("missing LLM API key".to_string())
+        })?;
         let prompt_messages = session_messages_to_prompt(messages);
         log::info!(
             "llm prompt messages count={} session_id={}",
@@ -50,7 +52,7 @@ impl LlmService {
         let prompt = Prompt::messages(prompt_messages).with_system(self.settings.system_prompt.clone());
         let tools = build_tool_set(self.workspace.clone(), session_id);
 
-        let result = StreamText::new(self.model.clone(), prompt)
+        let result = StreamText::new(model.clone(), prompt)
             .temperature(self.settings.temperature)
             .max_output_tokens(self.settings.max_output_tokens)
             .tools(tools)

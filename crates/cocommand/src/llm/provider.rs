@@ -15,7 +15,7 @@ const DEFAULT_MAX_STEPS: usize = 8;
 
 pub struct LlmSettings {
     pub base_url: String,
-    pub api_key: String,
+    pub api_key: Option<String>,
     pub model: String,
     pub system_prompt: String,
     pub temperature: f64,
@@ -30,7 +30,7 @@ impl LlmSettings {
             .unwrap_or_else(|_| DEFAULT_BASE_URL.to_string());
         let api_key = env::var("COCOMMAND_LLM_API_KEY")
             .or_else(|_| env::var("OPENAI_API_KEY"))
-            .map_err(|_| CoreError::InvalidInput("missing LLM API key".to_string()))?;
+            .ok();
         let model = env::var("COCOMMAND_LLM_MODEL")
             .ok()
             .filter(|value| !value.is_empty())
@@ -65,9 +65,12 @@ impl LlmSettings {
 }
 
 pub fn build_model(settings: &LlmSettings) -> CoreResult<Arc<dyn LanguageModel>> {
+    let api_key = settings.api_key.clone().ok_or_else(|| {
+        CoreError::InvalidInput("missing LLM API key".to_string())
+    })?;
     let provider = OpenAICompatibleClient::new()
         .base_url(&settings.base_url)
-        .api_key(&settings.api_key)
+        .api_key(&api_key)
         .build();
     Ok(provider.chat_model(&settings.model))
 }

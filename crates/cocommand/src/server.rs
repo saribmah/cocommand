@@ -109,15 +109,20 @@ pub(crate) struct ServerState {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::workspace::workspace_config_path;
     use tempfile::tempdir;
 
     #[tokio::test]
     async fn start_creates_workspace_config() {
         let dir = tempdir().expect("tempdir");
         let mut server = Server::new(dir.path().to_path_buf()).await.expect("start");
-        let path = workspace_config_path(dir.path());
-        assert!(path.exists());
+        let workspace_id = server.workspace().config.workspace_id.clone();
+        let stored = server
+            .workspace()
+            .storage
+            .read(&["workspace", &workspace_id])
+            .await
+            .expect("storage read");
+        assert!(stored.is_some());
         server.shutdown().expect("shutdown");
     }
 
