@@ -20,6 +20,6 @@ llm-kit-provider = { path = "../../../ai-sdk/llm-kit-provider" }
 llm-kit-provider-utils = { path = "../../../ai-sdk/llm-kit-provider-utils" }
 
 [target.'cfg(target_os = "macos")'.dependencies]
-cocommand-platform-macos = { path = "../platform-macos" }
+platform-macos = { path = "../platform-macos" }
 [dev-dependencies]
 tempfile = "3"

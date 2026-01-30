@@ -49,7 +49,7 @@ impl Application for InstalledApplication {
     fn actions(&self) -> Vec<ApplicationAction> {
         #[cfg(target_os = "macos")]
         {
-            return cocommand_platform_macos::installed_app_actions()
+            return platform_macos::installed_app_actions()
                 .into_iter()
                 .map(|(id, name, description, input_schema)| ApplicationAction {
                     id,
@@ -73,7 +73,7 @@ impl Application for InstalledApplication {
     ) -> crate::error::CoreResult<serde_json::Value> {
         #[cfg(target_os = "macos")]
         {
-            return cocommand_platform_macos::execute_installed_app_action(action_id, &input)
+            return platform_macos::execute_installed_app_action(action_id, &input)
                 .map_err(CoreError::Internal);
         }
         #[cfg(not(target_os = "macos"))]

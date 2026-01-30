@@ -58,7 +58,7 @@ fn register_builtin_applications(registry: &Arc<RwLock<ApplicationRegistry>>) {
 fn register_installed_applications(registry: &mut ApplicationRegistry) {
     #[cfg(target_os = "macos")]
     {
-        use cocommand_platform_macos::list_installed_apps;
+        use platform_macos::list_installed_apps;
         for app in list_installed_apps() {
             let id = app.bundle_id.clone().unwrap_or_else(|| app.path.clone());
             let installed = InstalledApplication::new(id, app.name, app.bundle_id, app.path);
