@@ -45,6 +45,7 @@ impl Server {
             .route("/sessions/message", post(session::record_message))
             .route("/sessions/context", get(session::session_context))
             .route("/workspace/applications", get(workspace::list_applications))
+            .route("/workspace/applications/open", post(workspace::open_application))
             .with_state(state.clone())
             .layer(cors);
         let listener = TcpListener::bind("127.0.0.1:0")

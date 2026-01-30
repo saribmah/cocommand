@@ -1,9 +1,11 @@
 use axum::extract::State;
+use axum::http::StatusCode;
 use axum::Json;
+use serde::Deserialize;
 use serde::Serialize;
 use std::sync::Arc;
 
-use crate::application::{Application, ApplicationAction, ApplicationKind};
+use crate::application::{Application, ApplicationAction, ApplicationContext, ApplicationKind};
 use crate::server::ServerState;
 
 #[derive(Debug, Serialize)]
@@ -23,6 +25,11 @@ pub struct ApplicationActionInfo {
     pub input_schema: serde_json::Value,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct OpenApplicationRequest {
+    pub id: String,
+}
+
 pub(crate) async fn list_applications(
     State(state): State<Arc<ServerState>>,
 ) -> Json<Vec<ApplicationInfo>> {
@@ -37,6 +44,52 @@ pub(crate) async fn list_applications(
         .map(|app| map_application(app.as_ref()))
         .collect();
     Json(apps)
+}
+
+pub(crate) async fn open_application(
+    State(state): State<Arc<ServerState>>,
+    Json(payload): Json<OpenApplicationRequest>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    let app_id = payload.id;
+    let app = {
+        let registry = state
+            .workspace
+            .application_registry
+            .read()
+            .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "registry lock".to_string()))?;
+        registry
+            .get(&app_id)
+            .ok_or((StatusCode::NOT_FOUND, "application not found".to_string()))?
+    };
+
+    let supports_open = app.actions().into_iter().any(|action| action.id == "open");
+    if !supports_open {
+        return Err((StatusCode::BAD_REQUEST, "application cannot be opened".to_string()));
+    }
+
+    let session_id = state
+        .sessions
+        .with_session_mut(|session| {
+            let app_id = app_id.clone();
+            Box::pin(async move {
+                session.open_application(&app_id);
+                let context = session.context(None).await?;
+                Ok(context.session_id)
+            })
+        })
+        .await
+        .map_err(|error| (StatusCode::INTERNAL_SERVER_ERROR, error.to_string()))?;
+
+    let context = ApplicationContext {
+        workspace: Arc::new(state.workspace.clone()),
+        session_id,
+    };
+    let output = app
+        .execute("open", serde_json::json!({}), &context)
+        .await
+        .map_err(|error| (StatusCode::INTERNAL_SERVER_ERROR, error.to_string()))?;
+
+    Ok(Json(output))
 }
 
 fn map_application(app: &dyn Application) -> ApplicationInfo {

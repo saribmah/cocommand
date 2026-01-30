@@ -25,6 +25,10 @@ export function useCommandBar() {
     setState((s) => ({ ...s, input: value }));
   }, []);
 
+  const setResults = useCallback((results: CoreResult[]) => {
+    setState((s) => ({ ...s, results }));
+  }, []);
+
   const reset = useCallback(() => {
     setState({
       input: "",
@@ -110,6 +114,7 @@ export function useCommandBar() {
   return {
     ...state,
     setInput,
+    setResults,
     submit,
     dismiss,
     dismissResult,

@@ -73,6 +73,11 @@ impl Application for InstalledApplication {
     ) -> crate::error::CoreResult<serde_json::Value> {
         #[cfg(target_os = "macos")]
         {
+            if action_id == "open" {
+                return platform_macos::open_installed_app(self.bundle_id(), &self.path)
+                    .map(|_| serde_json::json!({ "status": "ok" }))
+                    .map_err(CoreError::Internal);
+            }
             return platform_macos::execute_installed_app_action(action_id, &input)
                 .map_err(CoreError::Internal);
         }

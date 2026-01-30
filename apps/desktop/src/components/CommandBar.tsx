@@ -37,6 +37,21 @@ function resolveMentions(
   });
 }
 
+function findExactMentionId(
+  text: string,
+  applications: { id: string; name: string }[]
+): string | null {
+  const trimmed = text.trim();
+  if (!trimmed.startsWith("@")) return null;
+  const mention = trimmed.slice(1).trim();
+  const normalized = mention.toLowerCase();
+  const match = applications.find(
+    (app) =>
+      app.id.toLowerCase() === normalized || app.name.toLowerCase() === normalized
+  );
+  return match ? match.id : null;
+}
+
 function normalizeQuery(value: string): string {
   return value.trim().toLowerCase();
 }
@@ -81,15 +96,18 @@ export function CommandBar() {
     pendingConfirmation,
     followUpActive,
     setInput,
+    setResults,
     submit,
     dismiss,
     dismissResult,
     confirmPending,
     cancelPending,
+    reset,
   } = useCommandBar();
   const serverInfo = useServerStore((state) => state.getInfo());
   const applications = useApplicationStore((state) => state.applications);
   const fetchApplications = useApplicationStore((state) => state.fetchApplications);
+  const openApplication = useApplicationStore((state) => state.openApplication);
 
   useEffect(() => {
     fetchApplications();
@@ -157,7 +175,29 @@ export function CommandBar() {
     switch (e.key) {
       case "Enter":
         e.preventDefault();
-        submit(resolveMentions(input, applications));
+        {
+          const trimmed = input.trim();
+          const mentionId = findExactMentionId(trimmed, applications);
+          if (mentionId) {
+            const appId = mentionId;
+            openApplication(appId)
+              .then(() => {
+                reset();
+              })
+              .catch((err) => {
+                setResults([
+                  {
+                    type: "error",
+                    title: "Error",
+                    body: String(err),
+                  },
+                ]);
+              });
+            return;
+          }
+          const resolved = resolveMentions(input, applications);
+          submit(resolved);
+        }
         break;
       case "Escape":
         e.preventDefault();
@@ -165,7 +205,6 @@ export function CommandBar() {
         break;
     }
   };
-
   return (
     <div className="command-bar">
       <div className="command-input-wrapper">

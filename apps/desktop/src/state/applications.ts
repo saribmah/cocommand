@@ -6,6 +6,7 @@ interface ApplicationState {
   applications: ApplicationInfo[];
   isLoaded: boolean;
   fetchApplications: () => Promise<void>;
+  openApplication: (id: string) => Promise<void>;
   getApplications: () => ApplicationInfo[];
 }
 
@@ -31,6 +32,22 @@ export const useApplicationStore = create<ApplicationState>((set, get) => ({
     }
     const data = (await response.json()) as ApplicationInfo[];
     set({ applications: data, isLoaded: true });
+  },
+  openApplication: async (id: string) => {
+    const server = useServerStore.getState().info;
+    if (!server) {
+      throw new Error("Server unavailable");
+    }
+    const url = buildServerUrl(server.addr, "/workspace/applications/open");
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id }),
+    });
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(errorText || `Server error (${response.status})`);
+    }
   },
   getApplications: () => get().applications,
 }));
