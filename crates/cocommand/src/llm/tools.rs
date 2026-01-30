@@ -256,7 +256,7 @@ fn build_activate_application_tool(
                                 "session not found".to_string(),
                             ));
                         }
-                        session.open_application(&app_id);
+                        session.activate_application(&app_id);
                         Ok(())
                     })
                 })

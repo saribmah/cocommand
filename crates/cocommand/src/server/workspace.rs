@@ -72,7 +72,7 @@ pub(crate) async fn open_application(
         .with_session_mut(|session| {
             let app_id = app_id.clone();
             Box::pin(async move {
-                session.open_application(&app_id);
+                session.activate_application(&app_id);
                 let context = session.context(None).await?;
                 Ok(context.session_id)
             })

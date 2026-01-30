@@ -83,13 +83,9 @@ impl Session {
         })
     }
 
-    pub fn open_application(&mut self, app_id: &str) {
+    pub fn activate_application(&mut self, app_id: &str) {
         self.application_cache
-            .open_application(app_id, now_secs());
-    }
-
-    pub fn close_application(&mut self, app_id: &str) {
-        self.application_cache.close_application(app_id);
+            .add(app_id, now_secs());
     }
 
     pub fn active_application_ids(&self) -> Vec<String> {

@@ -17,7 +17,7 @@ impl ApplicationCache {
         Self { cache }
     }
 
-    pub fn open_application(&self, app_id: &str, opened_at: u64) {
+    pub fn add(&self, app_id: &str, opened_at: u64) {
         self.cache.insert(app_id.to_string(), opened_at);
     }
 
@@ -40,9 +40,9 @@ mod tests {
     #[test]
     fn evicts_on_capacity() {
         let cache = ApplicationCache::new(2, 3600);
-        cache.open_application("one", 1);
-        cache.open_application("two", 2);
-        cache.open_application("three", 3);
+        cache.add("one", 1);
+        cache.add("two", 2);
+        cache.add("three", 3);
 
         let entries = cache.cache.entry_count();
         assert!(entries <= 2);
