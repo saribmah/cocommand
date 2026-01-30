@@ -7,6 +7,7 @@ use crate::utils::time::now_rfc3339;
 
 use crate::message::parts::{MessagePart, TextPart};
 use llm_kit_provider_utils::message::{AssistantMessage, Message as LlmMessage, UserMessage};
+use llm_kit_core::stream_text::StreamTextResult;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
@@ -63,13 +64,25 @@ impl Message {
         }
     }
 
-    pub fn to_prompt(role: &str, parts: &[MessagePart]) -> Option<LlmMessage> {
-        let text = render_message_text(parts);
-        match role {
+    pub fn to_prompt(message: &MessageWithParts) -> Option<LlmMessage> {
+        let text = Message::to_text(message);
+        match message.info.role.as_str() {
             "user" => Some(LlmMessage::User(UserMessage::new(text))),
             "assistant" => Some(LlmMessage::Assistant(AssistantMessage::new(text))),
             _ => None,
         }
+    }
+
+    pub fn to_text(message: &MessageWithParts) -> String {
+        message
+            .parts
+            .iter()
+            .filter_map(|part| match part {
+                MessagePart::Text(text) => Some(text.text.as_str()),
+                _ => None,
+            })
+            .collect::<Vec<_>>()
+            .join("")
     }
 
     pub async fn load(
@@ -96,18 +109,27 @@ impl Message {
         }
         Ok(())
     }
+
+    pub async fn from_stream(
+        session_id: &str,
+        role: &str,
+        result: &StreamTextResult,
+    ) -> CoreResult<MessageWithParts> {
+        let parts = crate::message::stream_result_to_parts(result).await?;
+        let timestamp = now_rfc3339();
+        Ok(MessageWithParts {
+            info: MessageInfo {
+                id: Uuid::now_v7().to_string(),
+                session_id: session_id.to_string(),
+                role: role.to_string(),
+                created_at: timestamp.clone(),
+                updated_at: timestamp,
+            },
+            parts,
+        })
+    }
 }
 
-pub fn render_message_text(parts: &[MessagePart]) -> String {
-    parts
-        .iter()
-        .filter_map(|part| match part {
-            MessagePart::Text(text) => Some(text.text.as_str()),
-            _ => None,
-        })
-        .collect::<Vec<_>>()
-        .join("")
-}
 
 async fn load_message_info(
     storage: &SharedStorage,

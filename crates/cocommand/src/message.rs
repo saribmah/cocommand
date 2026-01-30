@@ -6,7 +6,6 @@ pub use message::{
     AssistantMessageInfo, Message, MessageInfo, MessageRole, MessageWithParts,
     UserMessageInfo,
 };
-pub use message::{render_message_text};
 pub use parts::{
     FilePart, MessagePart, ReasoningPart, SourcePart, TextPart, ToolCallPart, ToolResultPart,
 };

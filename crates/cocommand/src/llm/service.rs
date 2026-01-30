@@ -1,11 +1,10 @@
 use std::sync::Arc;
 
-use llm_kit_core::{StreamText, prompt::Prompt, step_count_is};
+use llm_kit_core::{StreamText, prompt::Prompt, step_count_is, stream_text::StreamTextResult};
 use llm_kit_provider::LanguageModel;
 
 use crate::error::{CoreError, CoreResult};
 use crate::llm::provider::{build_model, LlmSettings};
-use crate::message::MessagePart;
 
 pub struct LlmService {
     model: Option<Arc<dyn LanguageModel>>,
@@ -25,7 +24,7 @@ impl LlmService {
         &self,
         messages: &[llm_kit_provider_utils::message::Message],
         tools: llm_kit_core::tool::ToolSet,
-    ) -> CoreResult<Vec<MessagePart>> {
+    ) -> CoreResult<StreamTextResult> {
         let model = self.model.as_ref().ok_or_else(|| {
             CoreError::InvalidInput("missing LLM API key".to_string())
         })?;
@@ -43,7 +42,6 @@ impl LlmService {
             .execute()
             .await
             .map_err(|error| CoreError::Internal(error.to_string()))?;
-        let parts = crate::message::stream_result_to_parts(&result).await?;
-        Ok(parts)
+        Ok(result)
     }
 }
