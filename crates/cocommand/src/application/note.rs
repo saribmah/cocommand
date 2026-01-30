@@ -1,4 +1,4 @@
-use crate::application::{Application, ApplicationAction, ApplicationKind};
+use crate::application::{Application, ApplicationKind, ApplicationTool};
 use crate::error::CoreError;
 use serde_json::json;
 
@@ -29,9 +29,9 @@ impl Application for NoteApplication {
         vec!["notes".to_string(), "writing".to_string()]
     }
 
-    fn actions(&self) -> Vec<ApplicationAction> {
+    fn tools(&self) -> Vec<ApplicationTool> {
         vec![
-            ApplicationAction {
+            ApplicationTool {
                 id: "create-note".to_string(),
                 name: "Create Note".to_string(),
                 description: Some("Create a new note".to_string()),
@@ -44,7 +44,7 @@ impl Application for NoteApplication {
                     "required": ["content"],
                 }),
             },
-            ApplicationAction {
+            ApplicationTool {
                 id: "list-notes".to_string(),
                 name: "List Notes".to_string(),
                 description: Some("Show recent notes".to_string()),
@@ -60,12 +60,12 @@ impl Application for NoteApplication {
 
     async fn execute(
         &self,
-        action_id: &str,
+        tool_id: &str,
         _input: serde_json::Value,
         _context: &crate::application::ApplicationContext,
     ) -> crate::error::CoreResult<serde_json::Value> {
         Err(CoreError::Internal(format!(
-            "notes action {action_id} not implemented"
+            "notes tool {tool_id} not implemented"
         )))
     }
 }

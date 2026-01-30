@@ -1,4 +1,4 @@
-use crate::application::{Application, ApplicationAction, ApplicationKind};
+use crate::application::{Application, ApplicationKind, ApplicationTool};
 use crate::error::CoreError;
 
 #[derive(Debug, Clone)]
@@ -46,12 +46,12 @@ impl Application for InstalledApplication {
         Vec::new()
     }
 
-    fn actions(&self) -> Vec<ApplicationAction> {
+    fn tools(&self) -> Vec<ApplicationTool> {
         #[cfg(target_os = "macos")]
         {
-            return platform_macos::installed_app_actions()
+            return platform_macos::installed_app_tools()
                 .into_iter()
-                .map(|(id, name, description, input_schema)| ApplicationAction {
+                .map(|(id, name, description, input_schema)| ApplicationTool {
                     id,
                     name,
                     description,
@@ -67,18 +67,18 @@ impl Application for InstalledApplication {
 
     async fn execute(
         &self,
-        action_id: &str,
+        tool_id: &str,
         input: serde_json::Value,
         _context: &crate::application::ApplicationContext,
     ) -> crate::error::CoreResult<serde_json::Value> {
         #[cfg(target_os = "macos")]
         {
-            if action_id == "open" {
+            if tool_id == "open" {
                 return platform_macos::open_installed_app(self.bundle_id(), &self.path)
                     .map(|_| serde_json::json!({ "status": "ok" }))
                     .map_err(CoreError::Internal);
             }
-            return platform_macos::execute_installed_app_action(action_id, &input)
+            return platform_macos::execute_installed_app_tool(tool_id, &input)
                 .map_err(CoreError::Internal);
         }
         #[cfg(not(target_os = "macos"))]

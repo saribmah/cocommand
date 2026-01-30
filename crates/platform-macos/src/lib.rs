@@ -66,7 +66,7 @@ pub fn run_applescript(script: &str) -> Result<String, String> {
     }
 }
 
-pub fn installed_app_actions() -> Vec<(String, String, Option<String>, serde_json::Value)> {
+pub fn installed_app_tools() -> Vec<(String, String, Option<String>, serde_json::Value)> {
     vec![
         (
             "open".to_string(),
@@ -91,7 +91,7 @@ pub fn installed_app_actions() -> Vec<(String, String, Option<String>, serde_jso
     ]
 }
 
-pub fn execute_installed_app_action(
+pub fn execute_installed_app_tool(
     action_id: &str,
     input: &serde_json::Value,
 ) -> Result<serde_json::Value, String> {

@@ -1,4 +1,4 @@
-export interface ApplicationActionInfo {
+export interface ApplicationToolInfo {
   id: string;
   name: string;
   description?: string | null;
@@ -10,5 +10,5 @@ export interface ApplicationInfo {
   name: string;
   kind: string;
   tags: string[];
-  actions: ApplicationActionInfo[];
+  tools: ApplicationToolInfo[];
 }

@@ -4,7 +4,7 @@ use llm_kit_core::tool::ToolSet;
 use llm_kit_provider_utils::tool::{Tool, ToolExecutionOutput};
 use serde_json::json;
 
-use crate::application::{Application, ApplicationContext, ApplicationAction, ApplicationKind};
+use crate::application::{Application, ApplicationContext, ApplicationKind, ApplicationTool};
 use crate::session::SessionManager;
 use crate::workspace::WorkspaceInstance;
 
@@ -40,10 +40,10 @@ pub fn build_tool_set(
 
     for app_id in active_app_ids {
         if let Some(app) = registry.get(app_id) {
-            for action in app.actions() {
-                let raw_name = format!("{}.{}", app_id, action.id);
+            for tool in app.tools() {
+                let raw_name = format!("{}.{}", app_id, tool.id);
                 let tool_name = sanitize_tool_name(&raw_name);
-                let tool = build_tool(app.clone(), action, context.clone());
+                let tool = build_tool(app.clone(), tool, context.clone());
                 tool_set.insert(tool_name, tool);
             }
         }
@@ -54,22 +54,22 @@ pub fn build_tool_set(
 
 fn build_tool(
     app: Arc<dyn Application>,
-    action: ApplicationAction,
+    tool: ApplicationTool,
     context: ApplicationContext,
 ) -> Tool {
-    let action_id = action.id.clone();
-    let description = action.description.clone();
-    let schema = action.input_schema.clone();
+    let tool_id = tool.id.clone();
+    let description = tool.description.clone();
+    let schema = tool.input_schema.clone();
     let execute_context = context.clone();
     let execute_app = app.clone();
 
     let execute = Arc::new(move |input: serde_json::Value, _opts| {
         let execute_app = execute_app.clone();
         let execute_context = execute_context.clone();
-        let action_id = action_id.clone();
+        let tool_id = tool_id.clone();
         ToolExecutionOutput::Single(Box::pin(async move {
             execute_app
-                .execute(&action_id, input, &execute_context)
+                .execute(&tool_id, input, &execute_context)
                 .await
                 .map_err(|error| json!({ "error": error.to_string() }))
         }))
@@ -183,12 +183,12 @@ fn build_get_application_tool(workspace: Arc<WorkspaceInstance>) -> Tool {
                 "name": app.name(),
                 "kind": map_kind(app.kind()),
                 "tags": app.tags(),
-                "actions": app.actions().into_iter().map(|action| {
+                "tools": app.tools().into_iter().map(|tool| {
                     json!({
-                        "id": action.id,
-                        "name": action.name,
-                        "description": action.description,
-                        "input_schema": action.input_schema,
+                        "id": tool.id,
+                        "name": tool.name,
+                        "description": tool.description,
+                        "input_schema": tool.input_schema,
                     })
                 }).collect::<Vec<_>>()
             }))
@@ -202,7 +202,7 @@ fn build_get_application_tool(workspace: Arc<WorkspaceInstance>) -> Tool {
         },
         "required": ["id"]
     }))
-    .with_description("Fetch full details for an application, including actions.")
+    .with_description("Fetch full details for an application, including tools.")
     .with_execute(execute)
 }
 

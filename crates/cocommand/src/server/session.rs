@@ -52,8 +52,7 @@ pub(crate) async fn record_message(
         })
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-    let user_message = Message::from_text(&session_id, "user", &payload.text);
-    Message::store(&storage, &user_message)
+    Message::store(&storage, &Message::from_text(&session_id, "user", &payload.text))
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     let message_history = Message::load(&storage, &session_id)

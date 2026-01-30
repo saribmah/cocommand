@@ -10,7 +10,7 @@ pub mod registry;
 pub mod installed;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ApplicationAction {
+pub struct ApplicationTool {
     pub id: String,
     pub name: String,
     pub description: Option<String>,
@@ -39,10 +39,10 @@ pub trait Application: Send + Sync {
     fn name(&self) -> &str;
     fn kind(&self) -> ApplicationKind;
     fn tags(&self) -> Vec<String>;
-    fn actions(&self) -> Vec<ApplicationAction>;
+    fn tools(&self) -> Vec<ApplicationTool>;
     async fn execute(
         &self,
-        action_id: &str,
+        tool_id: &str,
         input: serde_json::Value,
         context: &ApplicationContext,
     ) -> crate::error::CoreResult<serde_json::Value>;

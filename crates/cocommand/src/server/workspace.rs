@@ -5,7 +5,7 @@ use serde::Deserialize;
 use serde::Serialize;
 use std::sync::Arc;
 
-use crate::application::{Application, ApplicationAction, ApplicationContext, ApplicationKind};
+use crate::application::{Application, ApplicationContext, ApplicationKind, ApplicationTool};
 use crate::server::ServerState;
 
 #[derive(Debug, Serialize)]
@@ -14,11 +14,11 @@ pub struct ApplicationInfo {
     pub name: String,
     pub kind: String,
     pub tags: Vec<String>,
-    pub actions: Vec<ApplicationActionInfo>,
+    pub tools: Vec<ApplicationToolInfo>,
 }
 
 #[derive(Debug, Serialize)]
-pub struct ApplicationActionInfo {
+pub struct ApplicationToolInfo {
     pub id: String,
     pub name: String,
     pub description: Option<String>,
@@ -62,7 +62,7 @@ pub(crate) async fn open_application(
             .ok_or((StatusCode::NOT_FOUND, "application not found".to_string()))?
     };
 
-    let supports_open = app.actions().into_iter().any(|action| action.id == "open");
+    let supports_open = app.tools().into_iter().any(|tool| tool.id == "open");
     if !supports_open {
         return Err((StatusCode::BAD_REQUEST, "application cannot be opened".to_string()));
     }
@@ -98,20 +98,20 @@ fn map_application(app: &dyn Application) -> ApplicationInfo {
         name: app.name().to_string(),
         kind: map_kind(app.kind()),
         tags: app.tags(),
-        actions: app
-            .actions()
+        tools: app
+            .tools()
             .into_iter()
-            .map(map_action)
+            .map(map_tool)
             .collect(),
     }
 }
 
-fn map_action(action: ApplicationAction) -> ApplicationActionInfo {
-    ApplicationActionInfo {
-        id: action.id,
-        name: action.name,
-        description: action.description,
-        input_schema: action.input_schema,
+fn map_tool(tool: ApplicationTool) -> ApplicationToolInfo {
+    ApplicationToolInfo {
+        id: tool.id,
+        name: tool.name,
+        description: tool.description,
+        input_schema: tool.input_schema,
     }
 }
 
