@@ -26,6 +26,14 @@ pub struct SessionContext {
     pub ended_at: Option<u64>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SessionInfo {
+    pub id: String,
+    pub workspace_id: String,
+    pub started_at: u64,
+    pub ended_at: Option<u64>,
+}
+
 #[derive(Debug, Clone)]
 pub struct Session {
     workspace: Arc<WorkspaceInstance>,
@@ -36,15 +44,30 @@ pub struct Session {
 }
 
 impl Session {
-    pub fn new(workspace: Arc<WorkspaceInstance>) -> CoreResult<Self> {
+    pub async fn new(workspace: Arc<WorkspaceInstance>) -> CoreResult<Self> {
+        let ttl = workspace.config.preferences.session.duration_seconds;
+        let max_apps = workspace.config.preferences.application_cache.max_applications;
+        let cache = ApplicationCache::new(max_apps, ttl);
+        let session = Self {
+            workspace,
+            session_id: Uuid::now_v7().to_string(),
+            started_at: now_secs(),
+            ended_at: None,
+            application_cache: cache,
+        };
+        session.persist_info().await?;
+        Ok(session)
+    }
+
+    pub fn from_info(workspace: Arc<WorkspaceInstance>, info: SessionInfo) -> CoreResult<Self> {
         let ttl = workspace.config.preferences.session.duration_seconds;
         let max_apps = workspace.config.preferences.application_cache.max_applications;
         let cache = ApplicationCache::new(max_apps, ttl);
         Ok(Self {
             workspace,
-            session_id: Uuid::new_v4().to_string(),
-            started_at: now_secs(),
-            ended_at: None,
+            session_id: info.id,
+            started_at: info.started_at,
+            ended_at: info.ended_at,
             application_cache: cache,
         })
     }
@@ -145,9 +168,10 @@ impl Session {
         self.application_cache.close_application(app_id);
     }
 
-    pub fn destroy(&mut self) -> CoreResult<()> {
+    pub async fn destroy(&mut self) -> CoreResult<()> {
         self.ended_at = Some(now_secs());
         self.application_cache = ApplicationCache::new(0, 1);
+        self.persist_info().await?;
         Ok(())
     }
 
@@ -221,6 +245,23 @@ impl Session {
             .write(&["part", message_id, part_id], &value)
             .await
     }
+
+    async fn persist_info(&self) -> CoreResult<()> {
+        let info = SessionInfo {
+            id: self.session_id.clone(),
+            workspace_id: self.workspace.config.workspace_id.clone(),
+            started_at: self.started_at,
+            ended_at: self.ended_at,
+        };
+        let value = serde_json::to_value(info).map_err(|error| {
+            CoreError::Internal(format!("failed to serialize session info: {error}"))
+        })?;
+        let workspace_id = self.workspace.config.workspace_id.clone();
+        self.workspace
+            .storage
+            .write(&["session", &workspace_id, &self.session_id], &value)
+            .await
+    }
 }
 
 pub(crate) fn render_message_text(parts: &[MessagePart]) -> String {
@@ -242,8 +283,11 @@ mod tests {
     #[test]
     fn session_records_messages() {
         let dir = tempdir().expect("tempdir");
-        let workspace = Arc::new(WorkspaceInstance::new(dir.path()).expect("workspace"));
-        let mut session = Session::new(workspace).expect("session");
+        let workspace = runtime
+            .block_on(WorkspaceInstance::new(dir.path()))
+            .expect("workspace");
+        let workspace = Arc::new(workspace);
+        let mut session = runtime.block_on(Session::new(workspace)).expect("session");
         let runtime = tokio::runtime::Runtime::new().expect("runtime");
         let messages = runtime
             .block_on(async {

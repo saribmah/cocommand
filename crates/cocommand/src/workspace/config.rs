@@ -3,6 +3,7 @@ use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
 use crate::error::{CoreError, CoreResult};
+use crate::storage::Storage;
 use crate::utils::time::now_secs;
 
 pub const WORKSPACE_CONFIG_FILENAME: &str = "workspace.json";
@@ -61,7 +62,7 @@ impl WorkspaceConfig {
         let now = now_secs();
         Self {
             version: WORKSPACE_CONFIG_VERSION.to_string(),
-            workspace_id: Uuid::new_v4().to_string(),
+            workspace_id: Uuid::now_v7().to_string(),
             name: "Default Workspace".to_string(),
             created_at: now,
             last_modified: now,
@@ -117,6 +118,41 @@ pub fn load_or_create_workspace_config(dir: &Path) -> CoreResult<WorkspaceConfig
         write_workspace_config(&path, &config)?;
     }
 
+    Ok(config)
+}
+
+pub async fn load_or_create_workspace_storage(
+    storage: &dyn Storage,
+) -> CoreResult<WorkspaceConfig> {
+    let mut workspace_ids = storage.list(&["workspace"]).await?;
+    if workspace_ids.is_empty() {
+        let config = WorkspaceConfig::default_new();
+        let value = serde_json::to_value(&config).map_err(|error| {
+            CoreError::Internal(format!("failed to serialize workspace config: {error}"))
+        })?;
+        storage
+            .write(&["workspace", &config.workspace_id], &value)
+            .await?;
+        return Ok(config);
+    }
+    workspace_ids.sort();
+    let last_id = workspace_ids.last().cloned().unwrap();
+    let value = storage
+        .read(&["workspace", &last_id])
+        .await?
+        .ok_or_else(|| CoreError::Internal("workspace config missing".to_string()))?;
+    let mut config: WorkspaceConfig = serde_json::from_value(value).map_err(|error| {
+        CoreError::Internal(format!("failed to parse workspace config: {error}"))
+    })?;
+    if config.version != WORKSPACE_CONFIG_VERSION {
+        config = migrate_workspace_config(config)?;
+        let value = serde_json::to_value(&config).map_err(|error| {
+            CoreError::Internal(format!("failed to serialize workspace config: {error}"))
+        })?;
+        storage
+            .write(&["workspace", &config.workspace_id], &value)
+            .await?;
+    }
     Ok(config)
 }
 

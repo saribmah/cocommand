@@ -163,11 +163,11 @@ mod tests {
         let storage = FileStorage::new(dir.path().to_path_buf());
         let value = serde_json::json!({ "hello": "world" });
         storage
-            .write(&["session", "abc", "part"], &value)
+            .write(&["session", "workspace", "abc"], &value)
             .await
             .expect("write");
         let loaded = storage
-            .read(&["session", "abc", "part"])
+            .read(&["session", "workspace", "abc"])
             .await
             .expect("read")
             .expect("value");
