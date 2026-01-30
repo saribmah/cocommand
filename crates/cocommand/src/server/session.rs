@@ -9,7 +9,7 @@ use std::sync::Arc;
 use crate::message::Message;
 use crate::server::ServerState;
 use crate::session::SessionContext;
-use crate::tool::build_tool_set;
+use crate::tool::ToolRegistry;
 
 #[derive(Debug, Deserialize)]
 pub struct RecordMessageRequest {
@@ -60,7 +60,7 @@ pub(crate) async fn record_message(
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     let prompt_messages: Vec<llm_kit_provider_utils::message::Message> =
         message_history.iter().filter_map(Message::to_prompt).collect();
-    let tools = build_tool_set(
+    let tools = ToolRegistry::tools(
         Arc::new(state.workspace.clone()),
         state.sessions.clone(),
         &session_id,
