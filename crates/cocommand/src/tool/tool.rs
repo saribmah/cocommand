@@ -8,7 +8,6 @@ use crate::application::{Application, ApplicationContext, ApplicationKind, Appli
 use crate::session::SessionManager;
 use crate::workspace::WorkspaceInstance;
 
-
 pub fn build_tool_set(
     workspace: Arc<WorkspaceInstance>,
     sessions: Arc<SessionManager>,

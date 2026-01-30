@@ -9,7 +9,7 @@ use std::sync::Arc;
 use crate::message::Message;
 use crate::server::ServerState;
 use crate::session::SessionContext;
-use crate::llm::tools::build_tool_set;
+use crate::tool::build_tool_set;
 
 #[derive(Debug, Deserialize)]
 pub struct RecordMessageRequest {

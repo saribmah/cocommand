@@ -8,6 +8,7 @@ pub mod application;
 pub mod llm;
 pub mod storage;
 pub mod message;
+pub mod tool;
 
 pub use crate::error::{CoreError, CoreResult};
 pub use crate::session::{Session, SessionContext, SessionManager};
