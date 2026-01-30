@@ -58,8 +58,10 @@ pub(crate) async fn record_message(
     let message_history = Message::load(&storage, &session_id)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-    let prompt_messages: Vec<llm_kit_provider_utils::message::Message> =
-        message_history.iter().filter_map(Message::to_prompt).collect();
+    let prompt_messages: Vec<llm_kit_provider_utils::message::Message> = message_history
+        .iter()
+        .flat_map(Message::to_prompt_messages)
+        .collect();
     let tools = ToolRegistry::tools(
         Arc::new(state.workspace.clone()),
         state.sessions.clone(),

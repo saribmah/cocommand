@@ -6,7 +6,12 @@ use crate::storage::SharedStorage;
 use crate::utils::time::now_rfc3339;
 
 use crate::message::parts::{MessagePart, TextPart};
-use llm_kit_provider_utils::message::{AssistantMessage, Message as LlmMessage, UserMessage};
+use llm_kit_provider_utils::message::{
+    AssistantContentPart, AssistantMessage, DataContent, FilePart as LlmFilePart, Message as LlmMessage,
+    ReasoningPart as LlmReasoningPart, TextPart as LlmTextPart, ToolCallPart as LlmToolCallPart,
+    ToolContentPart, ToolMessage, ToolResultOutput, ToolResultPart as LlmToolResultPart,
+    UserContentPart, UserMessage,
+};
 use llm_kit_core::stream_text::StreamTextResult;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -64,12 +69,12 @@ impl Message {
         }
     }
 
-    pub fn to_prompt(message: &MessageWithParts) -> Option<LlmMessage> {
-        let text = Message::to_text(message);
+    pub fn to_prompt_messages(message: &MessageWithParts) -> Vec<LlmMessage> {
         match message.info.role.as_str() {
-            "user" => Some(LlmMessage::User(UserMessage::new(text))),
-            "assistant" => Some(LlmMessage::Assistant(AssistantMessage::new(text))),
-            _ => None,
+            "user" => user_message_to_prompt(message),
+            "assistant" => assistant_message_to_prompt(message),
+            "tool" => tool_message_to_prompt(message),
+            _ => Vec::new(),
         }
     }
 
@@ -127,6 +132,131 @@ impl Message {
             },
             parts,
         })
+    }
+}
+
+fn user_message_to_prompt(message: &MessageWithParts) -> Vec<LlmMessage> {
+    let parts: Vec<UserContentPart> = message
+        .parts
+        .iter()
+        .filter_map(|part| match part {
+            MessagePart::Text(text) => Some(UserContentPart::Text(LlmTextPart::new(&text.text))),
+            MessagePart::File(file) => Some(UserContentPart::File(map_file_part(file))),
+            MessagePart::Source(source) => {
+                Some(UserContentPart::Text(LlmTextPart::new(format_source(source))))
+            }
+            _ => None,
+        })
+        .collect();
+    if parts.is_empty() {
+        return Vec::new();
+    }
+    vec![LlmMessage::User(UserMessage::with_parts(parts))]
+}
+
+fn assistant_message_to_prompt(message: &MessageWithParts) -> Vec<LlmMessage> {
+    let assistant_parts: Vec<AssistantContentPart> = message
+        .parts
+        .iter()
+        .filter_map(|part| match part {
+            MessagePart::Text(text) => Some(AssistantContentPart::Text(LlmTextPart::new(
+                &text.text,
+            ))),
+            MessagePart::Reasoning(reasoning) => Some(AssistantContentPart::Reasoning(
+                LlmReasoningPart::new(&reasoning.text),
+            )),
+            MessagePart::ToolCall(call) => Some(AssistantContentPart::ToolCall(
+                LlmToolCallPart::new(call.call_id.clone(), call.tool_name.clone(), call.input.clone()),
+            )),
+            MessagePart::File(file) => Some(AssistantContentPart::File(map_file_part(file))),
+            MessagePart::Source(source) => Some(AssistantContentPart::Text(LlmTextPart::new(
+                format_source(source),
+            ))),
+            MessagePart::ToolResult(_) => None,
+        })
+        .collect();
+    let tool_parts: Vec<ToolContentPart> = message
+        .parts
+        .iter()
+        .filter_map(|part| match part {
+            MessagePart::ToolResult(result) => {
+                let output = map_tool_result_output(result);
+                Some(ToolContentPart::ToolResult(LlmToolResultPart::new(
+                    result.call_id.clone(),
+                    result.tool_name.clone(),
+                    output,
+                )))
+            }
+            _ => None,
+        })
+        .collect();
+    let mut messages = Vec::new();
+    if !assistant_parts.is_empty() {
+        messages.push(LlmMessage::Assistant(AssistantMessage::with_parts(
+            assistant_parts,
+        )));
+    }
+    if !tool_parts.is_empty() {
+        messages.push(LlmMessage::Tool(ToolMessage::new(tool_parts)));
+    }
+    messages
+}
+
+fn tool_message_to_prompt(message: &MessageWithParts) -> Vec<LlmMessage> {
+    let parts: Vec<ToolContentPart> = message
+        .parts
+        .iter()
+        .filter_map(|part| match part {
+            MessagePart::ToolResult(result) => {
+                let output = map_tool_result_output(result);
+                Some(ToolContentPart::ToolResult(LlmToolResultPart::new(
+                    result.call_id.clone(),
+                    result.tool_name.clone(),
+                    output,
+                )))
+            }
+            _ => None,
+        })
+        .collect();
+    if parts.is_empty() {
+        return Vec::new();
+    }
+    vec![LlmMessage::Tool(ToolMessage::new(parts))]
+}
+
+fn map_tool_result_output(result: &crate::message::parts::ToolResultPart) -> ToolResultOutput {
+    if result.is_error {
+        if let Some(text) = result.output.as_str() {
+            ToolResultOutput::error_text(text)
+        } else {
+            ToolResultOutput::error_json(result.output.clone())
+        }
+    } else if let Some(text) = result.output.as_str() {
+        ToolResultOutput::text(text)
+    } else {
+        ToolResultOutput::json(result.output.clone())
+    }
+}
+
+fn map_file_part(file: &crate::message::parts::FilePart) -> LlmFilePart {
+    let part = LlmFilePart::from_data(
+        DataContent::base64(file.base64.clone()),
+        file.media_type.clone(),
+    );
+    match &file.name {
+        Some(name) => part.with_filename(name.clone()),
+        None => part,
+    }
+}
+
+fn format_source(source: &crate::message::parts::SourcePart) -> String {
+    match (&source.title, &source.url, &source.filename) {
+        (Some(title), Some(url), _) => format!("Source: {} ({})", title, url),
+        (Some(title), None, Some(filename)) => format!("Source: {} ({})", title, filename),
+        (Some(title), None, None) => format!("Source: {}", title),
+        (None, Some(url), _) => format!("Source: {}", url),
+        (None, None, Some(filename)) => format!("Source: {}", filename),
+        (None, None, None) => format!("Source: {}", source.id),
     }
 }
 
