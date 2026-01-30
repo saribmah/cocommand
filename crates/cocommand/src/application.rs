@@ -7,6 +7,7 @@ pub enum ApplicationKind {
 
 pub mod note;
 pub mod registry;
+pub mod installed;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ApplicationAction {

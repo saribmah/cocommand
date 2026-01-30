@@ -12,6 +12,7 @@ use crate::session::SessionManager;
 use crate::workspace::WorkspaceInstance;
 pub mod events;
 pub mod session;
+pub mod workspace;
 
 pub struct Server {
     addr: SocketAddr,
@@ -39,6 +40,7 @@ impl Server {
             .route("/events", get(events::stream_events))
             .route("/sessions/message", post(session::record_message))
             .route("/sessions/context", get(session::session_context))
+            .route("/workspace/applications", get(workspace::list_applications))
             .with_state(state.clone())
             .layer(cors);
         let listener = TcpListener::bind("127.0.0.1:0")

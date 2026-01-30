@@ -5,6 +5,7 @@ use std::sync::{Arc, RwLock};
 use crate::application::note::NoteApplication;
 use crate::application::registry::ApplicationRegistry;
 use crate::application::Application;
+use crate::application::installed::InstalledApplication;
 use crate::error::{CoreError, CoreResult};
 use crate::workspace::config::{load_or_create_workspace_config, WorkspaceConfig};
 
@@ -51,4 +52,17 @@ fn register_builtin_applications(registry: &Arc<RwLock<ApplicationRegistry>>) {
         .write()
         .expect("failed to acquire application registry write lock");
     registry.register(Arc::new(NoteApplication::new()) as Arc<dyn Application>);
+    register_installed_applications(&mut registry);
+}
+
+fn register_installed_applications(registry: &mut ApplicationRegistry) {
+    #[cfg(target_os = "macos")]
+    {
+        use cocommand_platform_macos::list_installed_apps;
+        for app in list_installed_apps() {
+            let id = app.bundle_id.clone().unwrap_or_else(|| app.path.clone());
+            let installed = InstalledApplication::new(id, app.name, app.bundle_id, app.path);
+            registry.register(Arc::new(installed) as Arc<dyn Application>);
+        }
+    }
 }
