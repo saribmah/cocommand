@@ -11,13 +11,13 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  background: rgba(255, 255, 255, 0.92);
-  border: 1px solid rgba(0, 0, 0, 0.12);
-  border-radius: 10px;
-  padding: 0 16px;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  background: rgba(18, 19, 21, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 0 10px;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: none;
 }
 
 .command-results {
@@ -31,11 +31,11 @@
   flex-shrink: 0;
   font-size: 11px;
   font-weight: 500;
-  color: rgba(0, 100, 200, 0.8);
-  background: rgba(0, 100, 200, 0.08);
-  border: 1px solid rgba(0, 100, 200, 0.15);
-  border-radius: 4px;
-  padding: 2px 6px;
+  color: #f5b9a6;
+  background: rgba(244, 106, 75, 0.18);
+  border: 1px solid rgba(244, 106, 75, 0.35);
+  border-radius: 6px;
+  padding: 3px 8px;
   white-space: nowrap;
 }
 
@@ -48,11 +48,11 @@
   background: transparent;
   font-size: 15px;
   font-family: inherit;
-  color: #1b1b1b;
+  color: #f4f1ed;
 }
 
 .command-input::placeholder {
-  color: rgba(0, 0, 0, 0.35);
+  color: rgba(244, 241, 237, 0.4);
 }
 
 .command-input:disabled {
@@ -63,46 +63,46 @@
   margin-left: auto;
   font-size: 11px;
   font-weight: 600;
-  color: rgba(0, 0, 0, 0.55);
-  background: rgba(0, 0, 0, 0.04);
-  border: 1px solid rgba(0, 0, 0, 0.12);
+  color: rgba(244, 241, 237, 0.6);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 999px;
-  padding: 2px 8px;
+  padding: 3px 10px;
   white-space: nowrap;
 }
 
 .server-status-badge[data-status="online"] {
-  color: rgba(0, 120, 60, 0.9);
-  background: rgba(0, 120, 60, 0.08);
-  border-color: rgba(0, 120, 60, 0.2);
+  color: rgba(87, 214, 141, 0.9);
+  background: rgba(87, 214, 141, 0.12);
+  border-color: rgba(87, 214, 141, 0.3);
 }
 
 .server-status-badge[data-status="offline"] {
-  color: rgba(180, 40, 40, 0.9);
-  background: rgba(180, 40, 40, 0.08);
-  border-color: rgba(180, 40, 40, 0.2);
+  color: rgba(255, 112, 112, 0.9);
+  background: rgba(255, 112, 112, 0.12);
+  border-color: rgba(255, 112, 112, 0.3);
 }
 
 .command-clarification {
   margin-top: 6px;
   padding: 8px 12px;
   font-size: 13px;
-  color: rgba(0, 0, 0, 0.6);
-  background: rgba(255, 255, 255, 0.85);
+  color: rgba(244, 241, 237, 0.72);
+  background: rgba(20, 21, 23, 0.86);
   border-radius: 8px;
-  border: 1px solid rgba(0, 0, 0, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .suggestion-list {
   list-style: none;
   margin-top: 4px;
-  background: rgba(255, 255, 255, 0.92);
-  border: 1px solid rgba(0, 0, 0, 0.1);
+  background: rgba(18, 19, 21, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.06);
   border-radius: 10px;
   overflow: hidden;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: none;
 }
 
 .suggestion-item {
@@ -115,19 +115,19 @@
 }
 
 .suggestion-item.selected {
-  background: rgba(0, 100, 255, 0.08);
+  background: rgba(244, 106, 75, 0.16);
 }
 
 .suggestion-app {
   font-size: 13px;
   font-weight: 600;
-  color: #1b1b1b;
+  color: #f4f1ed;
   flex-shrink: 0;
 }
 
 .suggestion-explanation {
   font-size: 13px;
-  color: rgba(0, 0, 0, 0.55);
+  color: rgba(244, 241, 237, 0.65);
   flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -136,7 +136,7 @@
 
 .suggestion-score {
   font-size: 11px;
-  color: rgba(0, 0, 0, 0.3);
+  color: rgba(244, 241, 237, 0.35);
   flex-shrink: 0;
 }
 
@@ -150,17 +150,17 @@
 }
 
 .result-card {
-  background: rgba(255, 255, 255, 0.94);
-  border: 1px solid rgba(0, 0, 0, 0.1);
-  border-radius: 12px;
+  background: rgba(18, 19, 21, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 10px;
   overflow: hidden;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: none;
 }
 
 .result-card--error {
-  border-color: rgba(220, 50, 50, 0.25);
+  border-color: rgba(255, 112, 112, 0.4);
 }
 
 .result-card-header {
@@ -173,21 +173,21 @@
 .result-card-title {
   font-size: 13px;
   font-weight: 600;
-  color: #1b1b1b;
+  color: #f4f1ed;
 }
 
 .result-card-dismiss {
   background: none;
   border: none;
   font-size: 16px;
-  color: rgba(0, 0, 0, 0.35);
+  color: rgba(244, 241, 237, 0.45);
   cursor: pointer;
   padding: 0 4px;
   line-height: 1;
 }
 
 .result-card-dismiss:hover {
-  color: rgba(0, 0, 0, 0.6);
+  color: rgba(244, 241, 237, 0.75);
 }
 
 .result-card-body {
@@ -197,7 +197,7 @@
 .result-card-body .markdown-view p {
   margin: 0 0 4px;
   font-size: 13px;
-  color: rgba(0, 0, 0, 0.7);
+  color: rgba(244, 241, 237, 0.7);
   line-height: 1.4;
 }
 
@@ -207,9 +207,9 @@
 
 .result-card-body .markdown-view code {
   font-size: 12px;
-  background: rgba(0, 0, 0, 0.05);
+  background: rgba(255, 255, 255, 0.1);
   padding: 1px 4px;
-  border-radius: 3px;
+  border-radius: 4px;
 }
 
 .result-card-actions {
@@ -221,29 +221,29 @@
 .result-card-action-btn {
   font-size: 12px;
   padding: 5px 12px;
-  border: 1px solid rgba(0, 0, 0, 0.12);
-  border-radius: 6px;
-  background: rgba(255, 255, 255, 0.9);
-  color: #1b1b1b;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #f4f1ed;
   cursor: pointer;
   transition: background 0.1s;
 }
 
 .result-card-action-btn:hover {
-  background: rgba(0, 0, 0, 0.04);
+  background: rgba(255, 255, 255, 0.12);
 }
 
 /* Confirmation Panel */
 
 .confirm-panel {
   margin-top: 6px;
-  background: rgba(255, 255, 255, 0.94);
-  border: 1px solid rgba(220, 150, 50, 0.3);
+  background: rgba(18, 19, 21, 0.92);
+  border: 1px solid rgba(244, 106, 75, 0.28);
   border-radius: 10px;
   overflow: hidden;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: none;
 }
 
 .confirm-panel-header {
@@ -253,7 +253,7 @@
 .confirm-panel-title {
   font-size: 13px;
   font-weight: 600;
-  color: #1b1b1b;
+  color: #f4f1ed;
 }
 
 .confirm-panel-body {
@@ -263,7 +263,7 @@
 .confirm-panel-body .markdown-view p {
   margin: 0 0 4px;
   font-size: 13px;
-  color: rgba(0, 0, 0, 0.7);
+  color: rgba(244, 241, 237, 0.7);
   line-height: 1.4;
 }
 
@@ -283,30 +283,30 @@
   border-radius: 6px;
   cursor: pointer;
   transition: background 0.1s;
-  border: 1px solid rgba(0, 0, 0, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.12);
 }
 
 .confirm-panel-btn--cancel {
-  background: rgba(255, 255, 255, 0.9);
-  color: #1b1b1b;
+  background: rgba(255, 255, 255, 0.08);
+  color: #f4f1ed;
 }
 
 .confirm-panel-btn--cancel:hover {
-  background: rgba(0, 0, 0, 0.04);
+  background: rgba(255, 255, 255, 0.16);
 }
 
 .confirm-panel-btn--confirm {
-  background: rgba(220, 50, 50, 0.1);
-  color: #c0392b;
-  border-color: rgba(220, 50, 50, 0.25);
+  background: rgba(244, 106, 75, 0.18);
+  color: #f5b9a6;
+  border-color: rgba(244, 106, 75, 0.4);
 }
 
 .confirm-panel-btn--confirm:hover {
-  background: rgba(220, 50, 50, 0.18);
+  background: rgba(244, 106, 75, 0.28);
 }
 
 .confirm-panel-hint {
   padding: 0 14px 8px;
   font-size: 11px;
-  color: rgba(0, 0, 0, 0.35);
+  color: rgba(244, 241, 237, 0.45);
 }
