@@ -38,8 +38,8 @@ export function useCommandBar() {
 
   const sendMessage = useSessionStore((store) => store.sendMessage);
 
-  const submit = useCallback(async () => {
-    const text = state.input.trim();
+  const submit = useCallback(async (override?: string) => {
+    const text = (override ?? state.input).trim();
     if (!text) return;
 
     if (text === "/settings") {

@@ -1,12 +1,79 @@
-import { useRef, useEffect, type KeyboardEvent } from "react";
+import { useRef, useEffect, useMemo, useState, type KeyboardEvent } from "react";
 import { useCommandBar } from "../state/commandbar";
 import { useServerStore } from "../state/server";
+import { useApplicationStore } from "../state/applications";
 import { ResultCard } from "./ResultCard";
 import { ConfirmPanel } from "./ConfirmPanel";
+import { ApplicationPicker } from "./ApplicationPicker";
 import "../styles/commandbar.css";
+
+function getMentionState(text: string): { query: string; start: number } | null {
+  const match = /(^|\s)@([^\s@]*)$/.exec(text);
+  if (!match) return null;
+  const start = match.index + match[1].length;
+  return { query: match[2], start };
+}
+
+function applyMention(
+  text: string,
+  mention: { start: number },
+  name: string
+): string {
+  return `${text.slice(0, mention.start)}@${name} `;
+}
+
+function resolveMentions(
+  text: string,
+  applications: { id: string; name: string }[]
+): string {
+  return text.replace(/@([^\s@]+)/g, (full, name) => {
+    const normalized = String(name).trim().toLowerCase();
+    const match = applications.find(
+      (app) =>
+        app.name.toLowerCase() === normalized || app.id.toLowerCase() === normalized
+    );
+    if (!match) return full;
+    return `@${match.id}`;
+  });
+}
+
+function normalizeQuery(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+function subsequenceScore(query: string, target: string): number {
+  if (!query) return 0;
+  let score = 0;
+  let ti = 0;
+  for (let qi = 0; qi < query.length; qi += 1) {
+    const q = query[qi];
+    const found = target.indexOf(q, ti);
+    if (found === -1) return -1;
+    score += found === ti ? 2 : 1;
+    ti = found + 1;
+  }
+  return score;
+}
+
+function matchScore(query: string, name: string, id: string, kind: string): number {
+  if (!query) return 0;
+  const nameLower = name.toLowerCase();
+  const idLower = id.toLowerCase();
+  const kindLower = kind.toLowerCase();
+  if (nameLower.includes(query) || idLower.includes(query) || kindLower.includes(query)) {
+    return 100 + query.length;
+  }
+  const compactQuery = query.replace(/\s+/g, "");
+  const nameScore = subsequenceScore(compactQuery, nameLower.replace(/\s+/g, ""));
+  const idScore = subsequenceScore(compactQuery, idLower.replace(/\s+/g, ""));
+  const kindScore = subsequenceScore(compactQuery, kindLower.replace(/\s+/g, ""));
+  const best = Math.max(nameScore, idScore, kindScore);
+  return best > 0 ? best : -1;
+}
 
 export function CommandBar() {
   const inputRef = useRef<HTMLInputElement>(null);
+  const [mentionIndex, setMentionIndex] = useState(0);
   const {
     input,
     isSubmitting,
@@ -21,16 +88,76 @@ export function CommandBar() {
     cancelPending,
   } = useCommandBar();
   const serverInfo = useServerStore((state) => state.getInfo());
+  const applications = useApplicationStore((state) => state.applications);
+  const fetchApplications = useApplicationStore((state) => state.fetchApplications);
+
+  useEffect(() => {
+    fetchApplications();
+  }, [fetchApplications]);
 
   useEffect(() => {
     inputRef.current?.focus();
   }, [results]);
 
+  const mentionState = useMemo(() => getMentionState(input), [input]);
+  useEffect(() => {
+    if (mentionState) {
+      console.log("[mentions] state", mentionState);
+    }
+  }, [mentionState]);
+  const filteredApplications = useMemo(() => {
+    if (!mentionState) return [];
+    const query = normalizeQuery(mentionState.query);
+    const ranked = applications
+      .map((app) => ({
+        app,
+        score: matchScore(query, app.name, app.id, app.kind),
+      }))
+      .filter((entry) => (query.length === 0 ? true : entry.score >= 0))
+      .sort((a, b) => b.score - a.score);
+    return ranked.slice(0, 8).map((entry) => entry.app);
+  }, [applications, mentionState]);
+
+  useEffect(() => {
+    if (!mentionState) return;
+    console.log("[mentions] apps", applications.length, "filtered", filteredApplications.length);
+  }, [mentionState, applications.length, filteredApplications.length]);
+
+  useEffect(() => {
+    if (mentionState) {
+      setMentionIndex(0);
+    }
+  }, [mentionState?.query, mentionState?.start]);
+
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (mentionState && filteredApplications.length > 0) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setMentionIndex((idx) => (idx + 1) % filteredApplications.length);
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setMentionIndex((idx) =>
+          idx <= 0 ? filteredApplications.length - 1 : idx - 1
+        );
+        return;
+      }
+      if (e.key === "Enter") {
+        e.preventDefault();
+        const selected = filteredApplications[mentionIndex];
+        if (selected) {
+          const nextValue = applyMention(input, mentionState, selected.name);
+          setInput(nextValue);
+        }
+        return;
+      }
+    }
+
     switch (e.key) {
       case "Enter":
         e.preventDefault();
-        submit();
+        submit(resolveMentions(input, applications));
         break;
       case "Escape":
         e.preventDefault();
@@ -64,6 +191,16 @@ export function CommandBar() {
           {serverInfo ? "Server online" : "Server offline"}
         </span>
       </div>
+      {mentionState && (
+        <ApplicationPicker
+          applications={filteredApplications}
+          selectedIndex={mentionIndex}
+          onSelect={(app) => {
+            const nextValue = applyMention(input, mentionState, app.name);
+            setInput(nextValue);
+          }}
+        />
+      )}
       <div className="command-results">
         {pendingConfirmation && (
           <ConfirmPanel
