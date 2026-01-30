@@ -7,6 +7,8 @@ use crate::application::registry::ApplicationRegistry;
 use crate::application::Application;
 use crate::application::installed::InstalledApplication;
 use crate::error::{CoreError, CoreResult};
+use crate::storage::file::FileStorage;
+use crate::storage::SharedStorage;
 use crate::workspace::config::{load_or_create_workspace_config, WorkspaceConfig};
 
 #[derive(Clone)]
@@ -14,6 +16,7 @@ pub struct WorkspaceInstance {
     pub workspace_dir: PathBuf,
     pub config: WorkspaceConfig,
     pub application_registry: Arc<RwLock<ApplicationRegistry>>,
+    pub storage: SharedStorage,
 }
 
 impl fmt::Debug for WorkspaceInstance {
@@ -38,11 +41,14 @@ impl WorkspaceInstance {
         }
         let config = load_or_create_workspace_config(workspace_dir)?;
         let application_registry = Arc::new(RwLock::new(ApplicationRegistry::new()));
+        let storage_root = workspace_dir.join("storage");
+        let storage: SharedStorage = Arc::new(FileStorage::new(storage_root));
         register_builtin_applications(&application_registry);
         Ok(Self {
             workspace_dir: workspace_dir.to_path_buf(),
             config,
             application_registry,
+            storage,
         })
     }
 }
