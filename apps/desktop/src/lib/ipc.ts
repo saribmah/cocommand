@@ -2,6 +2,8 @@
 // All backend integration goes through these invoke wrappers.
 export {
   hideWindow,
+  hideSettingsWindow,
+  openSettingsWindow,
   getServerInfo,
 } from "../types/core";
 

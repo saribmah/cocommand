@@ -48,6 +48,14 @@ export async function hideWindow(): Promise<void> {
   return invoke("hide_window");
 }
 
+export async function hideSettingsWindow(): Promise<void> {
+  return invoke("hide_settings_window");
+}
+
+export async function openSettingsWindow(): Promise<void> {
+  return invoke("open_settings_window");
+}
+
 export async function getServerInfo(): Promise<ServerInfo> {
   return invoke("get_server_info_cmd");
 }

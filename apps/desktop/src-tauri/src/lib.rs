@@ -59,6 +59,8 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             window::hide_window,
+            window::open_settings_window,
+            window::hide_settings_window,
             commands::get_workspace_dir_cmd,
             commands::set_workspace_dir_cmd,
             commands::get_server_info_cmd,

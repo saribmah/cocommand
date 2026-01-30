@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { hideWindow, type CoreResult } from "../lib/ipc";
+import { hideWindow, openSettingsWindow, type CoreResult } from "../lib/ipc";
 import { useSessionStore } from "./session";
 
 export interface CommandBarState {
@@ -41,6 +41,18 @@ export function useCommandBar() {
   const submit = useCallback(async () => {
     const text = state.input.trim();
     if (!text) return;
+
+    if (text === "/settings") {
+      await openSettingsWindow();
+      hideWindow();
+      setState((s) => ({
+        ...s,
+        input: "",
+        results: [],
+        isSubmitting: false,
+      }));
+      return;
+    }
 
     setState((s) => ({ ...s, isSubmitting: true }));
 
