@@ -6,6 +6,7 @@ use llm_kit_provider::LanguageModel;
 use crate::error::{CoreError, CoreResult};
 use crate::llm::provider::{build_model, LlmSettings};
 use crate::llm::tools::{build_tool_set, session_messages_to_prompt};
+use crate::message::MessagePart;
 use crate::session::SessionContext;
 use crate::workspace::WorkspaceInstance;
 
@@ -26,7 +27,10 @@ impl LlmService {
         })
     }
 
-    pub async fn generate_reply(&self, context: &SessionContext) -> CoreResult<String> {
+    pub async fn generate_reply_parts(
+        &self,
+        context: &SessionContext,
+    ) -> CoreResult<Vec<MessagePart>> {
         let messages = session_messages_to_prompt(&context.messages);
         log::info!(
             "llm prompt messages count={} session_id={}",
@@ -53,11 +57,7 @@ impl LlmService {
             .execute()
             .await
             .map_err(|error| CoreError::Internal(error.to_string()))?;
-        let text = result
-            .text()
-            .await
-            .map_err(|error| CoreError::Internal(error.to_string()))?;
-
-        Ok(text)
+        let parts = crate::message::stream_result_to_parts(&result).await?;
+        Ok(parts)
     }
 }

@@ -3,6 +3,7 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::error::{CoreError, CoreResult};
+use crate::message::{MessageInfo, MessagePart, MessageWithParts, TextPart};
 use crate::utils::time::{now_rfc3339, now_secs};
 use crate::session::application_cache::ApplicationCache;
 use crate::workspace::WorkspaceInstance;
@@ -32,8 +33,6 @@ pub struct Session {
     pub(crate) session_id: String,
     pub(crate) started_at: u64,
     ended_at: Option<u64>,
-    messages: Vec<SessionMessage>,
-    next_seq: u64,
     application_cache: ApplicationCache,
 }
 
@@ -47,37 +46,56 @@ impl Session {
             session_id: Uuid::new_v4().to_string(),
             started_at: now_secs(),
             ended_at: None,
-            messages: Vec::new(),
-            next_seq: 1,
             application_cache: cache,
         })
     }
 
-    pub fn record_message(&mut self, text: &str) -> CoreResult<()> {
-        self.record_message_with_role("user", text)
-    }
-
-    pub fn record_assistant_message(&mut self, text: &str) -> CoreResult<()> {
-        self.record_message_with_role("assistant", text)
-    }
-
-    fn record_message_with_role(&mut self, role: &str, text: &str) -> CoreResult<()> {
-        let message = SessionMessage {
-            seq: self.next_seq,
-            timestamp: now_rfc3339(),
-            role: role.to_string(),
+    pub async fn record_message(&mut self, text: &str) -> CoreResult<()> {
+        let part = MessagePart::Text(TextPart {
             text: text.to_string(),
+        });
+        self.record_message_with_role("user", vec![part]).await
+    }
+
+    pub async fn record_assistant_message(&mut self, text: &str) -> CoreResult<()> {
+        let part = MessagePart::Text(TextPart {
+            text: text.to_string(),
+        });
+        self.record_message_with_role("assistant", vec![part]).await
+    }
+
+    pub async fn record_assistant_parts(&mut self, parts: Vec<MessagePart>) -> CoreResult<()> {
+        self.record_message_with_role("assistant", parts).await
+    }
+
+    async fn record_message_with_role(
+        &mut self,
+        role: &str,
+        parts: Vec<MessagePart>,
+    ) -> CoreResult<()> {
+        let message_id = Uuid::now_v7().to_string();
+        let timestamp = now_rfc3339();
+        let info = MessageInfo {
+            id: message_id.clone(),
+            session_id: self.session_id.clone(),
+            role: role.to_string(),
+            created_at: timestamp.clone(),
+            updated_at: timestamp,
         };
-        self.next_seq = self.next_seq.saturating_add(1);
-        self.messages.push(message);
+        self.save_message_info(&info).await?;
+        for part in parts {
+            let part_id = Uuid::now_v7().to_string();
+            self.save_message_part(&message_id, &part_id, &part)
+                .await?;
+        }
         Ok(())
     }
 
-    pub fn context(&self, limit: Option<usize>) -> CoreResult<SessionContext> {
-        self.context_with_id(Some(&self.session_id), limit)
+    pub async fn context(&self, limit: Option<usize>) -> CoreResult<SessionContext> {
+        self.context_with_id(Some(&self.session_id), limit).await
     }
 
-    pub fn context_with_id(
+    pub async fn context_with_id(
         &self,
         session_id: Option<&str>,
         limit: Option<usize>,
@@ -88,11 +106,22 @@ impl Session {
             }
         }
         let cap = limit.unwrap_or(DEFAULT_CONTEXT_LIMIT);
-        let messages = if self.messages.len() > cap {
-            self.messages[self.messages.len() - cap..].to_vec()
+        let messages_with_parts = self.messages().await?;
+        let messages_with_parts = if messages_with_parts.len() > cap {
+            messages_with_parts[messages_with_parts.len() - cap..].to_vec()
         } else {
-            self.messages.clone()
+            messages_with_parts
         };
+        let messages = messages_with_parts
+            .into_iter()
+            .enumerate()
+            .map(|(index, item)| SessionMessage {
+                seq: (index as u64).saturating_add(1),
+                timestamp: item.info.created_at,
+                role: item.info.role,
+                text: render_message_text(&item.parts),
+            })
+            .collect();
 
         Ok(SessionContext {
             workspace_id: self.workspace.config.workspace_id.clone(),
@@ -101,6 +130,10 @@ impl Session {
             ended_at: self.ended_at,
             messages,
         })
+    }
+
+    pub async fn messages(&self) -> CoreResult<Vec<MessageWithParts>> {
+        self.load_messages_with_parts().await
     }
 
     pub fn open_application(&mut self, app_id: &str) {
@@ -117,6 +150,88 @@ impl Session {
         self.application_cache = ApplicationCache::new(0, 1);
         Ok(())
     }
+
+    async fn load_messages_with_parts(&self) -> CoreResult<Vec<MessageWithParts>> {
+        let storage = self.workspace.storage.clone();
+        let mut message_ids = storage
+            .list(&["messages", &self.session_id])
+            .await?;
+        message_ids.sort();
+        let mut items = Vec::new();
+        for message_id in message_ids {
+            if let Some(info) = self.load_message_info(&message_id).await? {
+                let parts = self.load_message_parts(&message_id).await?;
+                items.push(MessageWithParts { info, parts });
+            }
+        }
+        Ok(items)
+    }
+
+    async fn load_message_info(&self, message_id: &str) -> CoreResult<Option<MessageInfo>> {
+        let value = self
+            .workspace
+            .storage
+            .read(&["messages", &self.session_id, message_id])
+            .await?;
+        match value {
+            Some(value) => serde_json::from_value(value).map(Some).map_err(|error| {
+                CoreError::Internal(format!("failed to parse message info: {error}"))
+            }),
+            None => Ok(None),
+        }
+    }
+
+    async fn save_message_info(&self, info: &MessageInfo) -> CoreResult<()> {
+        let value = serde_json::to_value(info).map_err(|error| {
+            CoreError::Internal(format!("failed to serialize message info: {error}"))
+        })?;
+        self.workspace
+            .storage
+            .write(&["messages", &self.session_id, &info.id], &value)
+            .await
+    }
+
+    async fn load_message_parts(&self, message_id: &str) -> CoreResult<Vec<MessagePart>> {
+        let storage = self.workspace.storage.clone();
+        let mut part_ids = storage.list(&["part", message_id]).await?;
+        part_ids.sort();
+        let mut parts = Vec::new();
+        for part_id in part_ids {
+            if let Some(value) = storage.read(&["part", message_id, &part_id]).await? {
+                let part: MessagePart = serde_json::from_value(value).map_err(|error| {
+                    CoreError::Internal(format!("failed to parse message part: {error}"))
+                })?;
+                parts.push(part);
+            }
+        }
+        Ok(parts)
+    }
+
+    async fn save_message_part(
+        &self,
+        message_id: &str,
+        part_id: &str,
+        part: &MessagePart,
+    ) -> CoreResult<()> {
+        let value = serde_json::to_value(part).map_err(|error| {
+            CoreError::Internal(format!("failed to serialize message part: {error}"))
+        })?;
+        self.workspace
+            .storage
+            .write(&["part", message_id, part_id], &value)
+            .await
+    }
+}
+
+fn render_message_text(parts: &[MessagePart]) -> String {
+    parts
+        .iter()
+        .filter_map(|part| match part {
+            MessagePart::Text(text) => Some(text.text.as_str()),
+            _ => None,
+        })
+        .collect::<Vec<_>>()
+        .join("")
 }
 
 #[cfg(test)]
@@ -129,8 +244,12 @@ mod tests {
         let dir = tempdir().expect("tempdir");
         let workspace = Arc::new(WorkspaceInstance::new(dir.path()).expect("workspace"));
         let mut session = Session::new(workspace).expect("session");
-        session.record_message("hello").expect("record");
-        let ctx = session.context(None).expect("context");
+        let runtime = tokio::runtime::Runtime::new().expect("runtime");
+        let ctx = runtime
+            .block_on(async {
+                session.record_message("hello").await.expect("record");
+                session.context(None).await.expect("context")
+            });
         assert_eq!(ctx.messages.len(), 1);
         assert_eq!(ctx.messages[0].text, "hello");
     }

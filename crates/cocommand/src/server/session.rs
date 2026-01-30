@@ -36,26 +36,32 @@ pub(crate) async fn record_message(
     let ctx = state
         .sessions
         .with_session_mut(|session| {
-            session.record_message(&payload.text)?;
-            session.context(None)
+            Box::pin(async move {
+                session.record_message(&payload.text).await?;
+                session.context(None).await
+            })
         })
+        .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     let reply = state
         .llm
-        .generate_reply(&ctx)
+        .generate_reply_parts(&ctx)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     let ctx = state
         .sessions
         .with_session_mut(|session| {
-            if session.session_id != ctx.session_id {
-                return Err(crate::error::CoreError::InvalidInput(
-                    "session not found".to_string(),
-                ));
-            }
-            session.record_assistant_message(&reply)?;
-            session.context(None)
+            Box::pin(async move {
+                if session.session_id != ctx.session_id {
+                    return Err(crate::error::CoreError::InvalidInput(
+                        "session not found".to_string(),
+                    ));
+                }
+                session.record_assistant_parts(reply).await?;
+                session.context(None).await
+            })
         })
+        .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     Ok(Json(to_api_context(ctx)))
 }
@@ -67,8 +73,13 @@ pub(crate) async fn session_context(
     let ctx = state
         .sessions
         .with_session_mut(|session| {
-            session.context_with_id(params.session_id.as_deref(), params.limit)
+            Box::pin(async move {
+                session
+                    .context_with_id(params.session_id.as_deref(), params.limit)
+                    .await
+            })
         })
+        .await
         .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
     Ok(Json(to_api_context(ctx)))
 }

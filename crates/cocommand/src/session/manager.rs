@@ -1,4 +1,7 @@
-use std::sync::{Arc, Mutex};
+use std::future::Future;
+use std::pin::Pin;
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
 use crate::error::{CoreError, CoreResult};
 use crate::session::session::Session;
@@ -17,14 +20,14 @@ impl SessionManager {
         }
     }
 
-    pub fn with_session_mut<F, R>(&self, handler: F) -> CoreResult<R>
+    pub async fn with_session_mut<F, R>(&self, handler: F) -> CoreResult<R>
     where
-        F: FnOnce(&mut Session) -> CoreResult<R>,
+        for<'a> F: FnOnce(&'a mut Session) -> Pin<Box<dyn Future<Output = CoreResult<R>> + Send + 'a>>,
     {
         let mut guard = self
             .active
             .lock()
-            .map_err(|_| CoreError::Internal("session manager lock poisoned".to_string()))?;
+            .await;
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap_or_default()
@@ -46,7 +49,7 @@ impl SessionManager {
         let session = guard
             .as_mut()
             .ok_or_else(|| CoreError::Internal("failed to initialize session".to_string()))?;
-        handler(session)
+        handler(session).await
     }
 }
 
@@ -55,33 +58,38 @@ mod tests {
     use super::*;
     use tempfile::tempdir;
 
-    #[test]
-    fn manager_records_messages() {
+    #[tokio::test]
+    async fn manager_records_messages() {
         let dir = tempdir().expect("tempdir");
         let workspace = Arc::new(WorkspaceInstance::new(dir.path()).expect("workspace"));
         let manager = SessionManager::new(workspace);
         let ctx = manager
             .with_session_mut(|session| {
-                session.record_message("hello")?;
-                session.context(None)
+                Box::pin(async move {
+                    session.record_message("hello").await?;
+                    session.context(None).await
+                })
             })
+            .await
             .expect("record");
         assert_eq!(ctx.messages.len(), 1);
         assert_eq!(ctx.messages[0].text, "hello");
     }
 
-    #[test]
-    fn manager_rollover_resets_cache() {
+    #[tokio::test]
+    async fn manager_rollover_resets_cache() {
         let dir = tempdir().expect("tempdir");
         let mut workspace = WorkspaceInstance::new(dir.path()).expect("workspace");
         workspace.config.preferences.session.duration_seconds = 0;
         let workspace = Arc::new(workspace);
         let manager = SessionManager::new(workspace.clone());
         let first = manager
-            .with_session_mut(|session| session.context(None))
+            .with_session_mut(|session| Box::pin(async move { session.context(None).await }))
+            .await
             .expect("context");
         let second = manager
-            .with_session_mut(|session| session.context(None))
+            .with_session_mut(|session| Box::pin(async move { session.context(None).await }))
+            .await
             .expect("context");
         assert_ne!(first.session_id, second.session_id);
     }

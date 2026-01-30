@@ -15,6 +15,15 @@ impl FileStorage {
         Self { root }
     }
 
+    fn build_dir_path(&self, keys: &[&str]) -> CoreResult<PathBuf> {
+        let mut path = self.root.clone();
+        for key in keys {
+            validate_key(key)?;
+            path.push(key);
+        }
+        Ok(path)
+    }
+
     fn build_path(&self, keys: &[&str]) -> CoreResult<PathBuf> {
         if keys.is_empty() {
             return Err(CoreError::InvalidInput("storage keys empty".to_string()));
@@ -82,6 +91,51 @@ impl Storage for FileStorage {
             .map_err(|error| CoreError::Internal(format!("storage parse error: {error}")))?;
         Ok(Some(value))
     }
+
+    async fn list(&self, keys: &[&str]) -> CoreResult<Vec<String>> {
+        let path = self.build_dir_path(keys)?;
+        let mut entries = match tokio::fs::read_dir(&path).await {
+            Ok(entries) => entries,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
+            Err(error) => {
+                return Err(CoreError::Internal(format!(
+                    "failed to list storage directory {}: {error}",
+                    path.display()
+                )))
+            }
+        };
+
+        let mut names = Vec::new();
+        while let Some(entry) = entries
+            .next_entry()
+            .await
+            .map_err(|error| {
+                CoreError::Internal(format!(
+                    "failed to read storage directory {}: {error}",
+                    path.display()
+                ))
+            })?
+        {
+            let file_type = entry.file_type().await.map_err(|error| {
+                CoreError::Internal(format!(
+                    "failed to read storage entry {}: {error}",
+                    entry.path().display()
+                ))
+            })?;
+            if !file_type.is_file() {
+                continue;
+            }
+            if let Some(name) = entry.file_name().to_str() {
+                if let Some(stripped) = name.strip_suffix(".json") {
+                    names.push(stripped.to_string());
+                } else {
+                    names.push(name.to_string());
+                }
+            }
+        }
+
+        Ok(names)
+    }
 }
 
 fn validate_key(key: &str) -> CoreResult<()> {
@@ -129,6 +183,27 @@ mod tests {
             .await
             .expect("read");
         assert!(loaded.is_none());
+    }
+
+    #[tokio::test]
+    async fn list_returns_entries() {
+        let dir = tempdir().expect("tempdir");
+        let storage = FileStorage::new(dir.path().to_path_buf());
+        let value = serde_json::json!({ "ok": true });
+        storage
+            .write(&["messages", "session", "one"], &value)
+            .await
+            .expect("write");
+        storage
+            .write(&["messages", "session", "two"], &value)
+            .await
+            .expect("write");
+        let mut entries = storage
+            .list(&["messages", "session"])
+            .await
+            .expect("list");
+        entries.sort();
+        assert_eq!(entries, vec!["one".to_string(), "two".to_string()]);
     }
 
     #[tokio::test]
