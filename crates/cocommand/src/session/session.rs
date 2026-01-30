@@ -54,10 +54,18 @@ impl Session {
     }
 
     pub fn record_message(&mut self, text: &str) -> CoreResult<()> {
+        self.record_message_with_role("user", text)
+    }
+
+    pub fn record_assistant_message(&mut self, text: &str) -> CoreResult<()> {
+        self.record_message_with_role("assistant", text)
+    }
+
+    fn record_message_with_role(&mut self, role: &str, text: &str) -> CoreResult<()> {
         let message = SessionMessage {
             seq: self.next_seq,
             timestamp: now_rfc3339(),
-            role: "user".to_string(),
+            role: role.to_string(),
             text: text.to_string(),
         };
         self.next_seq = self.next_seq.saturating_add(1);

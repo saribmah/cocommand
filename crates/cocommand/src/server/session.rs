@@ -36,6 +36,14 @@ pub(crate) async fn record_message(
     session
         .record_message(&payload.text)
         .map_err(|e| e.to_string())?;
+    let reply = state
+        .llm
+        .generate_reply(&session)
+        .await
+        .map_err(|e| e.to_string())?;
+    session
+        .record_assistant_message(&reply)
+        .map_err(|e| e.to_string())?;
     let ctx = session.context(None).map_err(|e| e.to_string())?;
     Ok(Json(to_api_context(ctx)))
 }

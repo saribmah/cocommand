@@ -20,6 +20,7 @@ pub struct ApplicationAction {
 #[derive(Clone)]
 pub struct ApplicationContext {
     pub workspace: std::sync::Arc<crate::workspace::WorkspaceInstance>,
+    pub session_id: String,
 }
 
 impl std::fmt::Debug for ApplicationContext {
@@ -27,6 +28,7 @@ impl std::fmt::Debug for ApplicationContext {
         formatter
             .debug_struct("ApplicationContext")
             .field("workspace", &self.workspace)
+            .field("session_id", &self.session_id)
             .finish()
     }
 }

@@ -8,6 +8,7 @@ use tokio::net::TcpListener;
 use tokio::sync::oneshot;
 
 use crate::bus::Bus;
+use crate::llm::LlmService;
 use crate::session::SessionManager;
 use crate::workspace::WorkspaceInstance;
 pub mod events;
@@ -24,12 +25,14 @@ impl Server {
     pub async fn new(workspace_dir: PathBuf) -> Result<Self, String> {
         let workspace = WorkspaceInstance::new(&workspace_dir).map_err(|error| error.to_string())?;
         let workspace_arc = Arc::new(workspace.clone());
-        let sessions = SessionManager::new(workspace_arc);
+        let sessions = SessionManager::new(workspace_arc.clone());
         let bus = Bus::new(512);
+        let llm = LlmService::new(workspace_arc.clone()).map_err(|e| e.to_string())?;
         let state = Arc::new(ServerState {
             workspace,
             sessions,
             bus,
+            llm,
         });
         let cors = CorsLayer::new()
             .allow_origin(Any)
@@ -99,6 +102,7 @@ pub(crate) struct ServerState {
     pub(crate) workspace: WorkspaceInstance,
     pub(crate) sessions: SessionManager,
     pub(crate) bus: Bus,
+    pub(crate) llm: LlmService,
 }
 
 #[cfg(test)]
