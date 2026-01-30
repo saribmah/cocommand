@@ -2,28 +2,10 @@ use llm_kit_core::output::Output;
 use llm_kit_core::stream_text::StreamTextResult;
 
 use crate::error::{CoreError, CoreResult};
-use crate::message::message::{Message, MessageRole};
 use crate::message::parts::{
     FilePart, MessagePart, ReasoningPart, SourcePart, TextPart, ToolCallPart, ToolResultPart,
 };
 use llm_kit_provider::language_model::content::source::LanguageModelSource;
-use crate::message::SessionMessage;
-
-pub fn session_message_to_message(message: &SessionMessage) -> Message {
-    Message {
-        id: message.seq.to_string(),
-        role: match message.role.as_str() {
-            "system" => MessageRole::System,
-            "assistant" => MessageRole::Assistant,
-            "tool" => MessageRole::Tool,
-            _ => MessageRole::User,
-        },
-        timestamp: message.timestamp.clone(),
-        parts: vec![MessagePart::Text(TextPart {
-            text: message.text.clone(),
-        })],
-    }
-}
 
 pub fn outputs_to_parts(outputs: &[Output]) -> Vec<MessagePart> {
     outputs

@@ -3,8 +3,9 @@ use uuid::Uuid;
 
 use crate::error::{CoreError, CoreResult};
 use crate::storage::SharedStorage;
+use crate::utils::time::now_rfc3339;
 
-use crate::message::parts::MessagePart;
+use crate::message::parts::{MessagePart, TextPart};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
@@ -44,17 +45,23 @@ pub struct MessageWithParts {
     pub parts: Vec<MessagePart>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct SessionMessage {
-    pub seq: u64,
-    pub timestamp: String,
-    pub role: String,
-    pub text: String,
-}
-
-const DEFAULT_CONTEXT_LIMIT: usize = 50;
-
 impl Message {
+    pub fn from_text(session_id: &str, role: &str, text: &str) -> MessageWithParts {
+        let timestamp = now_rfc3339();
+        MessageWithParts {
+            info: MessageInfo {
+                id: Uuid::now_v7().to_string(),
+                session_id: session_id.to_string(),
+                role: role.to_string(),
+                created_at: timestamp.clone(),
+                updated_at: timestamp,
+            },
+            parts: vec![MessagePart::Text(TextPart {
+                text: text.to_string(),
+            })],
+        }
+    }
+
     pub async fn load(
         storage: &SharedStorage,
         session_id: &str,
@@ -79,28 +86,6 @@ impl Message {
         }
         Ok(())
     }
-}
-
-pub fn messages_for_prompt(
-    messages: Vec<MessageWithParts>,
-    limit: Option<usize>,
-) -> Vec<SessionMessage> {
-    let cap = limit.unwrap_or(DEFAULT_CONTEXT_LIMIT);
-    let messages = if messages.len() > cap {
-        messages[messages.len() - cap..].to_vec()
-    } else {
-        messages
-    };
-    messages
-        .into_iter()
-        .enumerate()
-        .map(|(index, item)| SessionMessage {
-            seq: (index as u64).saturating_add(1),
-            timestamp: item.info.created_at,
-            role: item.info.role,
-            text: render_message_text(&item.parts),
-        })
-        .collect()
 }
 
 pub fn render_message_text(parts: &[MessagePart]) -> String {

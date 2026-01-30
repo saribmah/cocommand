@@ -5,8 +5,8 @@ use llm_kit_provider::LanguageModel;
 
 use crate::error::{CoreError, CoreResult};
 use crate::llm::provider::{build_model, LlmSettings};
-use crate::llm::tools::session_messages_to_prompt;
-use crate::message::{MessagePart, SessionMessage};
+use crate::llm::tools::messages_to_prompt;
+use crate::message::{MessagePart, MessageWithParts};
 
 pub struct LlmService {
     model: Option<Arc<dyn LanguageModel>>,
@@ -24,24 +24,24 @@ impl LlmService {
 
     pub async fn generate_reply_parts(
         &self,
-        messages: &[SessionMessage],
+        messages: &[MessageWithParts],
         tools: llm_kit_core::tool::ToolSet,
     ) -> CoreResult<Vec<MessagePart>> {
         let model = self.model.as_ref().ok_or_else(|| {
             CoreError::InvalidInput("missing LLM API key".to_string())
         })?;
-        let prompt_messages = session_messages_to_prompt(messages);
+        let prompt_messages = messages_to_prompt(messages);
         log::info!(
             "llm prompt messages count={}",
             prompt_messages.len(),
         );
         for (index, message) in messages.iter().enumerate() {
             log::debug!(
-                "llm prompt message {}: seq={} role={} chars={}",
+                "llm prompt message {}: id={} role={} parts={}",
                 index,
-                message.seq,
-                message.role,
-                message.text.len()
+                message.info.id,
+                message.info.role,
+                message.parts.len()
             );
         }
         let prompt = Prompt::messages(prompt_messages).with_system(self.settings.system_prompt.clone());

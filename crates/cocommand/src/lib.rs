@@ -19,7 +19,7 @@ pub use crate::application::{
 pub use crate::llm::LlmService;
 pub use crate::storage::{SharedStorage, Storage};
 pub use crate::message::{
-    FilePart, Message, MessagePart, MessageRole, ReasoningPart, SessionMessage, SourcePart,
-    TextPart, ToolCallPart, ToolResultPart, outputs_to_parts, session_message_to_message,
+    FilePart, Message, MessagePart, MessageRole, ReasoningPart, SourcePart,
+    TextPart, ToolCallPart, ToolResultPart, outputs_to_parts,
     stream_result_to_parts,
 };

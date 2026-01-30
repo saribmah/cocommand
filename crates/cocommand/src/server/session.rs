@@ -6,7 +6,7 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
-use crate::message::{messages_for_prompt, render_message_text, Message, MessageInfo, MessagePart, MessageWithParts, TextPart};
+use crate::message::{render_message_text, Message, MessageInfo, MessageWithParts};
 use crate::server::ServerState;
 use crate::session::SessionContext;
 use crate::llm::tools::build_tool_set;
@@ -53,26 +53,13 @@ pub(crate) async fn record_message(
         })
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-    let timestamp = now_rfc3339();
-    let user_message = MessageWithParts {
-        info: MessageInfo {
-            id: Uuid::now_v7().to_string(),
-            session_id: session_id.clone(),
-            role: "user".to_string(),
-            created_at: timestamp.clone(),
-            updated_at: timestamp,
-        },
-        parts: vec![MessagePart::Text(TextPart {
-            text: payload.text.clone(),
-        })],
-    };
+    let user_message = Message::from_text(&session_id, "user", &payload.text);
     Message::store(&storage, &user_message)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     let message_history = Message::load(&storage, &session_id)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-    let messages = messages_for_prompt(message_history, None);
     let tools = build_tool_set(
         Arc::new(state.workspace.clone()),
         state.sessions.clone(),
@@ -81,7 +68,7 @@ pub(crate) async fn record_message(
     );
     let reply = state
         .llm
-        .generate_reply_parts(&messages, tools)
+        .generate_reply_parts(&message_history, tools)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     let reply_text = render_message_text(&reply);

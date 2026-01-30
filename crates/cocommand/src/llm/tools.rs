@@ -6,16 +6,18 @@ use llm_kit_provider_utils::tool::{Tool, ToolExecutionOutput};
 use serde_json::json;
 
 use crate::application::{Application, ApplicationContext, ApplicationAction, ApplicationKind};
-use crate::message::SessionMessage;
+use crate::message::{MessageWithParts, render_message_text};
 use crate::session::SessionManager;
 use crate::workspace::WorkspaceInstance;
 
-pub fn session_messages_to_prompt(messages: &[SessionMessage]) -> Vec<Message> {
+pub fn messages_to_prompt(messages: &[MessageWithParts]) -> Vec<Message> {
     messages
         .iter()
-        .filter_map(|message| match message.role.as_str() {
-            "user" => Some(Message::User(UserMessage::new(message.text.clone()))),
-            "assistant" => Some(Message::Assistant(AssistantMessage::new(message.text.clone()))),
+        .filter_map(|message| match message.info.role.as_str() {
+            "user" => Some(Message::User(UserMessage::new(render_message_text(&message.parts)))),
+            "assistant" => {
+                Some(Message::Assistant(AssistantMessage::new(render_message_text(&message.parts))))
+            }
             _ => None,
         })
         .collect()
