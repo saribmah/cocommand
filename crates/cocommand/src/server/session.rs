@@ -33,23 +33,29 @@ pub(crate) async fn record_message(
     State(state): State<Arc<ServerState>>,
     Json(payload): Json<RecordMessageRequest>,
 ) -> Result<Json<ApiSessionContext>, (StatusCode, String)> {
-    let mut session = state
+    let ctx = state
         .sessions
-        .session()
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-    session
-        .record_message(&payload.text)
+        .with_session_mut(|session| {
+            session.record_message(&payload.text)?;
+            session.context(None)
+        })
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     let reply = state
         .llm
-        .generate_reply(&session)
+        .generate_reply(&ctx)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-    session
-        .record_assistant_message(&reply)
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-    let ctx = session
-        .context(None)
+    let ctx = state
+        .sessions
+        .with_session_mut(|session| {
+            if session.session_id != ctx.session_id {
+                return Err(crate::error::CoreError::InvalidInput(
+                    "session not found".to_string(),
+                ));
+            }
+            session.record_assistant_message(&reply)?;
+            session.context(None)
+        })
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     Ok(Json(to_api_context(ctx)))
 }
@@ -58,12 +64,11 @@ pub(crate) async fn session_context(
     State(state): State<Arc<ServerState>>,
     Query(params): Query<SessionContextQuery>,
 ) -> Result<Json<ApiSessionContext>, (StatusCode, String)> {
-    let session = state
+    let ctx = state
         .sessions
-        .session()
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-    let ctx = session
-        .context_with_id(params.session_id.as_deref(), params.limit)
+        .with_session_mut(|session| {
+            session.context_with_id(params.session_id.as_deref(), params.limit)
+        })
         .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
     Ok(Json(to_api_context(ctx)))
 }

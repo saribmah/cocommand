@@ -17,11 +17,10 @@ impl SessionManager {
         }
     }
 
-    pub fn session(&self) -> CoreResult<Session> {
-        self.ensure_session()
-    }
-
-    fn ensure_session(&self) -> CoreResult<Session> {
+    pub fn with_session_mut<F, R>(&self, handler: F) -> CoreResult<R>
+    where
+        F: FnOnce(&mut Session) -> CoreResult<R>,
+    {
         let mut guard = self
             .active
             .lock()
@@ -44,11 +43,10 @@ impl SessionManager {
             let session = Session::new(self.workspace.clone())?;
             *guard = Some(session);
         }
-
-        guard
-            .as_ref()
-            .cloned()
-            .ok_or_else(|| CoreError::Internal("failed to initialize session".to_string()))
+        let session = guard
+            .as_mut()
+            .ok_or_else(|| CoreError::Internal("failed to initialize session".to_string()))?;
+        handler(session)
     }
 }
 
@@ -62,9 +60,12 @@ mod tests {
         let dir = tempdir().expect("tempdir");
         let workspace = Arc::new(WorkspaceInstance::new(dir.path()).expect("workspace"));
         let manager = SessionManager::new(workspace);
-        let mut session = manager.session().expect("session");
-        session.record_message("hello").expect("record");
-        let ctx = session.context(None).expect("context");
+        let ctx = manager
+            .with_session_mut(|session| {
+                session.record_message("hello")?;
+                session.context(None)
+            })
+            .expect("record");
         assert_eq!(ctx.messages.len(), 1);
         assert_eq!(ctx.messages[0].text, "hello");
     }
@@ -76,8 +77,12 @@ mod tests {
         workspace.config.preferences.session.duration_seconds = 0;
         let workspace = Arc::new(workspace);
         let manager = SessionManager::new(workspace.clone());
-        let first = manager.session().expect("session").context(None).expect("context");
-        let second = manager.session().expect("session").context(None).expect("context");
+        let first = manager
+            .with_session_mut(|session| session.context(None))
+            .expect("context");
+        let second = manager
+            .with_session_mut(|session| session.context(None))
+            .expect("context");
         assert_ne!(first.session_id, second.session_id);
     }
 }

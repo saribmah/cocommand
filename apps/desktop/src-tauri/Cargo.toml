@@ -26,6 +26,7 @@ serde = { version = "1", features = ["derive"] }
 dotenvy = "0.15"
 tokio = { version = "1", features = ["time"] }
 serde_json = "1"
+env_logger = "0.11"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal"] }

@@ -10,6 +10,10 @@ mod workspace_path;
 pub fn run() {
     // Load .env file from the crate root directory
     let _ = dotenvy::from_path(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(".env"));
+    let _ = env_logger::Builder::from_env(
+        env_logger::Env::default().default_filter_or("info"),
+    )
+    .try_init();
 
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
