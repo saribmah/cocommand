@@ -37,7 +37,8 @@ pub fn build_tool_set(
     for app in registry.list() {
         let app_id = app.id().to_string();
         for action in app.actions() {
-            let tool_name = format!("{}.{}", app_id, action.id);
+            let raw_name = format!("{}.{}", app_id, action.id);
+            let tool_name = sanitize_tool_name(&raw_name);
             let tool = build_tool(app.clone(), action, context.clone());
             tool_set.insert(tool_name, tool);
         }
@@ -74,4 +75,16 @@ fn build_tool(
         tool = tool.with_description(description);
     }
     tool
+}
+
+fn sanitize_tool_name(name: &str) -> String {
+    let mut sanitized = String::with_capacity(name.len());
+    for ch in name.chars() {
+        if ch.is_ascii_alphanumeric() || ch == '-' || ch == '_' {
+            sanitized.push(ch);
+        } else {
+            sanitized.push('_');
+        }
+    }
+    sanitized
 }

@@ -1,5 +1,6 @@
 use axum::{
     extract::{Query, State},
+    http::StatusCode,
     Json,
 };
 use serde::{Deserialize, Serialize};
@@ -31,31 +32,39 @@ pub struct ApiSessionContext {
 pub(crate) async fn record_message(
     State(state): State<Arc<ServerState>>,
     Json(payload): Json<RecordMessageRequest>,
-) -> Result<Json<ApiSessionContext>, String> {
-    let mut session = state.sessions.session().map_err(|e| e.to_string())?;
+) -> Result<Json<ApiSessionContext>, (StatusCode, String)> {
+    let mut session = state
+        .sessions
+        .session()
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     session
         .record_message(&payload.text)
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     let reply = state
         .llm
         .generate_reply(&session)
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     session
         .record_assistant_message(&reply)
-        .map_err(|e| e.to_string())?;
-    let ctx = session.context(None).map_err(|e| e.to_string())?;
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let ctx = session
+        .context(None)
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     Ok(Json(to_api_context(ctx)))
 }
 
 pub(crate) async fn session_context(
     State(state): State<Arc<ServerState>>,
     Query(params): Query<SessionContextQuery>,
-) -> Result<Json<ApiSessionContext>, String> {
-    let session = state.sessions.session().map_err(|e| e.to_string())?;
+) -> Result<Json<ApiSessionContext>, (StatusCode, String)> {
+    let session = state
+        .sessions
+        .session()
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     let ctx = session
         .context_with_id(params.session_id.as_deref(), params.limit)
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
     Ok(Json(to_api_context(ctx)))
 }
 

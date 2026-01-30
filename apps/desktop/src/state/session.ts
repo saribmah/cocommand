@@ -31,7 +31,8 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       body: JSON.stringify({ text }),
     });
     if (!response.ok) {
-      throw new Error(`Server error (${response.status})`);
+      const errorText = await response.text();
+      throw new Error(errorText || `Server error (${response.status})`);
     }
     const data = (await response.json()) as SessionContext;
     set({ context: data });
