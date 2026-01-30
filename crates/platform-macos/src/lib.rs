@@ -36,6 +36,49 @@ pub fn open_app_by_bundle_id(_bundle_id: &str) -> Result<(), String> {
     Err("platform-macos not implemented".to_string())
 }
 
+pub fn run_applescript(script: &str) -> Result<String, String> {
+    let output = std::process::Command::new("osascript")
+        .arg("-e")
+        .arg(script)
+        .output()
+        .map_err(|error| format!("failed to execute osascript: {error}"))?;
+    if output.status.success() {
+        Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+    } else {
+        Err(String::from_utf8_lossy(&output.stderr).trim().to_string())
+    }
+}
+
+pub fn installed_app_actions() -> Vec<(String, String, Option<String>, serde_json::Value)> {
+    vec![(
+        "applescript".to_string(),
+        "AppleScript".to_string(),
+        Some("Run AppleScript against this application".to_string()),
+        serde_json::json!({
+            "type": "object",
+            "properties": { "script": { "type": "string" } },
+            "required": ["script"]
+        }),
+    )]
+}
+
+pub fn execute_installed_app_action(
+    action_id: &str,
+    input: &serde_json::Value,
+) -> Result<serde_json::Value, String> {
+    match action_id {
+        "applescript" => {
+            let script = input
+                .get("script")
+                .and_then(|value| value.as_str())
+                .ok_or_else(|| "missing applescript input".to_string())?;
+            let output = run_applescript(script)?;
+            Ok(serde_json::json!({ "output": output }))
+        }
+        _ => Err(format!("unsupported installed app action {action_id}")),
+    }
+}
+
 fn app_directories() -> Vec<std::path::PathBuf> {
     let mut dirs = vec![
         std::path::PathBuf::from("/Applications"),

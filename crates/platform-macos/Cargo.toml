@@ -5,3 +5,4 @@ edition = "2021"
 
 [dependencies]
 plist = "1"
+serde_json = "1"

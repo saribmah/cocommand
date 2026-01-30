@@ -1,4 +1,6 @@
 use crate::application::{Application, ApplicationAction, ApplicationKind};
+use crate::error::CoreError;
+use serde_json::json;
 
 #[derive(Debug, Default)]
 pub struct NoteApplication;
@@ -9,6 +11,7 @@ impl NoteApplication {
     }
 }
 
+#[async_trait::async_trait]
 impl Application for NoteApplication {
     fn id(&self) -> &str {
         "notes"
@@ -32,12 +35,37 @@ impl Application for NoteApplication {
                 id: "create-note".to_string(),
                 name: "Create Note".to_string(),
                 description: Some("Create a new note".to_string()),
+                input_schema: json!({
+                    "type": "object",
+                    "properties": {
+                        "title": { "type": "string" },
+                        "content": { "type": "string" }
+                    },
+                    "required": ["content"],
+                }),
             },
             ApplicationAction {
                 id: "list-notes".to_string(),
                 name: "List Notes".to_string(),
                 description: Some("Show recent notes".to_string()),
+                input_schema: json!({
+                    "type": "object",
+                    "properties": {
+                        "limit": { "type": "integer", "minimum": 1 }
+                    }
+                }),
             },
         ]
+    }
+
+    async fn execute(
+        &self,
+        action_id: &str,
+        _input: serde_json::Value,
+        _context: &crate::application::ApplicationContext,
+    ) -> crate::error::CoreResult<serde_json::Value> {
+        Err(CoreError::Internal(format!(
+            "notes action {action_id} not implemented"
+        )))
     }
 }

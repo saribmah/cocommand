@@ -1,4 +1,5 @@
 use crate::application::{Application, ApplicationAction, ApplicationKind};
+use crate::error::CoreError;
 
 #[derive(Debug, Clone)]
 pub struct InstalledApplication {
@@ -27,6 +28,7 @@ impl InstalledApplication {
     }
 }
 
+#[async_trait::async_trait]
 impl Application for InstalledApplication {
     fn id(&self) -> &str {
         &self.id
@@ -45,6 +47,40 @@ impl Application for InstalledApplication {
     }
 
     fn actions(&self) -> Vec<ApplicationAction> {
-        Vec::new()
+        #[cfg(target_os = "macos")]
+        {
+            return cocommand_platform_macos::installed_app_actions()
+                .into_iter()
+                .map(|(id, name, description, input_schema)| ApplicationAction {
+                    id,
+                    name,
+                    description,
+                    input_schema,
+                })
+                .collect();
+        }
+        #[cfg(not(target_os = "macos"))]
+        {
+            Vec::new()
+        }
+    }
+
+    async fn execute(
+        &self,
+        action_id: &str,
+        input: serde_json::Value,
+        _context: &crate::application::ApplicationContext,
+    ) -> crate::error::CoreResult<serde_json::Value> {
+        #[cfg(target_os = "macos")]
+        {
+            return cocommand_platform_macos::execute_installed_app_action(action_id, &input)
+                .map_err(CoreError::Internal);
+        }
+        #[cfg(not(target_os = "macos"))]
+        {
+            Err(CoreError::Internal(
+                "applescript execution only supported on macos".to_string(),
+            ))
+        }
     }
 }

@@ -20,6 +20,7 @@ pub struct ApplicationActionInfo {
     pub id: String,
     pub name: String,
     pub description: Option<String>,
+    pub input_schema: serde_json::Value,
 }
 
 pub(crate) async fn list_applications(
@@ -57,6 +58,7 @@ fn map_action(action: ApplicationAction) -> ApplicationActionInfo {
         id: action.id,
         name: action.name,
         description: action.description,
+        input_schema: action.input_schema,
     }
 }
 
