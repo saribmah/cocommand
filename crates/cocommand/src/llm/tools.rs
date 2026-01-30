@@ -1,27 +1,13 @@
 use std::sync::Arc;
 
 use llm_kit_core::tool::ToolSet;
-use llm_kit_provider_utils::message::{AssistantMessage, Message, UserMessage};
 use llm_kit_provider_utils::tool::{Tool, ToolExecutionOutput};
 use serde_json::json;
 
 use crate::application::{Application, ApplicationContext, ApplicationAction, ApplicationKind};
-use crate::message::{MessageWithParts, render_message_text};
 use crate::session::SessionManager;
 use crate::workspace::WorkspaceInstance;
 
-pub fn messages_to_prompt(messages: &[MessageWithParts]) -> Vec<Message> {
-    messages
-        .iter()
-        .filter_map(|message| match message.info.role.as_str() {
-            "user" => Some(Message::User(UserMessage::new(render_message_text(&message.parts)))),
-            "assistant" => {
-                Some(Message::Assistant(AssistantMessage::new(render_message_text(&message.parts))))
-            }
-            _ => None,
-        })
-        .collect()
-}
 
 pub fn build_tool_set(
     workspace: Arc<WorkspaceInstance>,

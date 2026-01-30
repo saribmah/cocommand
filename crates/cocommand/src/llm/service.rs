@@ -5,8 +5,7 @@ use llm_kit_provider::LanguageModel;
 
 use crate::error::{CoreError, CoreResult};
 use crate::llm::provider::{build_model, LlmSettings};
-use crate::llm::tools::messages_to_prompt;
-use crate::message::{MessagePart, MessageWithParts};
+use crate::message::MessagePart;
 
 pub struct LlmService {
     model: Option<Arc<dyn LanguageModel>>,
@@ -24,27 +23,18 @@ impl LlmService {
 
     pub async fn generate_reply_parts(
         &self,
-        messages: &[MessageWithParts],
+        messages: &[llm_kit_provider_utils::message::Message],
         tools: llm_kit_core::tool::ToolSet,
     ) -> CoreResult<Vec<MessagePart>> {
         let model = self.model.as_ref().ok_or_else(|| {
             CoreError::InvalidInput("missing LLM API key".to_string())
         })?;
-        let prompt_messages = messages_to_prompt(messages);
         log::info!(
             "llm prompt messages count={}",
-            prompt_messages.len(),
+            messages.len(),
         );
-        for (index, message) in messages.iter().enumerate() {
-            log::debug!(
-                "llm prompt message {}: id={} role={} parts={}",
-                index,
-                message.info.id,
-                message.info.role,
-                message.parts.len()
-            );
-        }
-        let prompt = Prompt::messages(prompt_messages).with_system(self.settings.system_prompt.clone());
+        let prompt =
+            Prompt::messages(messages.to_vec()).with_system(self.settings.system_prompt.clone());
         let result = StreamText::new(model.clone(), prompt)
             .temperature(self.settings.temperature)
             .max_output_tokens(self.settings.max_output_tokens)

@@ -6,6 +6,7 @@ use crate::storage::SharedStorage;
 use crate::utils::time::now_rfc3339;
 
 use crate::message::parts::{MessagePart, TextPart};
+use llm_kit_provider_utils::message::{AssistantMessage, Message as LlmMessage, UserMessage};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
@@ -59,6 +60,15 @@ impl Message {
             parts: vec![MessagePart::Text(TextPart {
                 text: text.to_string(),
             })],
+        }
+    }
+
+    pub fn to_prompt(role: &str, parts: &[MessagePart]) -> Option<LlmMessage> {
+        let text = render_message_text(parts);
+        match role {
+            "user" => Some(LlmMessage::User(UserMessage::new(text))),
+            "assistant" => Some(LlmMessage::Assistant(AssistantMessage::new(text))),
+            _ => None,
         }
     }
 

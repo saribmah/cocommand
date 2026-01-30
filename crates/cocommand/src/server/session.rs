@@ -60,6 +60,10 @@ pub(crate) async fn record_message(
     let message_history = Message::load(&storage, &session_id)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let prompt_messages: Vec<llm_kit_provider_utils::message::Message> = message_history
+        .iter()
+        .filter_map(|message| Message::to_prompt(&message.info.role, &message.parts))
+        .collect();
     let tools = build_tool_set(
         Arc::new(state.workspace.clone()),
         state.sessions.clone(),
@@ -68,7 +72,7 @@ pub(crate) async fn record_message(
     );
     let reply = state
         .llm
-        .generate_reply_parts(&message_history, tools)
+        .generate_reply_parts(&prompt_messages, tools)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     let reply_text = render_message_text(&reply);
