@@ -277,6 +277,16 @@
   font-size: 12px;
 }
 
+.settings-toast {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(51, 194, 125, 0.12);
+  border: 1px solid rgba(51, 194, 125, 0.4);
+  color: #a6f1c7;
+  font-size: 12px;
+  font-weight: 600;
+}
+
 .settings-pill {
   display: inline-flex;
   align-items: center;

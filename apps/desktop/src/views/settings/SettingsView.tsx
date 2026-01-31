@@ -23,6 +23,7 @@ export function SettingsView() {
     api_key: "",
   });
   const [aiSaving, setAiSaving] = useState(false);
+  const [aiToast, setAiToast] = useState<null | "success" | "error">(null);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -61,6 +62,7 @@ export function SettingsView() {
 
   const saveAiSettings = async () => {
     setAiSaving(true);
+    setAiToast(null);
     try {
       await updateAiSettings({
         provider: aiForm.provider,
@@ -73,10 +75,17 @@ export function SettingsView() {
         api_key: aiForm.api_key.trim().length ? aiForm.api_key.trim() : undefined,
       });
       setAiForm((prev) => ({ ...prev, api_key: "" }));
+      setAiToast("success");
     } finally {
       setAiSaving(false);
     }
   };
+
+  useEffect(() => {
+    if (!aiToast) return;
+    const timer = window.setTimeout(() => setAiToast(null), 2500);
+    return () => window.clearTimeout(timer);
+  }, [aiToast]);
 
   return (
     <main className="settings-shell">
@@ -287,6 +296,9 @@ export function SettingsView() {
             </div>
             {serverInfo && aiError && (
               <div className="settings-error">{aiError}</div>
+            )}
+            {aiToast === "success" && (
+              <div className="settings-toast">Settings saved</div>
             )}
             <div className="settings-actions">
               <button
