@@ -104,14 +104,22 @@ export function CommandBar() {
     cancelPending,
     reset,
   } = useCommandBar();
-  const serverInfo = useServerStore((state) => state.getInfo());
+  const serverInfo = useServerStore((state) => state.info);
   const applications = useApplicationStore((state) => state.applications);
+  const applicationsLoaded = useApplicationStore((state) => state.isLoaded);
   const fetchApplications = useApplicationStore((state) => state.fetchApplications);
   const openApplication = useApplicationStore((state) => state.openApplication);
 
   useEffect(() => {
+    if (!serverInfo) return;
     fetchApplications();
-  }, [fetchApplications]);
+  }, [serverInfo, fetchApplications]);
+
+  useEffect(() => {
+    if (!mentionState) return;
+    if (applicationsLoaded) return;
+    fetchApplications();
+  }, [mentionState, applicationsLoaded, fetchApplications]);
 
   useEffect(() => {
     inputRef.current?.focus();
