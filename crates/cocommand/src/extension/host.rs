@@ -68,7 +68,8 @@ pub struct ExtensionHost {
 
 impl ExtensionHost {
     pub async fn start(extension_host_path: &Path) -> CoreResult<Self> {
-        let mut cmd = tokio::process::Command::new("deno");
+        let deno_path = resolve_deno_binary()?;
+        let mut cmd = tokio::process::Command::new(deno_path);
         cmd.arg("run")
             .arg("--no-check")
             .arg("--allow-read")
@@ -227,4 +228,37 @@ pub fn extension_host_entrypoint() -> CoreResult<PathBuf> {
         .and_then(|path| path.parent())
         .ok_or_else(|| CoreError::Internal("failed to resolve repo root".to_string()))?;
     Ok(repo_root.join("apps/extension-host/main.ts"))
+}
+
+fn resolve_deno_binary() -> CoreResult<PathBuf> {
+    if let Ok(path) = std::env::var("COCOMMAND_DENO_PATH") {
+        return Ok(PathBuf::from(path));
+    }
+
+    if let Ok(exe) = std::env::current_exe() {
+        // macOS app bundle: Cocommand.app/Contents/MacOS/<binary>
+        if let Some(contents_dir) = exe.parent().and_then(|p| p.parent()) {
+            if contents_dir.ends_with("Contents") {
+                let bundled = contents_dir.join("Resources").join("deno");
+                if bundled.exists() {
+                    return Ok(bundled);
+                }
+            }
+        }
+
+        // dev fallback: apps/desktop/src-tauri/resources/deno
+        if let Some(repo_root) = exe.parent().and_then(|p| p.parent()) {
+            let dev_bundled = repo_root
+                .join("apps")
+                .join("desktop")
+                .join("src-tauri")
+                .join("resources")
+                .join("deno");
+            if dev_bundled.exists() {
+                return Ok(dev_bundled);
+            }
+        }
+    }
+
+    Ok(PathBuf::from("deno"))
 }
