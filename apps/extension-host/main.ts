@@ -13,7 +13,9 @@ import {
   ErrorCodes,
   successResponse,
   errorResponse,
+// @ts-ignore
 } from "./protocol.ts";
+// @ts-ignore
 import { type LoadedExtension, type ToolHandler, loadExtension } from "./loader.ts";
 
 /** Currently loaded extension (one per host process). */
@@ -69,6 +71,7 @@ async function handleInvokeTool(id: number, params: InvokeToolParams): Promise<v
 function respond(response: unknown): void {
   const encoder = new TextEncoder();
   const line = JSON.stringify(response) + "\n";
+// @ts-ignore
   Deno.stdout.writeSync(encoder.encode(line));
 }
 
@@ -83,6 +86,7 @@ async function dispatch(request: RpcRequest): Promise<void> {
       break;
     case "shutdown":
       respond(successResponse(request.id, null));
+// @ts-ignore
       Deno.exit(0);
       break;
     default:
@@ -95,6 +99,7 @@ async function dispatch(request: RpcRequest): Promise<void> {
 /** Main loop: read lines from stdin and dispatch requests. */
 async function main(): Promise<void> {
   const decoder = new TextDecoder();
+// @ts-ignore
   const reader = Deno.stdin.readable.getReader();
   let buffer = "";
 

@@ -39,6 +39,7 @@ export interface LoadedExtension {
 /** Read and parse the extension manifest from the given directory. */
 export async function readManifest(extensionDir: string): Promise<ExtensionManifest> {
   const manifestPath = `${extensionDir}/manifest.json`;
+    // @ts-ignore
   const content = await Deno.readTextFile(manifestPath);
   return JSON.parse(content) as ExtensionManifest;
 }

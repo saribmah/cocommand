@@ -10,7 +10,9 @@ export default defineConfig({
 		starlight({
 			title: 'Cocommand Docs',
 			logo: {
+                // @ts-ignore
 				light: logoLight,
+                // @ts-ignore
 				dark: logoDark,
 				alt: 'Cocommand',
 				replacesTitle: true,
