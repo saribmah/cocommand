@@ -36,10 +36,15 @@ pub async fn load_extension_applications(
             continue;
         }
         let manifest = read_manifest(&manifest_path)?;
-        let host = ExtensionHost::start(&host_path).await?;
-        let available = host.initialize(&path, &manifest.id).await?.tools;
-        let tools = tools_from_manifest(manifest.tools.clone(), &available);
-        let app = ExtensionApplication::new(manifest, tools, Arc::new(host));
+        let host = match ExtensionHost::start(&host_path).await {
+            Ok(host) => host,
+            Err(error) => {
+                log::warn!("extension host start failed for {}: {}", manifest.id, error);
+                continue;
+            }
+        };
+        let tools = tools_from_manifest(manifest.tools.clone(), None);
+        let app = ExtensionApplication::new(manifest, tools, Arc::new(host), path);
         applications.push(Arc::new(app));
     }
 

@@ -1,0 +1,18 @@
+{
+  "id": "hello",
+  "name": "Hello Extension",
+  "description": "A minimal example extension.",
+  "entrypoint": "index.ts",
+  "tools": [
+    {
+      "id": "greeting",
+      "risk_level": "low",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" }
+        }
+      }
+    }
+  ]
+}

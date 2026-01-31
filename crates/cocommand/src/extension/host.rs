@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::process::{Child, ChildStdin};
 use tokio::sync::{Mutex, oneshot};
+use tokio::time::{timeout, Duration};
 
 use crate::error::{CoreError, CoreResult};
 
@@ -21,8 +22,18 @@ struct RpcRequest {
 #[derive(Debug, Deserialize)]
 #[serde(untagged)]
 enum RpcResponse {
-    Success { _jsonrpc: String, id: u64, result: serde_json::Value },
-    Error { _jsonrpc: String, id: u64, error: RpcError },
+    Success {
+        #[serde(rename = "jsonrpc")]
+        _jsonrpc: String,
+        id: u64,
+        result: serde_json::Value,
+    },
+    Error {
+        #[serde(rename = "jsonrpc")]
+        _jsonrpc: String,
+        id: u64,
+        error: RpcError,
+    },
 }
 
 #[derive(Debug, Deserialize)]
@@ -59,12 +70,14 @@ impl ExtensionHost {
     pub async fn start(extension_host_path: &Path) -> CoreResult<Self> {
         let mut cmd = tokio::process::Command::new("deno");
         cmd.arg("run")
+            .arg("--no-check")
             .arg("--allow-read")
             .arg("--allow-env")
+            .arg("--quiet")
             .arg(extension_host_path)
             .stdin(std::process::Stdio::piped())
             .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::inherit());
+            .stderr(std::process::Stdio::piped());
 
         let mut child = cmd.spawn().map_err(|error| {
             CoreError::Internal(format!("failed to spawn extension host: {error}"))
@@ -75,6 +88,9 @@ impl ExtensionHost {
         })?;
         let stdout = child.stdout.take().ok_or_else(|| {
             CoreError::Internal("extension host stdout unavailable".to_string())
+        })?;
+        let stderr = child.stderr.take().ok_or_else(|| {
+            CoreError::Internal("extension host stderr unavailable".to_string())
         })?;
 
         let pending: Arc<Mutex<HashMap<u64, oneshot::Sender<RpcResponse>>>> =
@@ -88,15 +104,30 @@ impl ExtensionHost {
                     continue;
                 }
                 let response: Result<RpcResponse, _> = serde_json::from_str(&line);
-                if let Ok(response) = response {
-                    let id = match &response {
-                        RpcResponse::Success { id, .. } => *id,
-                        RpcResponse::Error { id, .. } => *id,
-                    };
-                    if let Some(tx) = pending_clone.lock().await.remove(&id) {
-                        let _ = tx.send(response);
+                match response {
+                    Ok(response) => {
+                        let id = match &response {
+                            RpcResponse::Success { id, .. } => *id,
+                            RpcResponse::Error { id, .. } => *id,
+                        };
+                        if let Some(tx) = pending_clone.lock().await.remove(&id) {
+                            let _ = tx.send(response);
+                        }
+                    }
+                    Err(error) => {
+                        log::warn!("extension-host stdout parse error: {} line={}", error, line);
                     }
                 }
+            }
+        });
+
+        tokio::spawn(async move {
+            let mut reader = BufReader::new(stderr).lines();
+            while let Ok(Some(line)) = reader.next_line().await {
+                if line.trim().is_empty() {
+                    continue;
+                }
+                log::warn!("extension-host stderr: {}", line);
             }
         });
 
@@ -154,6 +185,7 @@ impl ExtensionHost {
         let payload = serde_json::to_string(&request).map_err(|error| {
             CoreError::Internal(format!("failed to serialize rpc request: {error}"))
         })?;
+        let _ = method;
 
         let (tx, rx) = oneshot::channel();
         self.pending.lock().await.insert(id, tx);
@@ -167,12 +199,19 @@ impl ExtensionHost {
             .write_all(b"\n")
             .await
             .map_err(|error| CoreError::Internal(format!("failed to write rpc request: {error}")))?;
-
-        let response = rx
+        stdin
+            .flush()
             .await
+            .map_err(|error| CoreError::Internal(format!("failed to flush rpc request: {error}")))?;
+
+        let response = timeout(Duration::from_secs(10), rx)
+            .await
+            .map_err(|_| CoreError::Internal(format!("rpc timeout for method {}", method)))?
             .map_err(|_| CoreError::Internal("rpc response dropped".to_string()))?;
         match response {
-            RpcResponse::Success { result, .. } => Ok(result),
+            RpcResponse::Success { result, .. } => {
+                Ok(result)
+            }
             RpcResponse::Error { error, .. } => Err(CoreError::Internal(format!(
                 "extension host error {}: {}",
                 error.code, error.message

@@ -22,23 +22,28 @@ pub fn build_activate_application_tool(
                 .and_then(|value| value.as_str())
                 .ok_or_else(|| json!({ "error": "missing id" }))?
                 .to_string();
-            let exists = {
+            let app = {
                 let registry = workspace.application_registry.read().await;
-                registry.get(&app_id).is_some()
-            };
-            if !exists {
-                return Err(json!({ "error": "application not found" }));
+                registry.get(&app_id)
             }
+            .ok_or_else(|| json!({ "error": "application not found" }))?;
             sessions
                 .with_session_mut(|session| {
                     let app_id = app_id.clone();
                     let session_id = session_id.clone();
+                    let app = app.clone();
+                    let workspace = workspace.clone();
                     Box::pin(async move {
                         if session.session_id != session_id {
                             return Err(crate::error::CoreError::InvalidInput(
                                 "session not found".to_string(),
                             ));
                         }
+                        let context = crate::application::ApplicationContext {
+                            workspace,
+                            session_id: session_id.clone(),
+                        };
+                        app.initialize(&context).await?;
                         session.activate_application(&app_id);
                         Ok(())
                     })

@@ -40,6 +40,9 @@ pub trait Application: Send + Sync {
     fn kind(&self) -> ApplicationKind;
     fn tags(&self) -> Vec<String>;
     fn tools(&self) -> Vec<ApplicationTool>;
+    async fn initialize(&self, _context: &ApplicationContext) -> crate::error::CoreResult<()> {
+        Ok(())
+    }
     async fn execute(
         &self,
         tool_id: &str,
