@@ -5,10 +5,18 @@ import { useApplicationStore } from "../state/applications";
 import { ResultCard } from "./ResultCard";
 import { ConfirmPanel } from "./ConfirmPanel";
 import { ApplicationPicker } from "./ApplicationPicker";
+import { SlashCommandPicker } from "./SlashCommandPicker";
 import "../styles/commandbar.css";
 
 function getMentionState(text: string): { query: string; start: number } | null {
   const match = /(^|\s)@([^\s@]*)$/.exec(text);
+  if (!match) return null;
+  const start = match.index + match[1].length;
+  return { query: match[2], start };
+}
+
+function getSlashState(text: string): { query: string; start: number } | null {
+  const match = /(^|\s)\/([^\s/]*)$/.exec(text);
   if (!match) return null;
   const start = match.index + match[1].length;
   return { query: match[2], start };
@@ -20,6 +28,14 @@ function applyMention(
   name: string
 ): string {
   return `${text.slice(0, mention.start)}@${name} `;
+}
+
+function applySlashCommand(
+  text: string,
+  slash: { start: number },
+  id: string
+): string {
+  return `${text.slice(0, slash.start)}/${id} `;
 }
 
 function resolveMentions(
@@ -89,6 +105,7 @@ function matchScore(query: string, name: string, id: string, kind: string): numb
 export function CommandBar() {
   const inputRef = useRef<HTMLInputElement>(null);
   const [mentionIndex, setMentionIndex] = useState(0);
+  const [slashIndex, setSlashIndex] = useState(0);
   const {
     input,
     isSubmitting,
@@ -110,6 +127,15 @@ export function CommandBar() {
   const fetchApplications = useApplicationStore((state) => state.fetchApplications);
   const openApplication = useApplicationStore((state) => state.openApplication);
 
+  const mentionState = useMemo(() => getMentionState(input), [input]);
+  const slashState = useMemo(() => getSlashState(input), [input]);
+  const slashCommands = useMemo(
+    () => [
+      { id: "settings", name: "Settings", description: "Open the settings window" },
+    ],
+    []
+  );
+
   useEffect(() => {
     if (!serverInfo) return;
     fetchApplications();
@@ -125,7 +151,6 @@ export function CommandBar() {
     inputRef.current?.focus();
   }, [results]);
 
-  const mentionState = useMemo(() => getMentionState(input), [input]);
   useEffect(() => {
     if (mentionState) {
       console.log("[mentions] state", mentionState);
@@ -155,6 +180,25 @@ export function CommandBar() {
     }
   }, [mentionState?.query, mentionState?.start]);
 
+  useEffect(() => {
+    if (slashState) {
+      setSlashIndex(0);
+    }
+  }, [slashState?.query, slashState?.start]);
+
+  const filteredSlashCommands = useMemo(() => {
+    if (!slashState) return [];
+    const query = normalizeQuery(slashState.query);
+    const ranked = slashCommands
+      .map((command) => ({
+        command,
+        score: matchScore(query, command.name, command.id, command.description),
+      }))
+      .filter((entry) => (query.length === 0 ? true : entry.score >= 0))
+      .sort((a, b) => b.score - a.score);
+    return ranked.slice(0, 6).map((entry) => entry.command);
+  }, [slashCommands, slashState]);
+
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (mentionState && filteredApplications.length > 0) {
       if (e.key === "ArrowDown") {
@@ -177,6 +221,31 @@ export function CommandBar() {
           setInput(nextValue);
         }
         return;
+      }
+    }
+
+    if (!mentionState && slashState && filteredSlashCommands.length > 0) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setSlashIndex((idx) => (idx + 1) % filteredSlashCommands.length);
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setSlashIndex((idx) =>
+          idx <= 0 ? filteredSlashCommands.length - 1 : idx - 1
+        );
+        return;
+      }
+      if (e.key === "Enter") {
+        const selected = filteredSlashCommands[slashIndex];
+        const trimmed = input.trim();
+        if (selected && trimmed !== `/${selected.id}`) {
+          e.preventDefault();
+          const nextValue = applySlashCommand(input, slashState, selected.id);
+          setInput(nextValue);
+          return;
+        }
       }
     }
 
@@ -244,6 +313,16 @@ export function CommandBar() {
           selectedIndex={mentionIndex}
           onSelect={(app) => {
             const nextValue = applyMention(input, mentionState, app.name);
+            setInput(nextValue);
+          }}
+        />
+      )}
+      {!mentionState && slashState && (
+        <SlashCommandPicker
+          commands={filteredSlashCommands}
+          selectedIndex={slashIndex}
+          onSelect={(command) => {
+            const nextValue = applySlashCommand(input, slashState, command.id);
             setInput(nextValue);
           }}
         />
