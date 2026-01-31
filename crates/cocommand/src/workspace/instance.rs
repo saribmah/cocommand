@@ -8,6 +8,7 @@ use crate::application::registry::ApplicationRegistry;
 use crate::application::Application;
 use crate::application::installed::InstalledApplication;
 use crate::error::{CoreError, CoreResult};
+use crate::extension::loader::load_extension_applications;
 use crate::storage::file::FileStorage;
 use crate::storage::SharedStorage;
 use crate::workspace::config::{
@@ -48,6 +49,7 @@ impl WorkspaceInstance {
         let config = load_or_create_workspace_storage(storage.as_ref()).await?;
         let application_registry = Arc::new(RwLock::new(ApplicationRegistry::new()));
         register_builtin_applications(&application_registry).await;
+        register_extension_applications(&application_registry, workspace_dir).await?;
         Ok(Self {
             workspace_dir: workspace_dir.to_path_buf(),
             config: Arc::new(RwLock::new(config)),
@@ -61,6 +63,21 @@ async fn register_builtin_applications(registry: &Arc<RwLock<ApplicationRegistry
     let mut registry = registry.write().await;
     registry.register(Arc::new(NoteApplication::new()) as Arc<dyn Application>);
     register_installed_applications(&mut registry);
+}
+
+async fn register_extension_applications(
+    registry: &Arc<RwLock<ApplicationRegistry>>,
+    workspace_dir: &Path,
+) -> CoreResult<()> {
+    let apps = load_extension_applications(workspace_dir).await?;
+    if apps.is_empty() {
+        return Ok(());
+    }
+    let mut registry = registry.write().await;
+    for app in apps {
+        registry.register(app);
+    }
+    Ok(())
 }
 
 fn register_installed_applications(registry: &mut ApplicationRegistry) {
