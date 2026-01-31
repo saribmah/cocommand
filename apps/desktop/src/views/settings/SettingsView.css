@@ -201,6 +201,10 @@
   background: rgba(255, 255, 255, 0.04);
 }
 
+.settings-row--input {
+  align-items: flex-start;
+}
+
 .settings-row__title {
   font-size: 13px;
   font-weight: 600;
@@ -211,6 +215,66 @@
   color: var(--settings-muted);
   font-family: "JetBrains Mono", "Menlo", monospace;
   text-align: right;
+}
+
+.settings-input {
+  width: 100%;
+  min-width: 320px;
+  max-width: 520px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(15, 16, 18, 0.8);
+  color: var(--settings-ink);
+  font-size: 12px;
+  font-family: "JetBrains Mono", "Menlo", monospace;
+  outline: none;
+}
+
+.settings-input:focus {
+  border-color: rgba(244, 106, 75, 0.6);
+  box-shadow: 0 0 0 2px rgba(244, 106, 75, 0.2);
+}
+
+.settings-input--textarea {
+  min-height: 90px;
+  resize: vertical;
+}
+
+.settings-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.settings-button {
+  border: none;
+  border-radius: 999px;
+  padding: 10px 20px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #0f1012;
+  background: var(--settings-accent);
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.settings-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.settings-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 20px rgba(244, 106, 75, 0.25);
+}
+
+.settings-error {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(244, 106, 75, 0.12);
+  border: 1px solid rgba(244, 106, 75, 0.3);
+  color: #f3a38c;
+  font-size: 12px;
 }
 
 .settings-pill {
@@ -258,5 +322,9 @@
     width: 100%;
     word-break: break-all;
     text-align: left;
+  }
+
+  .settings-input {
+    min-width: 100%;
   }
 }

@@ -17,17 +17,18 @@ use crate::workspace::config::{
 #[derive(Clone)]
 pub struct WorkspaceInstance {
     pub workspace_dir: PathBuf,
-    pub config: WorkspaceConfig,
+    pub config: Arc<RwLock<WorkspaceConfig>>,
     pub application_registry: Arc<RwLock<ApplicationRegistry>>,
     pub storage: SharedStorage,
 }
 
 impl fmt::Debug for WorkspaceInstance {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let config = self.config.blocking_read();
         formatter
             .debug_struct("WorkspaceInstance")
             .field("workspace_dir", &self.workspace_dir)
-            .field("config", &self.config)
+            .field("config", &*config)
             .finish()
     }
 }
@@ -49,7 +50,7 @@ impl WorkspaceInstance {
         register_builtin_applications(&application_registry).await;
         Ok(Self {
             workspace_dir: workspace_dir.to_path_buf(),
-            config,
+            config: Arc::new(RwLock::new(config)),
             application_registry,
             storage,
         })

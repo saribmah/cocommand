@@ -7,6 +7,8 @@ use std::sync::Arc;
 
 use crate::application::{Application, ApplicationContext, ApplicationKind, ApplicationTool};
 use crate::server::ServerState;
+use crate::workspace::WorkspaceAiPreferences;
+use crate::llm::LlmSettings;
 
 #[derive(Debug, Serialize)]
 pub struct ApplicationInfo {
@@ -28,6 +30,30 @@ pub struct ApplicationToolInfo {
 #[derive(Debug, Deserialize)]
 pub struct OpenApplicationRequest {
     pub id: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct AiSettingsResponse {
+    pub provider: String,
+    pub base_url: String,
+    pub model: String,
+    pub system_prompt: String,
+    pub temperature: f64,
+    pub max_output_tokens: u32,
+    pub max_steps: usize,
+    pub has_api_key: bool,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateAiSettingsRequest {
+    pub provider: Option<String>,
+    pub base_url: Option<String>,
+    pub api_key: Option<String>,
+    pub model: Option<String>,
+    pub system_prompt: Option<String>,
+    pub temperature: Option<f64>,
+    pub max_output_tokens: Option<u32>,
+    pub max_steps: Option<usize>,
 }
 
 pub(crate) async fn list_applications(
@@ -92,6 +118,76 @@ pub(crate) async fn open_application(
     Ok(Json(output))
 }
 
+pub(crate) async fn get_ai_settings(
+    State(state): State<Arc<ServerState>>,
+) -> Result<Json<AiSettingsResponse>, (StatusCode, String)> {
+    let config = state.workspace.config.read().await;
+    let ai = &config.ai;
+    Ok(Json(AiSettingsResponse {
+        provider: ai.provider.clone(),
+        base_url: ai.base_url.clone(),
+        model: ai.model.clone(),
+        system_prompt: ai.system_prompt.clone(),
+        temperature: ai.temperature,
+        max_output_tokens: ai.max_output_tokens,
+        max_steps: ai.max_steps,
+        has_api_key: ai
+            .api_key
+            .as_ref()
+            .map(|value| !value.trim().is_empty())
+            .unwrap_or(false),
+    }))
+}
+
+pub(crate) async fn update_ai_settings(
+    State(state): State<Arc<ServerState>>,
+    Json(payload): Json<UpdateAiSettingsRequest>,
+) -> Result<Json<AiSettingsResponse>, (StatusCode, String)> {
+    let updated = {
+        let mut config = state.workspace.config.write().await;
+        apply_ai_update(&mut config.ai, payload);
+        config.ai.clone()
+    };
+
+    let value = serde_json::to_value({
+        let config = state.workspace.config.read().await;
+        config.clone()
+    })
+    .map_err(|error| (StatusCode::INTERNAL_SERVER_ERROR, error.to_string()))?;
+
+    let workspace_id = {
+        let config = state.workspace.config.read().await;
+        config.workspace_id.clone()
+    };
+    state
+        .workspace
+        .storage
+        .write(&["workspace", &workspace_id], &value)
+        .await
+        .map_err(|error| (StatusCode::INTERNAL_SERVER_ERROR, error.to_string()))?;
+
+    state
+        .llm
+        .update_settings(LlmSettings::from_workspace(&updated))
+        .await
+        .map_err(|error| (StatusCode::INTERNAL_SERVER_ERROR, error.to_string()))?;
+
+    Ok(Json(AiSettingsResponse {
+        provider: updated.provider,
+        base_url: updated.base_url,
+        model: updated.model,
+        system_prompt: updated.system_prompt,
+        temperature: updated.temperature,
+        max_output_tokens: updated.max_output_tokens,
+        max_steps: updated.max_steps,
+        has_api_key: updated
+            .api_key
+            .as_ref()
+            .map(|value| !value.trim().is_empty())
+            .unwrap_or(false),
+    }))
+}
+
 fn map_application(app: &dyn Application) -> ApplicationInfo {
     ApplicationInfo {
         id: app.id().to_string(),
@@ -122,4 +218,35 @@ fn map_kind(kind: ApplicationKind) -> String {
         ApplicationKind::Custom => "custom",
     }
     .to_string()
+}
+
+fn apply_ai_update(ai: &mut WorkspaceAiPreferences, payload: UpdateAiSettingsRequest) {
+    if let Some(provider) = payload.provider {
+        ai.provider = provider;
+    }
+    if let Some(base_url) = payload.base_url {
+        ai.base_url = base_url;
+    }
+    if let Some(api_key) = payload.api_key {
+        if api_key.trim().is_empty() {
+            ai.api_key = None;
+        } else {
+            ai.api_key = Some(api_key);
+        }
+    }
+    if let Some(model) = payload.model {
+        ai.model = model;
+    }
+    if let Some(system_prompt) = payload.system_prompt {
+        ai.system_prompt = system_prompt;
+    }
+    if let Some(temperature) = payload.temperature {
+        ai.temperature = temperature;
+    }
+    if let Some(max_output_tokens) = payload.max_output_tokens {
+        ai.max_output_tokens = max_output_tokens;
+    }
+    if let Some(max_steps) = payload.max_steps {
+        ai.max_steps = max_steps;
+    }
 }

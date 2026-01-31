@@ -18,6 +18,7 @@ pub struct WorkspaceConfig {
     pub last_modified: u64,
     pub apps: WorkspaceApps,
     pub preferences: WorkspacePreferences,
+    pub ai: WorkspaceAiPreferences,
     pub theme: WorkspaceTheme,
 }
 
@@ -38,6 +39,18 @@ pub struct WorkspacePreferences {
     pub language: String,
     pub session: SessionPreferences,
     pub application_cache: ApplicationCachePreferences,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WorkspaceAiPreferences {
+    pub provider: String,
+    pub base_url: String,
+    pub api_key: Option<String>,
+    pub model: String,
+    pub system_prompt: String,
+    pub temperature: f64,
+    pub max_output_tokens: u32,
+    pub max_steps: usize,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -76,6 +89,16 @@ impl WorkspaceConfig {
                 application_cache: ApplicationCachePreferences {
                     max_applications: 8,
                 },
+            },
+            ai: WorkspaceAiPreferences {
+                provider: "openai-compatible".to_string(),
+                base_url: "https://api.openai.com/v1".to_string(),
+                api_key: None,
+                model: "gpt-4o-mini".to_string(),
+                system_prompt: "You are Cocommand, a helpful command assistant.".to_string(),
+                temperature: 0.7,
+                max_output_tokens: 80_000,
+                max_steps: 8,
             },
             theme: WorkspaceTheme {
                 mode: "system".to_string(),

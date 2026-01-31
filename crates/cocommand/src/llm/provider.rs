@@ -1,10 +1,10 @@
-use std::env;
 use std::sync::Arc;
 
 use llm_kit_openai_compatible::OpenAICompatibleClient;
 use llm_kit_provider::LanguageModel;
 
 use crate::error::{CoreError, CoreResult};
+use crate::workspace::WorkspaceAiPreferences;
 
 const DEFAULT_BASE_URL: &str = "https://api.openai.com/v1";
 const DEFAULT_MODEL: &str = "gpt-4o-mini";
@@ -13,6 +13,7 @@ const DEFAULT_TEMPERATURE: f64 = 0.7;
 const DEFAULT_MAX_OUTPUT_TOKENS: u32 = 80000;
 const DEFAULT_MAX_STEPS: usize = 8;
 
+#[derive(Debug, Clone)]
 pub struct LlmSettings {
     pub base_url: String,
     pub api_key: Option<String>,
@@ -24,43 +25,47 @@ pub struct LlmSettings {
 }
 
 impl LlmSettings {
-    pub fn from_env() -> CoreResult<Self> {
-        let base_url = env::var("COCOMMAND_LLM_BASE_URL")
-            .or_else(|_| env::var("OPENAI_BASE_URL"))
-            .unwrap_or_else(|_| DEFAULT_BASE_URL.to_string());
-        let api_key = env::var("COCOMMAND_LLM_API_KEY")
-            .or_else(|_| env::var("OPENAI_API_KEY"))
-            .ok();
-        let model = env::var("COCOMMAND_LLM_MODEL")
-            .ok()
-            .filter(|value| !value.is_empty())
-            .unwrap_or_else(|| DEFAULT_MODEL.to_string());
-        let system_prompt = env::var("COCOMMAND_LLM_SYSTEM_PROMPT")
-            .ok()
-            .filter(|value| !value.is_empty())
-            .unwrap_or_else(|| DEFAULT_SYSTEM_PROMPT.to_string());
-        let temperature = env::var("COCOMMAND_LLM_TEMPERATURE")
-            .ok()
-            .and_then(|value| value.parse::<f64>().ok())
-            .unwrap_or(DEFAULT_TEMPERATURE);
-        let max_output_tokens = env::var("COCOMMAND_LLM_MAX_OUTPUT_TOKENS")
-            .ok()
-            .and_then(|value| value.parse::<u32>().ok())
-            .unwrap_or(DEFAULT_MAX_OUTPUT_TOKENS);
-        let max_steps = env::var("COCOMMAND_LLM_MAX_STEPS")
-            .ok()
-            .and_then(|value| value.parse::<usize>().ok())
-            .unwrap_or(DEFAULT_MAX_STEPS);
+    pub fn from_workspace(ai: &WorkspaceAiPreferences) -> Self {
+        let base_url = if ai.base_url.trim().is_empty() {
+            DEFAULT_BASE_URL.to_string()
+        } else {
+            ai.base_url.clone()
+        };
+        let model = if ai.model.trim().is_empty() {
+            DEFAULT_MODEL.to_string()
+        } else {
+            ai.model.clone()
+        };
+        let system_prompt = if ai.system_prompt.trim().is_empty() {
+            DEFAULT_SYSTEM_PROMPT.to_string()
+        } else {
+            ai.system_prompt.clone()
+        };
+        let temperature = if ai.temperature <= 0.0 {
+            DEFAULT_TEMPERATURE
+        } else {
+            ai.temperature
+        };
+        let max_output_tokens = if ai.max_output_tokens == 0 {
+            DEFAULT_MAX_OUTPUT_TOKENS
+        } else {
+            ai.max_output_tokens
+        };
+        let max_steps = if ai.max_steps == 0 {
+            DEFAULT_MAX_STEPS
+        } else {
+            ai.max_steps
+        };
 
-        Ok(Self {
+        Self {
             base_url,
-            api_key,
+            api_key: ai.api_key.clone().filter(|value| !value.trim().is_empty()),
             model,
             system_prompt,
             temperature,
             max_output_tokens,
             max_steps,
-        })
+        }
     }
 }
 

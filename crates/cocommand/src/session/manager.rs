@@ -30,7 +30,10 @@ impl SessionManager {
             .lock()
             .await;
         let now = now_secs();
-        let duration = self.workspace.config.preferences.session.duration_seconds;
+        let duration = {
+            let config = self.workspace.config.read().await;
+            config.preferences.session.duration_seconds
+        };
 
         let needs_new = match guard.as_ref() {
             Some(existing) => now.saturating_sub(existing.started_at) >= duration,
@@ -60,7 +63,10 @@ impl SessionManager {
         duration: u64,
     ) -> CoreResult<Option<Session>> {
         let storage = self.workspace.storage.clone();
-        let workspace_id = self.workspace.config.workspace_id.clone();
+        let workspace_id = {
+            let config = self.workspace.config.read().await;
+            config.workspace_id.clone()
+        };
         let mut session_ids = storage.list(&["session", &workspace_id]).await?;
         if session_ids.is_empty() {
             return Ok(None);
@@ -90,7 +96,7 @@ impl SessionManager {
                 .await?;
             return Ok(None);
         }
-        Ok(Some(Session::from_info(self.workspace.clone(), info)?))
+        Ok(Some(Session::from_info(self.workspace.clone(), info).await?))
     }
 }
 
@@ -103,7 +109,10 @@ mod tests {
     async fn manager_rollover_resets_cache() {
         let dir = tempdir().expect("tempdir");
         let mut workspace = WorkspaceInstance::new(dir.path()).await.expect("workspace");
-        workspace.config.preferences.session.duration_seconds = 0;
+        {
+            let mut config = workspace.config.write().await;
+            config.preferences.session.duration_seconds = 0;
+        }
         let workspace = Arc::new(workspace);
         let manager = SessionManager::new(workspace.clone());
         let first = manager

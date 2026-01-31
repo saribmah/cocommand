@@ -34,8 +34,13 @@ pub struct Session {
 
 impl Session {
     pub async fn new(workspace: Arc<WorkspaceInstance>) -> CoreResult<Self> {
-        let ttl = workspace.config.preferences.session.duration_seconds;
-        let max_apps = workspace.config.preferences.application_cache.max_applications;
+        let (ttl, max_apps) = {
+            let config = workspace.config.read().await;
+            (
+                config.preferences.session.duration_seconds,
+                config.preferences.application_cache.max_applications,
+            )
+        };
         let cache = ApplicationCache::new(max_apps, ttl);
         let session = Self {
             workspace,
@@ -48,9 +53,17 @@ impl Session {
         Ok(session)
     }
 
-    pub fn from_info(workspace: Arc<WorkspaceInstance>, info: SessionInfo) -> CoreResult<Self> {
-        let ttl = workspace.config.preferences.session.duration_seconds;
-        let max_apps = workspace.config.preferences.application_cache.max_applications;
+    pub async fn from_info(
+        workspace: Arc<WorkspaceInstance>,
+        info: SessionInfo,
+    ) -> CoreResult<Self> {
+        let (ttl, max_apps) = {
+            let config = workspace.config.read().await;
+            (
+                config.preferences.session.duration_seconds,
+                config.preferences.application_cache.max_applications,
+            )
+        };
         let cache = ApplicationCache::new(max_apps, ttl);
         Ok(Self {
             workspace,
@@ -75,8 +88,12 @@ impl Session {
                 return Err(CoreError::InvalidInput("session not found".to_string()));
             }
         }
+        let workspace_id = {
+            let config = self.workspace.config.read().await;
+            config.workspace_id.clone()
+        };
         Ok(SessionContext {
-            workspace_id: self.workspace.config.workspace_id.clone(),
+            workspace_id,
             session_id: self.session_id.clone(),
             started_at: self.started_at,
             ended_at: self.ended_at,
@@ -102,14 +119,20 @@ impl Session {
     async fn persist_info(&self) -> CoreResult<()> {
         let info = SessionInfo {
             id: self.session_id.clone(),
-            workspace_id: self.workspace.config.workspace_id.clone(),
+            workspace_id: {
+                let config = self.workspace.config.read().await;
+                config.workspace_id.clone()
+            },
             started_at: self.started_at,
             ended_at: self.ended_at,
         };
         let value = serde_json::to_value(info).map_err(|error| {
             CoreError::Internal(format!("failed to serialize session info: {error}"))
         })?;
-        let workspace_id = self.workspace.config.workspace_id.clone();
+        let workspace_id = {
+            let config = self.workspace.config.read().await;
+            config.workspace_id.clone()
+        };
         self.workspace
             .storage
             .write(&["session", &workspace_id, &self.session_id], &value)

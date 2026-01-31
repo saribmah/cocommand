@@ -8,7 +8,7 @@ use tokio::net::TcpListener;
 use tokio::sync::oneshot;
 
 use crate::bus::Bus;
-use crate::llm::LlmService;
+use crate::llm::{LlmService, LlmSettings};
 use crate::session::SessionManager;
 use crate::workspace::WorkspaceInstance;
 pub mod events;
@@ -28,7 +28,11 @@ impl Server {
         let workspace_arc = Arc::new(workspace.clone());
         let sessions = Arc::new(SessionManager::new(workspace_arc.clone()));
         let bus = Bus::new(512);
-        let llm = LlmService::new().map_err(|e| e.to_string())?;
+        let settings = {
+            let config = workspace.config.read().await;
+            LlmSettings::from_workspace(&config.ai)
+        };
+        let llm = LlmService::new(settings).map_err(|e| e.to_string())?;
         let state = Arc::new(ServerState {
             workspace,
             sessions,
@@ -46,6 +50,8 @@ impl Server {
             .route("/sessions/context", get(session::session_context))
             .route("/workspace/applications", get(workspace::list_applications))
             .route("/workspace/applications/open", post(workspace::open_application))
+            .route("/workspace/settings/ai", get(workspace::get_ai_settings))
+            .route("/workspace/settings/ai", post(workspace::update_ai_settings))
             .with_state(state.clone())
             .layer(cors);
         let listener = TcpListener::bind("127.0.0.1:0")
@@ -116,7 +122,10 @@ mod tests {
     async fn start_creates_workspace_config() {
         let dir = tempdir().expect("tempdir");
         let mut server = Server::new(dir.path().to_path_buf()).await.expect("start");
-        let workspace_id = server.workspace().config.workspace_id.clone();
+        let workspace_id = {
+            let config = server.workspace().config.read().await;
+            config.workspace_id.clone()
+        };
         let stored = server
             .workspace()
             .storage
