@@ -23,10 +23,7 @@ pub fn build_activate_application_tool(
                 .ok_or_else(|| json!({ "error": "missing id" }))?
                 .to_string();
             let exists = {
-                let registry = workspace
-                    .application_registry
-                    .read()
-                    .map_err(|_| json!({ "error": "registry lock" }))?;
+                let registry = workspace.application_registry.read().await;
                 registry.get(&app_id).is_some()
             };
             if !exists {

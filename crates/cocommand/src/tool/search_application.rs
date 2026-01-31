@@ -20,10 +20,7 @@ pub fn build_search_applications_tool(workspace: Arc<WorkspaceInstance>) -> Tool
                 .get("limit")
                 .and_then(|value| value.as_u64())
                 .unwrap_or(8) as usize;
-            let registry = workspace
-                .application_registry
-                .read()
-                .map_err(|_| json!({ "error": "registry lock" }))?;
+            let registry = workspace.application_registry.read().await;
             let mut items: Vec<(serde_json::Value, i64)> = registry
                 .list()
                 .into_iter()

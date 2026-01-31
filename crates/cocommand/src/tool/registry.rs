@@ -12,7 +12,7 @@ use crate::workspace::WorkspaceInstance;
 pub struct ToolRegistry;
 
 impl ToolRegistry {
-    pub fn tools(
+    pub async fn tools(
         workspace: Arc<WorkspaceInstance>,
         sessions: Arc<SessionManager>,
         session_id: &str,
@@ -22,10 +22,7 @@ impl ToolRegistry {
             workspace: workspace.clone(),
             session_id: session_id.to_string(),
         };
-        let registry = workspace
-            .application_registry
-            .read()
-            .expect("failed to acquire application registry read lock");
+        let registry = workspace.application_registry.read().await;
         let mut tool_set = ToolSet::new();
 
         tool_set.insert(

@@ -14,10 +14,7 @@ pub fn build_get_application_tool(workspace: Arc<WorkspaceInstance>) -> Tool {
                 .get("id")
                 .and_then(|value| value.as_str())
                 .ok_or_else(|| json!({ "error": "missing id" }))?;
-            let registry = workspace
-                .application_registry
-                .read()
-                .map_err(|_| json!({ "error": "registry lock" }))?;
+            let registry = workspace.application_registry.read().await;
             let app = registry
                 .get(app_id)
                 .ok_or_else(|| json!({ "error": "application not found" }))?;

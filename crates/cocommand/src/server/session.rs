@@ -67,7 +67,8 @@ pub(crate) async fn record_message(
         state.sessions.clone(),
         &session_id,
         &active_apps,
-    );
+    )
+    .await;
     let reply = state
         .llm
         .generate_reply_parts(&prompt_messages, tools)

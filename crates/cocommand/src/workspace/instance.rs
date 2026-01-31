@@ -1,6 +1,7 @@
 use std::fmt;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
+use tokio::sync::RwLock;
 
 use crate::application::note::NoteApplication;
 use crate::application::registry::ApplicationRegistry;
@@ -10,7 +11,7 @@ use crate::error::{CoreError, CoreResult};
 use crate::storage::file::FileStorage;
 use crate::storage::SharedStorage;
 use crate::workspace::config::{
-    load_or_create_workspace_config, load_or_create_workspace_storage, WorkspaceConfig,
+    load_or_create_workspace_storage, WorkspaceConfig,
 };
 
 #[derive(Clone)]
@@ -44,17 +45,8 @@ impl WorkspaceInstance {
         let storage_root = workspace_dir.join("storage");
         let storage: SharedStorage = Arc::new(FileStorage::new(storage_root));
         let config = load_or_create_workspace_storage(storage.as_ref()).await?;
-        if config.workspace_id.is_empty() {
-            let config = load_or_create_workspace_config(workspace_dir)?;
-            return Ok(Self {
-                workspace_dir: workspace_dir.to_path_buf(),
-                config,
-                application_registry: Arc::new(RwLock::new(ApplicationRegistry::new())),
-                storage,
-            });
-        }
         let application_registry = Arc::new(RwLock::new(ApplicationRegistry::new()));
-        register_builtin_applications(&application_registry);
+        register_builtin_applications(&application_registry).await;
         Ok(Self {
             workspace_dir: workspace_dir.to_path_buf(),
             config,
@@ -64,10 +56,8 @@ impl WorkspaceInstance {
     }
 }
 
-fn register_builtin_applications(registry: &Arc<RwLock<ApplicationRegistry>>) {
-    let mut registry = registry
-        .write()
-        .expect("failed to acquire application registry write lock");
+async fn register_builtin_applications(registry: &Arc<RwLock<ApplicationRegistry>>) {
+    let mut registry = registry.write().await;
     registry.register(Arc::new(NoteApplication::new()) as Arc<dyn Application>);
     register_installed_applications(&mut registry);
 }

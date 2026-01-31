@@ -37,7 +37,7 @@ pub(crate) async fn list_applications(
         .workspace
         .application_registry
         .read()
-        .expect("failed to acquire application registry read lock");
+        .await;
     let apps = registry
         .list()
         .into_iter()
@@ -56,7 +56,7 @@ pub(crate) async fn open_application(
             .workspace
             .application_registry
             .read()
-            .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "registry lock".to_string()))?;
+            .await;
         registry
             .get(&app_id)
             .ok_or((StatusCode::NOT_FOUND, "application not found".to_string()))?
