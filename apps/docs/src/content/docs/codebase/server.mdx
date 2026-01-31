@@ -1,0 +1,37 @@
+---
+title: Server
+---
+
+The server is the runtime entrypoint for the backend. It owns the HTTP API, system state, and the LLM service.
+
+## Responsibilities
+
+- Bind an ephemeral local port.
+- Assemble `ServerState` with workspace, sessions, bus, and LLM.
+- Expose HTTP endpoints used by the desktop UI.
+
+## Primary entrypoints
+
+- `crates/cocommand/src/server.rs`
+- `crates/cocommand/src/server/session.rs`
+- `crates/cocommand/src/server/workspace.rs`
+- `crates/cocommand/src/server/events.rs`
+
+## Routes
+
+- `GET /health` -> server health check.
+- `GET /events` -> SSE stream of bus events.
+- `POST /sessions/message` -> store user message, run LLM, store assistant response.
+- `GET /sessions/context` -> current session metadata.
+- `GET /workspace/applications` -> list all applications.
+- `POST /workspace/applications/open` -> open app and mark it active in the session.
+
+## Key types
+
+- `Server`: owns the listener and shutdown channel.
+- `ServerState`: shared state injected into handlers.
+
+## Boundary notes
+
+- The server does not manage UI concerns or file system path selection.
+- It expects a workspace directory from the Tauri shell.

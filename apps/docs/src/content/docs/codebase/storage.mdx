@@ -1,0 +1,26 @@
+---
+title: Storage
+---
+
+Storage provides a small facade for persistence and is currently backed by JSON files on disk.
+
+## Responsibilities
+
+- Write/read JSON blobs by key path.
+- List collections to support message and session loading.
+- Abstract storage implementation behind a trait.
+
+## Primary entrypoints
+
+- `crates/cocommand/src/storage/storage.rs`
+- `crates/cocommand/src/storage/file.rs`
+
+## Key behavior
+
+- Keys are joined into directories, with the last key used as the filename.
+- The file backend appends `.json` automatically.
+- Invalid keys are rejected (`..`, path separators, empty strings).
+
+## Boundary notes
+
+- The rest of the system relies on the `Storage` trait, not the file implementation.

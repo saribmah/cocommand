@@ -1,0 +1,38 @@
+---
+title: LLM
+---
+
+The LLM module owns provider configuration and text generation using llm-kit.
+
+## Responsibilities
+
+- Load model/provider settings from environment.
+- Execute `StreamText` with tool support.
+- Enforce step limits and output token limits.
+
+## Primary entrypoints
+
+- `crates/cocommand/src/llm/provider.rs`
+- `crates/cocommand/src/llm/service.rs`
+
+## Default configuration
+
+- Provider: OpenAI-compatible client.
+- Base URL: `https://api.openai.com/v1`.
+- Model: `gpt-4o-mini`.
+- System prompt: "You are Cocommand, a helpful command assistant."
+
+## Environment variables
+
+- `COCOMMAND_LLM_BASE_URL` or `OPENAI_BASE_URL`
+- `COCOMMAND_LLM_API_KEY` or `OPENAI_API_KEY`
+- `COCOMMAND_LLM_MODEL`
+- `COCOMMAND_LLM_SYSTEM_PROMPT`
+- `COCOMMAND_LLM_TEMPERATURE`
+- `COCOMMAND_LLM_MAX_OUTPUT_TOKENS`
+- `COCOMMAND_LLM_MAX_STEPS`
+
+## Boundary notes
+
+- The LLM service expects prompt messages already converted to LLM message types.
+- It does not perform message conversion or storage.

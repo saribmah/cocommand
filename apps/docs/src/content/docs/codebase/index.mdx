@@ -1,0 +1,33 @@
+---
+title: Codebase Overview
+---
+
+This section documents the current codebase layout and the responsibilities of each major module.
+It is meant to be a practical map for contributors working across the desktop UI, Tauri shell, and the Rust backend.
+
+## Top-level layout
+
+- `apps/desktop/`: React command bar UI and settings window.
+- `apps/desktop/src-tauri/`: Tauri shell that starts the backend server and exposes a minimal IPC bridge.
+- `crates/cocommand/`: Core backend (server, workspace, sessions, storage, LLM, tools, messages).
+- `crates/platform-macos/`: macOS-specific integrations (installed apps, AppleScript helpers).
+- `apps/extension-host/`: Deno-based extension host (JSON-RPC over stdio).
+- `apps/docs/`: Astro/Starlight documentation site.
+
+## End-to-end flow (happy path)
+
+1. Tauri starts (`apps/desktop/src-tauri`) and resolves the workspace directory.
+2. Tauri boots the Rust backend server (`crates/cocommand`) and exposes `get_server_info_cmd` to the UI.
+3. The React UI loads and fetches server info, then uses HTTP to talk to the backend.
+4. User messages go to `/sessions/message`, which stores the message and calls the LLM.
+5. The LLM can call tools; only tools for active applications are injected.
+6. Assistant output is stored and returned to the UI.
+
+## Cross-module boundaries
+
+- The **UI** never calls core logic directly; it uses HTTP to the server.
+- The **Tauri shell** only manages windowing and server lifecycle.
+- The **server** owns workspace/session state; tools and apps are scoped there.
+- **Storage** is abstracted behind a trait and currently implemented as JSON files.
+
+Use the pages in this section to drill into each module in detail.

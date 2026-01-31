@@ -1,0 +1,27 @@
+---
+title: Extension Host
+---
+
+The extension host is a Deno process that loads external extensions and exposes them over JSON-RPC.
+
+## Responsibilities
+
+- Load an extension bundle from disk.
+- Provide a JSON-RPC 2.0 interface over stdin/stdout.
+- Execute extension tool handlers and return results.
+
+## Primary entrypoints
+
+- `apps/extension-host/main.ts`
+- `apps/extension-host/loader.ts`
+- `apps/extension-host/protocol.ts`
+
+## Protocol
+
+- Requests are newline-delimited JSON-RPC messages.
+- Supported methods: `initialize`, `invoke_tool`, `shutdown`.
+- The host currently runs one extension per process.
+
+## Boundary notes
+
+- The extension host is not wired into the backend yet; it is a standalone runtime.

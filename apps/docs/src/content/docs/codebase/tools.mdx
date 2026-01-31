@@ -1,0 +1,29 @@
+---
+title: Tools
+---
+
+Tools are the LLM-facing interface that map to application actions or system functions.
+
+## Responsibilities
+
+- Provide core system tools (`search_applications`, `get_application`, `activate_application`).
+- Assemble the ToolSet for the active session.
+- Proxy application tools into LLM-callable tools.
+
+## Primary entrypoints
+
+- `crates/cocommand/src/tool/registry.rs`
+- `crates/cocommand/src/tool/search_application.rs`
+- `crates/cocommand/src/tool/get_application.rs`
+- `crates/cocommand/src/tool/activate_application.rs`
+
+## How tools are assembled
+
+- System tools are always inserted.
+- Only tools for **active applications** are injected into the LLM toolset.
+- Tool names are sanitized to match provider constraints (alphanumeric, `_`, `-`).
+
+## Boundary notes
+
+- Tool execution is delegated to the owning `Application` via `Application::execute`.
+- The registry layer does not decide which tools to call; the LLM does.

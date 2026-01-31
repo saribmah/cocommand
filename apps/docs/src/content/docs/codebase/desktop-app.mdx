@@ -1,0 +1,35 @@
+---
+title: Desktop App (React)
+---
+
+The desktop UI is a React app that renders the command bar, results, and settings. It communicates with the backend via HTTP and uses Tauri only for windowing and server info.
+
+## Responsibilities
+
+- Render the command bar and result panels.
+- Provide application picker (`@`) and settings UI.
+- Store server/session/application state in client stores.
+
+## Primary entrypoints
+
+- `apps/desktop/src/App.tsx`
+- `apps/desktop/src/components/CommandBar.tsx`
+- `apps/desktop/src/components/ApplicationPicker.tsx`
+- `apps/desktop/src/views/settings/SettingsView.tsx`
+
+## State management
+
+- `apps/desktop/src/state/server.ts`: server info and health.
+- `apps/desktop/src/state/session.ts`: send message + session context.
+- `apps/desktop/src/state/applications.ts`: list/open applications.
+- `apps/desktop/src/state/commandbar.ts`: local UI state for input and results.
+
+## Backend integration
+
+- The UI fetches the server address from Tauri via `getServerInfo()`.
+- All core actions are HTTP calls to the backend server.
+
+## Boundary notes
+
+- The UI does not call Rust core directly.
+- Window management is handled by the Tauri layer.

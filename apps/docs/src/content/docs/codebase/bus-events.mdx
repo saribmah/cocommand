@@ -1,0 +1,25 @@
+---
+title: Bus and Events
+---
+
+The bus provides in-process event broadcasting and is exposed via SSE for external consumers.
+
+## Responsibilities
+
+- Allow async publish/subscribe of events inside the server.
+- Provide a simple SSE stream at `/events`.
+
+## Primary entrypoints
+
+- `crates/cocommand/src/bus.rs`
+- `crates/cocommand/src/server/events.rs`
+
+## Event model
+
+- Events are `Any + Send + Sync` and stored as `Arc<dyn Any>`.
+- SSE payloads include the Rust type name for the event.
+- A keep-alive is sent every 15 seconds.
+
+## Boundary notes
+
+- The bus is in-process only (no persistence, no cross-process delivery).

@@ -1,0 +1,28 @@
+---
+title: Session
+---
+
+Sessions capture the current user context window and manage active applications.
+
+## Responsibilities
+
+- Create and persist session metadata.
+- Roll over sessions based on configured duration.
+- Maintain a per-session application cache.
+
+## Primary entrypoints
+
+- `crates/cocommand/src/session/manager.rs`
+- `crates/cocommand/src/session/session.rs`
+- `crates/cocommand/src/session/application_cache.rs`
+
+## Key types
+
+- `SessionManager`: owns the active session and performs rollover on access.
+- `Session`: session metadata and application cache for the active window.
+- `ApplicationCache`: TTL cache of active applications.
+
+## Notes
+
+- `SessionManager::with_session_mut` is the primary access point for session-bound operations.
+- Sessions are stored under `storage/session/<workspace_id>/<session_id>.json`.

@@ -1,0 +1,30 @@
+---
+title: Applications
+---
+
+Applications are the units of functionality that tools are scoped to. They can be built-in, installed system apps, or future extensions.
+
+## Responsibilities
+
+- Define application metadata and available tools.
+- Execute tool calls in a platform-specific way.
+- Provide a registry for listing and lookup.
+
+## Primary entrypoints
+
+- `crates/cocommand/src/application.rs`
+- `crates/cocommand/src/application/registry.rs`
+- `crates/cocommand/src/application/installed.rs`
+- `crates/cocommand/src/application/note.rs`
+
+## Key types
+
+- `Application` trait: `id`, `name`, `kind`, `tags`, `tools`, `execute`.
+- `ApplicationTool`: schema-based tool definition.
+- `ApplicationContext`: workspace and session metadata passed to tools.
+- `ApplicationRegistry`: shared application collection.
+
+## Boundary notes
+
+- Applications are registered inside the workspace, not at the server level.
+- Installed apps use `platform-macos` for listing and AppleScript execution.

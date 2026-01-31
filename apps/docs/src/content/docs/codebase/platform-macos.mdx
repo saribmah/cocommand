@@ -1,0 +1,27 @@
+---
+title: platform-macos
+---
+
+This crate encapsulates macOS-specific functionality for installed apps and AppleScript execution.
+
+## Responsibilities
+
+- Enumerate installed applications from common macOS app directories.
+- Open installed applications by bundle id or path.
+- Provide AppleScript tooling and execution.
+
+## Primary entrypoints
+
+- `crates/platform-macos/src/lib.rs`
+
+## Key functions
+
+- `list_installed_apps()`: scans `/Applications`, `/System/Applications`, and user apps.
+- `open_installed_app(bundle_id, path)`: launches via `open`.
+- `installed_app_tools()`: returns tool definitions for installed apps.
+- `execute_installed_app_tool()`: runs AppleScript actions.
+
+## Boundary notes
+
+- The core application layer calls into this crate via `InstalledApplication`.
+- Non-macOS platforms do not use this crate.

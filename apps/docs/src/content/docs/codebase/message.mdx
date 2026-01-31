@@ -1,0 +1,38 @@
+---
+title: Messages
+---
+
+Messages are stored as structured parts and converted into LLM-compatible prompt messages.
+
+## Responsibilities
+
+- Persist message metadata and parts in storage.
+- Convert between stored messages and LLM prompt messages.
+- Render assistant output into UI-friendly text.
+
+## Primary entrypoints
+
+- `crates/cocommand/src/message/message.rs`
+- `crates/cocommand/src/message/parts.rs`
+- `crates/cocommand/src/message/mod.rs`
+
+## Storage layout
+
+- Message info: `storage/messages/<session_id>/<message_id>.json`
+- Message parts: `storage/part/<message_id>/<part_id>.json`
+
+## Key types
+
+- `MessageInfo`: id, session id, role, timestamps.
+- `MessagePart`: text, reasoning, tool call, tool result, source, file.
+- `MessageWithParts`: full message record.
+
+## LLM conversion
+
+- `Message::to_prompt_messages` maps stored parts into LLM message types.
+- Tool calls are emitted as assistant parts; tool results are emitted as tool messages.
+- `Message::from_stream` converts stream output back into stored parts.
+
+## Boundary notes
+
+- The LLM service does not convert messages; it expects prompt messages pre-built.

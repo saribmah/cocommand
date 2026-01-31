@@ -1,0 +1,34 @@
+---
+title: Workspace
+---
+
+The workspace is the root of the backend ecosystem. It owns the storage root, configuration, and application registry.
+
+## Responsibilities
+
+- Load or create workspace configuration from storage.
+- Provide a storage handle scoped to the workspace directory.
+- Register built-in and installed applications.
+
+## Primary entrypoints
+
+- `crates/cocommand/src/workspace/instance.rs`
+- `crates/cocommand/src/workspace/config.rs`
+- `crates/cocommand/src/workspace.rs`
+
+## Storage layout
+
+- Config is persisted under `storage/workspace/<workspace_id>.json`.
+- Session and message data are stored under `storage/session` and `storage/messages`.
+
+## Key types
+
+- `WorkspaceInstance`: runtime handle (dir, config, registry, storage).
+- `WorkspaceConfig`: serialized config with preferences and metadata.
+- `ApplicationRegistry`: shared registry of all known applications.
+
+## Boundary notes
+
+- The workspace does not implement windowing or UI logic.
+- Registry access is async-safe via `tokio::sync::RwLock`.
+- Config migration is stubbed; version mismatches currently return `NotImplemented`.

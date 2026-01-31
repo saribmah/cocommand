@@ -1,0 +1,30 @@
+---
+title: Tauri Shell
+---
+
+The Tauri shell owns window management and backend server lifecycle. It is the only bridge between the UI and Rust core.
+
+## Responsibilities
+
+- Resolve the workspace directory under the app data path.
+- Start the backend server and hold the handle.
+- Expose minimal IPC commands to the UI.
+- Toggle and manage application windows.
+
+## Primary entrypoints
+
+- `apps/desktop/src-tauri/src/lib.rs`
+- `apps/desktop/src-tauri/src/state.rs`
+- `apps/desktop/src-tauri/src/commands.rs`
+- `apps/desktop/src-tauri/src/window.rs`
+
+## IPC surface
+
+- `get_server_info_cmd`: server address + workspace dir.
+- `open_settings_window`, `hide_settings_window`, `hide_window`.
+- Workspace path commands for future configuration updates.
+
+## Boundary notes
+
+- The Tauri layer does not handle session, tools, or LLM logic.
+- Once the server starts, the UI talks to the backend over HTTP.
