@@ -7,7 +7,6 @@ pub enum ApplicationKind {
 
 pub mod note;
 pub mod registry;
-pub mod installed;
 pub mod system;
 
 #[derive(Debug, Clone, PartialEq, Eq)]

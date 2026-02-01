@@ -1,6 +1,8 @@
+use serde::Serialize;
+
 use crate::applescript::run_applescript;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct InstalledApp {
     pub name: String,
     pub bundle_id: Option<String>,

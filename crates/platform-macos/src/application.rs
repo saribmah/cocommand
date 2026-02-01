@@ -5,7 +5,7 @@ use objc2::runtime::{AnyObject, Bool};
 use serde::Serialize;
 
 use crate::applescript::{applescript_escape, run_applescript};
-use crate::util::{nsstring_from_str, nsstring_to_string};
+use crate::util::nsstring_to_string;
 use crate::window::{list_windows, WindowInfo};
 
 #[derive(Debug, Clone, Serialize)]
@@ -146,20 +146,37 @@ fn running_application(
     bundle_id: Option<&str>,
     pid: Option<i32>,
 ) -> Result<*mut AnyObject, String> {
-    unsafe {
-        if let Some(bundle_id) = bundle_id {
-            let bundle_id = nsstring_from_str(bundle_id)?;
-            let app: *mut AnyObject = msg_send![class!(NSRunningApplication), runningApplicationWithBundleIdentifier: bundle_id];
-            if !app.is_null() {
+    let workspace: *mut AnyObject = unsafe { msg_send![class!(NSWorkspace), sharedWorkspace] };
+    if workspace.is_null() {
+        return Err("failed to access NSWorkspace".to_string());
+    }
+    let running: *mut AnyObject = unsafe { msg_send![workspace, runningApplications] };
+    if running.is_null() {
+        return Err("failed to get running applications".to_string());
+    }
+
+    let count: usize = unsafe { msg_send![running, count] };
+    for index in 0..count {
+        let app: *mut AnyObject = unsafe { msg_send![running, objectAtIndex: index] };
+        if app.is_null() {
+            continue;
+        }
+        if let Some(pid) = pid {
+            let app_pid: i32 = unsafe { msg_send![app, processIdentifier] };
+            if app_pid == pid {
                 return Ok(app);
             }
         }
-        if let Some(pid) = pid {
-            let app: *mut AnyObject = msg_send![class!(NSRunningApplication), runningApplicationWithProcessIdentifier: pid];
-            if !app.is_null() {
-                return Ok(app);
+        if let Some(bundle_id) = bundle_id {
+            if let Some(app_bundle_id) =
+                nsstring_to_string(unsafe { msg_send![app, bundleIdentifier] })
+            {
+                if app_bundle_id == bundle_id {
+                    return Ok(app);
+                }
             }
         }
     }
+
     Err("application not found".to_string())
 }

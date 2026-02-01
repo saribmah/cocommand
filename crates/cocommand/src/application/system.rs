@@ -56,6 +56,16 @@ impl Application for SystemApplication {
                 }),
             },
             ApplicationTool {
+                id: "list_installed_apps".to_string(),
+                name: "List Installed Apps".to_string(),
+                description: Some("List installed applications on this system".to_string()),
+                input_schema: serde_json::json!({
+                    "type": "object",
+                    "properties": {},
+                    "additionalProperties": false
+                }),
+            },
+            ApplicationTool {
                 id: "app_action".to_string(),
                 name: "App Action".to_string(),
                 description: Some("Perform an action on an application".to_string()),
@@ -102,6 +112,14 @@ impl Application for SystemApplication {
         #[cfg(target_os = "macos")]
         {
             match tool_id {
+                "list_installed_apps" => {
+                    let apps = platform_macos::list_installed_apps();
+                    return Ok(serde_json::to_value(apps).map_err(|error| {
+                        CoreError::Internal(format!(
+                            "failed to serialize installed apps: {error}"
+                        ))
+                    })?);
+                }
                 "list_open_apps" => {
                     let visible_only = input
                         .get("visibleOnly")

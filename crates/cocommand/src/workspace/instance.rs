@@ -6,7 +6,6 @@ use tokio::sync::RwLock;
 use crate::application::note::NoteApplication;
 use crate::application::registry::ApplicationRegistry;
 use crate::application::Application;
-use crate::application::installed::InstalledApplication;
 use crate::application::system::SystemApplication;
 use crate::error::{CoreError, CoreResult};
 use crate::extension::loader::load_extension_applications;
@@ -64,7 +63,6 @@ async fn register_builtin_applications(registry: &Arc<RwLock<ApplicationRegistry
     let mut registry = registry.write().await;
     registry.register(Arc::new(NoteApplication::new()) as Arc<dyn Application>);
     registry.register(Arc::new(SystemApplication::new()) as Arc<dyn Application>);
-    register_installed_applications(&mut registry);
 }
 
 async fn register_extension_applications(
@@ -80,16 +78,4 @@ async fn register_extension_applications(
         registry.register(app);
     }
     Ok(())
-}
-
-fn register_installed_applications(registry: &mut ApplicationRegistry) {
-    #[cfg(target_os = "macos")]
-    {
-        use platform_macos::list_installed_apps;
-        for app in list_installed_apps() {
-            let id = app.bundle_id.clone().unwrap_or_else(|| app.path.clone());
-            let installed = InstalledApplication::new(id, app.name, app.bundle_id, app.path);
-            registry.register(Arc::new(installed) as Arc<dyn Application>);
-        }
-    }
 }
