@@ -1,6 +1,7 @@
 import { useState, useCallback } from "react";
 import { hideWindow, openSettingsWindow, type CoreResult } from "../lib/ipc";
 import { useSessionStore } from "./session";
+import type { MessagePart } from "../types/session";
 
 export interface CommandBarState {
   input: string;
@@ -62,11 +63,12 @@ export function useCommandBar() {
 
     try {
       const response = await sendMessage(text);
-      const sessionResult: CoreResult | null = response.reply
+      const sessionBody = formatMessageParts(response.reply_parts);
+      const sessionResult: CoreResult | null = sessionBody
         ? {
             type: "preview",
             title: "Session",
-            body: response.reply,
+            body: sessionBody,
           }
         : null;
       setState((s) => ({
@@ -122,4 +124,45 @@ export function useCommandBar() {
     cancelPending,
     reset,
   };
+}
+
+function formatMessageParts(parts: MessagePart[]): string {
+  return parts
+    .map((part) => {
+      switch (part.type) {
+        case "text":
+          return part.text;
+        case "reasoning":
+          return `\n\n[Reasoning]\n${part.text}`;
+        case "tool-call":
+          return `\n\n[ToolCall] ${part.tool_name}\n${formatJson(part.input)}`;
+        case "tool-result":
+          return `\n\n[ToolResult${part.is_error ? " Error" : ""}] ${
+            part.tool_name
+          }\n${formatJson(part.output)}`;
+        case "source":
+          return `\n\n[Source] ${part.source_type}\n${formatSource(part)}`;
+        case "file":
+          return `\n\n[File] ${part.media_type}${part.name ? ` (${part.name})` : ""}`;
+        default:
+          return "";
+      }
+    })
+    .join("");
+}
+
+function formatJson(value: unknown): string {
+  try {
+    return "```json\n" + JSON.stringify(value, null, 2) + "\n```";
+  } catch {
+    return String(value);
+  }
+}
+
+function formatSource(part: MessagePart & { type: "source" }): string {
+  const bits = [];
+  if (part.title) bits.push(part.title);
+  if (part.url) bits.push(part.url);
+  if (part.filename) bits.push(part.filename);
+  return bits.join("\n");
 }

@@ -7,5 +7,55 @@ export interface SessionContext {
 
 export interface RecordMessageResponse {
   context: SessionContext;
-  reply: string;
+  reply_parts: MessagePart[];
+}
+
+export type MessagePart =
+  | TextPart
+  | ReasoningPart
+  | ToolCallPart
+  | ToolResultPart
+  | SourcePart
+  | FilePart;
+
+export interface TextPart {
+  type: "text";
+  text: string;
+}
+
+export interface ReasoningPart {
+  type: "reasoning";
+  text: string;
+}
+
+export interface ToolCallPart {
+  type: "tool-call";
+  call_id: string;
+  tool_name: string;
+  input: unknown;
+}
+
+export interface ToolResultPart {
+  type: "tool-result";
+  call_id: string;
+  tool_name: string;
+  output: unknown;
+  is_error: boolean;
+}
+
+export interface SourcePart {
+  type: "source";
+  id: string;
+  source_type: string;
+  url?: string | null;
+  title?: string | null;
+  media_type?: string | null;
+  filename?: string | null;
+}
+
+export interface FilePart {
+  type: "file";
+  base64: string;
+  media_type: string;
+  name?: string | null;
 }

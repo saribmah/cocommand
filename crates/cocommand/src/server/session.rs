@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 use crate::message::Message;
+use crate::message::parts::MessagePart;
 use crate::server::ServerState;
 use crate::session::SessionContext;
 use crate::tool::ToolRegistry;
@@ -33,7 +34,7 @@ pub struct ApiSessionContext {
 #[derive(Debug, Serialize)]
 pub struct RecordMessageResponse {
     pub context: ApiSessionContext,
-    pub reply: String,
+    pub reply_parts: Vec<MessagePart>,
 }
 
 pub(crate) async fn record_message(
@@ -80,10 +81,9 @@ pub(crate) async fn record_message(
     Message::store(&storage, &assistant_message)
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-    let reply_text = Message::to_text(&assistant_message);
     Ok(Json(RecordMessageResponse {
         context: to_api_context(ctx),
-        reply: reply_text,
+        reply_parts: assistant_message.parts.clone(),
     }))
 }
 
