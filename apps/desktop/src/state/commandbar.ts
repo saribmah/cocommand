@@ -1,7 +1,7 @@
 import { useState, useCallback } from "react";
 import { hideWindow, openSettingsWindow, type CoreResult } from "../lib/ipc";
 import { useSessionStore } from "./session";
-import type { MessagePart } from "../types/session";
+import type { MessagePart, StreamEvent, StreamPart } from "../types/session";
 
 export interface CommandBarState {
   input: string;
@@ -62,9 +62,39 @@ export function useCommandBar() {
     setState((s) => ({ ...s, isSubmitting: true }));
 
     try {
-      const response = await sendMessage(text);
+      const streamBlocks: StreamBlock[] = [];
+
+      const sessionResult: CoreResult = {
+        type: "preview",
+        title: "Session",
+        body: "",
+      };
+      setState((s) => ({
+        ...s,
+        results: [sessionResult],
+      }));
+
+      const response = await sendMessage(text, (event: StreamEvent) => {
+        if (event.event === "part") {
+          const part = (event.data as { part?: StreamPart })?.part;
+          if (!part) return;
+          applyStreamPart(part, streamBlocks);
+          const body = buildStreamBody(streamBlocks);
+          setState((s) => ({
+            ...s,
+            results: [
+              {
+                type: "preview",
+                title: "Session",
+                body,
+              },
+            ],
+          }));
+        }
+      });
+
       const sessionBody = formatMessageParts(response.reply_parts);
-      const sessionResult: CoreResult | null = sessionBody
+      const finalResult: CoreResult | null = sessionBody
         ? {
             type: "preview",
             title: "Session",
@@ -75,7 +105,7 @@ export function useCommandBar() {
         ...s,
         input: "",
         isSubmitting: false,
-        results: sessionResult ? [sessionResult] : [],
+        results: finalResult ? [finalResult] : [],
         pendingConfirmation: null,
         followUpActive: false,
       }));
@@ -135,11 +165,11 @@ function formatMessageParts(parts: MessagePart[]): string {
         case "reasoning":
           return `\n\n[Reasoning]\n${part.text}`;
         case "tool-call":
-          return `\n\n[ToolCall] ${part.tool_name}\n${formatJson(part.input)}`;
+          return `\n\n[ToolCall] ${part.tool_name} (running)`;
         case "tool-result":
           return `\n\n[ToolResult${part.is_error ? " Error" : ""}] ${
             part.tool_name
-          }\n${formatJson(part.output)}`;
+          } (${part.is_error ? "failed" : "ok"})`;
         case "source":
           return `\n\n[Source] ${part.source_type}\n${formatSource(part)}`;
         case "file":
@@ -151,18 +181,105 @@ function formatMessageParts(parts: MessagePart[]): string {
     .join("");
 }
 
-function formatJson(value: unknown): string {
-  try {
-    return "```json\n" + JSON.stringify(value, null, 2) + "\n```";
-  } catch {
-    return String(value);
-  }
-}
-
 function formatSource(part: MessagePart & { type: "source" }): string {
   const bits = [];
   if (part.title) bits.push(part.title);
   if (part.url) bits.push(part.url);
   if (part.filename) bits.push(part.filename);
+  return bits.join("\n");
+}
+
+type StreamBlockType =
+  | "text"
+  | "reasoning"
+  | "tool"
+  | "source"
+  | "file";
+
+interface StreamBlock {
+  type: StreamBlockType;
+  text: string;
+}
+
+function applyStreamPart(part: StreamPart, blocks: StreamBlock[]): void {
+  switch (part.type) {
+    case "text-delta": {
+      const last = blocks[blocks.length - 1];
+      if (!last || last.type !== "text") {
+        blocks.push({ type: "text", text: part.text ?? "" });
+      } else {
+        last.text += part.text ?? "";
+      }
+      return;
+    }
+    case "reasoning-delta": {
+      const last = blocks[blocks.length - 1];
+      if (!last || last.type !== "reasoning") {
+        blocks.push({ type: "reasoning", text: part.text ?? "" });
+      } else {
+        last.text += part.text ?? "";
+      }
+      return;
+    }
+    case "tool-call":
+      blocks.push({
+        type: "tool",
+        text: `[ToolCall] ${part.toolName ?? part.tool_name ?? ""} (running)`,
+      });
+      return;
+    case "tool-result":
+      blocks.push({
+        type: "tool",
+        text: `[ToolResult] ${part.toolName ?? part.tool_name ?? ""} (ok)`,
+      });
+      return;
+    case "tool-error":
+      blocks.push({
+        type: "tool",
+        text: `[ToolResult Error] ${
+          part.toolName ?? part.tool_name ?? ""
+        } (failed)`,
+      });
+      return;
+    case "source":
+      blocks.push({
+        type: "source",
+        text: `[Source] ${part.sourceType ?? part.source_type ?? ""}\n${formatSourcePart(
+          part
+        )}`,
+      });
+      return;
+    case "file":
+      blocks.push({
+        type: "file",
+        text: `[File] ${part.mediaType ?? part.media_type ?? ""}${
+          part.name ? ` (${part.name})` : ""
+        }`,
+      });
+      return;
+    default:
+      return;
+  }
+}
+
+function buildStreamBody(blocks: StreamBlock[]): string {
+  return blocks
+    .map((block) => {
+      if (block.type === "reasoning") {
+        return `\n\n[Reasoning]\n${block.text}`;
+      }
+      if (block.type === "text") {
+        return block.text;
+      }
+      return `\n\n${block.text}`;
+    })
+    .join("");
+}
+
+function formatSourcePart(part: StreamPart): string {
+  const bits: string[] = [];
+  if (part.title) bits.push(String(part.title));
+  if (part.url) bits.push(String(part.url));
+  if (part.name) bits.push(String(part.name));
   return bits.join("\n");
 }

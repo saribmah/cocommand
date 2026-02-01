@@ -104,6 +104,7 @@ function matchScore(query: string, name: string, id: string, kind: string): numb
 
 export function CommandBar() {
   const inputRef = useRef<HTMLInputElement>(null);
+  const resultsRef = useRef<HTMLDivElement>(null);
   const [mentionIndex, setMentionIndex] = useState(0);
   const [slashIndex, setSlashIndex] = useState(0);
   const {
@@ -149,6 +150,14 @@ export function CommandBar() {
 
   useEffect(() => {
     inputRef.current?.focus();
+  }, [results]);
+
+  useEffect(() => {
+    const node = resultsRef.current;
+    if (!node) return;
+    requestAnimationFrame(() => {
+      node.scrollTop = node.scrollHeight;
+    });
   }, [results]);
 
   useEffect(() => {
@@ -327,7 +336,7 @@ export function CommandBar() {
           }}
         />
       )}
-      <div className="command-results">
+      <div className="command-results" ref={resultsRef}>
         {pendingConfirmation && (
           <ConfirmPanel
             confirmation={pendingConfirmation}

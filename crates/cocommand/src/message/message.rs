@@ -133,6 +133,24 @@ impl Message {
             parts,
         })
     }
+
+    pub fn from_parts(
+        session_id: &str,
+        role: &str,
+        parts: Vec<MessagePart>,
+    ) -> MessageWithParts {
+        let timestamp = now_rfc3339();
+        MessageWithParts {
+            info: MessageInfo {
+                id: Uuid::now_v7().to_string(),
+                session_id: session_id.to_string(),
+                role: role.to_string(),
+                created_at: timestamp.clone(),
+                updated_at: timestamp,
+            },
+            parts,
+        }
+    }
 }
 
 fn user_message_to_prompt(message: &MessageWithParts) -> Vec<LlmMessage> {

@@ -10,6 +10,31 @@ export interface RecordMessageResponse {
   reply_parts: MessagePart[];
 }
 
+export interface StreamEvent<T = unknown> {
+  event: string;
+  data: T;
+}
+
+export type StreamPart = {
+  type: string;
+  text?: string;
+  toolName?: string;
+  toolCallId?: string;
+  tool_name?: string;
+  tool_call_id?: string;
+  input?: unknown;
+  output?: unknown;
+  error?: unknown;
+  reason?: string;
+  mediaType?: string;
+  media_type?: string;
+  name?: string | null;
+  url?: string | null;
+  title?: string | null;
+  sourceType?: string;
+  source_type?: string;
+};
+
 export type MessagePart =
   | TextPart
   | ReasoningPart
