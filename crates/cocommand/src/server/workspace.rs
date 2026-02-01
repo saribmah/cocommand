@@ -110,8 +110,12 @@ pub(crate) async fn open_application(
         workspace: Arc::new(state.workspace.clone()),
         session_id,
     };
-    let output = app
-        .execute("open", serde_json::json!({}), &context)
+    let tool = app
+        .tools()
+        .into_iter()
+        .find(|tool| tool.id == "open")
+        .ok_or((StatusCode::BAD_REQUEST, "application cannot be opened".to_string()))?;
+    let output = (tool.execute)(serde_json::json!({}), context)
         .await
         .map_err(|error| (StatusCode::INTERNAL_SERVER_ERROR, error.to_string()))?;
 

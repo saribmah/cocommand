@@ -1,3 +1,9 @@
+use std::future::Future;
+use std::pin::Pin;
+use std::sync::Arc;
+
+use crate::error::CoreResult;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ApplicationKind {
     System,
@@ -9,12 +15,26 @@ pub mod note;
 pub mod registry;
 pub mod system;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+pub type ApplicationToolExecute = Arc<
+    dyn Fn(serde_json::Value, ApplicationContext) -> Pin<Box<dyn Future<Output = CoreResult<serde_json::Value>> + Send>>
+        + Send
+        + Sync,
+>;
+
+pub fn boxed_tool_future<F>(future: F) -> Pin<Box<dyn Future<Output = CoreResult<serde_json::Value>> + Send>>
+where
+    F: Future<Output = CoreResult<serde_json::Value>> + Send + 'static,
+{
+    Box::pin(future)
+}
+
+#[derive(Clone)]
 pub struct ApplicationTool {
     pub id: String,
     pub name: String,
     pub description: Option<String>,
     pub input_schema: serde_json::Value,
+    pub execute: ApplicationToolExecute,
 }
 
 #[derive(Clone)]
@@ -43,10 +63,4 @@ pub trait Application: Send + Sync {
     async fn initialize(&self, _context: &ApplicationContext) -> crate::error::CoreResult<()> {
         Ok(())
     }
-    async fn execute(
-        &self,
-        tool_id: &str,
-        input: serde_json::Value,
-        context: &ApplicationContext,
-    ) -> crate::error::CoreResult<serde_json::Value>;
 }

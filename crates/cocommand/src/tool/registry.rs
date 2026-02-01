@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use llm_kit_core::tool::ToolSet;
 
-use crate::application::{Application, ApplicationContext, ApplicationTool};
+use crate::application::{ApplicationContext, ApplicationTool};
 use crate::session::SessionManager;
 use crate::tool::activate_application::build_activate_application_tool;
 use crate::tool::get_application::build_get_application_tool;
@@ -42,7 +42,7 @@ impl ToolRegistry {
             for tool in system_app.tools() {
                 let raw_name = format!("{}.{}", system_app.id(), tool.id);
                 let tool_name = sanitize_tool_name(&raw_name);
-                let tool = build_tool(system_app.clone(), tool, context.clone());
+                let tool = build_tool(tool, context.clone());
                 tool_set.insert(tool_name, tool);
             }
         }
@@ -55,7 +55,7 @@ impl ToolRegistry {
                 for tool in app.tools() {
                     let raw_name = format!("{}.{}", app_id, tool.id);
                     let tool_name = sanitize_tool_name(&raw_name);
-                    let tool = build_tool(app.clone(), tool, context.clone());
+                    let tool = build_tool(tool, context.clone());
                     tool_set.insert(tool_name, tool);
                 }
             }
@@ -66,23 +66,19 @@ impl ToolRegistry {
 }
 
 fn build_tool(
-    app: Arc<dyn Application>,
     tool: ApplicationTool,
     context: ApplicationContext,
 ) -> llm_kit_provider_utils::tool::Tool {
-    let tool_id = tool.id.clone();
     let description = tool.description.clone();
     let schema = tool.input_schema.clone();
     let execute_context = context.clone();
-    let execute_app = app.clone();
+    let execute_handler = tool.execute.clone();
 
     let execute = Arc::new(move |input: serde_json::Value, _opts| {
-        let execute_app = execute_app.clone();
         let execute_context = execute_context.clone();
-        let tool_id = tool_id.clone();
+        let execute_handler = execute_handler.clone();
         llm_kit_provider_utils::tool::ToolExecutionOutput::Single(Box::pin(async move {
-            execute_app
-                .execute(&tool_id, input, &execute_context)
+            execute_handler(input, execute_context)
                 .await
                 .map_err(|error| serde_json::json!({ "error": error.to_string() }))
         }))

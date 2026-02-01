@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use crate::application::{Application, ApplicationContext, ApplicationKind, ApplicationTool};
+use crate::application::{boxed_tool_future, Application, ApplicationContext, ApplicationKind, ApplicationTool};
 use crate::error::CoreResult;
 use crate::extension::host::ExtensionHost;
 use crate::extension::manifest::{ExtensionManifest, ExtensionTool};
@@ -20,16 +20,23 @@ pub struct ExtensionApplication {
 impl ExtensionApplication {
     pub fn new(
         manifest: ExtensionManifest,
-        tools: Vec<ApplicationTool>,
         host: Arc<ExtensionHost>,
         extension_dir: PathBuf,
     ) -> Self {
+        let initialized = Arc::new(Mutex::new(false));
+        let tools = tools_from_manifest(
+            manifest.tools.clone(),
+            None,
+            host.clone(),
+            initialized.clone(),
+            &manifest.id,
+        );
         Self {
             manifest,
             tools,
             host,
             extension_dir,
-            initialized: Arc::new(Mutex::new(false)),
+            initialized,
         }
     }
 
@@ -87,27 +94,14 @@ impl Application for ExtensionApplication {
         *guard = true;
         Ok(())
     }
-
-    async fn execute(
-        &self,
-        tool_id: &str,
-        input: serde_json::Value,
-        _context: &ApplicationContext,
-    ) -> CoreResult<serde_json::Value> {
-        let initialized = { *self.initialized.lock().await };
-        if !initialized {
-            return Err(crate::error::CoreError::InvalidInput(format!(
-                "extension {} not initialized, please activate application first.",
-                self.manifest.id
-            )));
-        }
-        self.host.invoke_tool(tool_id, input).await
-    }
 }
 
 pub fn tools_from_manifest(
     manifest_tools: Option<Vec<ExtensionTool>>,
     available_tools: Option<&[String]>,
+    host: Arc<ExtensionHost>,
+    initialized: Arc<Mutex<bool>>,
+    extension_id: &str,
 ) -> Vec<ApplicationTool> {
     let mut tools = Vec::new();
     if let Some(manifest_tools) = manifest_tools {
@@ -117,6 +111,26 @@ pub fn tools_from_manifest(
                     continue;
                 }
             }
+            let tool_id = tool.id.clone();
+            let host = host.clone();
+            let initialized = initialized.clone();
+            let extension_id = extension_id.to_string();
+            let execute = Arc::new(move |input: serde_json::Value, _context| {
+                let host = host.clone();
+                let initialized = initialized.clone();
+                let tool_id = tool_id.clone();
+                let extension_id = extension_id.clone();
+                boxed_tool_future(async move {
+                    let initialized = { *initialized.lock().await };
+                    if !initialized {
+                        return Err(crate::error::CoreError::InvalidInput(format!(
+                            "extension {} not initialized, please activate application first.",
+                            extension_id
+                        )));
+                    }
+                    host.invoke_tool(&tool_id, input).await
+                })
+            });
             tools.push(ApplicationTool {
                 id: tool.id.clone(),
                 name: tool.id.clone(),
@@ -124,6 +138,7 @@ pub fn tools_from_manifest(
                 input_schema: tool
                     .input_schema
                     .unwrap_or_else(|| serde_json::json!({ "type": "object" })),
+                execute,
             });
         }
     }

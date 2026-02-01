@@ -1,4 +1,6 @@
-use crate::application::{Application, ApplicationKind, ApplicationTool};
+use std::sync::Arc;
+
+use crate::application::{boxed_tool_future, Application, ApplicationKind, ApplicationTool};
 use crate::error::CoreError;
 use serde_json::json;
 
@@ -30,6 +32,21 @@ impl Application for NoteApplication {
     }
 
     fn tools(&self) -> Vec<ApplicationTool> {
+        let create_execute = Arc::new(|_input: serde_json::Value, _context| {
+            boxed_tool_future(async move {
+                Err(CoreError::Internal(
+                    "notes tool create-note not implemented".to_string(),
+                ))
+            })
+        });
+        let list_execute = Arc::new(|_input: serde_json::Value, _context| {
+            boxed_tool_future(async move {
+                Err(CoreError::Internal(
+                    "notes tool list-notes not implemented".to_string(),
+                ))
+            })
+        });
+
         vec![
             ApplicationTool {
                 id: "create-note".to_string(),
@@ -43,6 +60,7 @@ impl Application for NoteApplication {
                     },
                     "required": ["content"],
                 }),
+                execute: create_execute,
             },
             ApplicationTool {
                 id: "list-notes".to_string(),
@@ -54,18 +72,8 @@ impl Application for NoteApplication {
                         "limit": { "type": "integer", "minimum": 1 }
                     }
                 }),
+                execute: list_execute,
             },
         ]
-    }
-
-    async fn execute(
-        &self,
-        tool_id: &str,
-        _input: serde_json::Value,
-        _context: &crate::application::ApplicationContext,
-    ) -> crate::error::CoreResult<serde_json::Value> {
-        Err(CoreError::Internal(format!(
-            "notes tool {tool_id} not implemented"
-        )))
     }
 }

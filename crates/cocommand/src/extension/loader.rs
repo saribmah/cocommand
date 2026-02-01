@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use crate::application::Application;
 use crate::error::{CoreError, CoreResult};
-use crate::extension::application::{tools_from_manifest, ExtensionApplication};
+use crate::extension::application::ExtensionApplication;
 use crate::extension::host::{extension_host_entrypoint, ExtensionHost};
 use crate::extension::manifest::ExtensionManifest;
 
@@ -43,8 +43,7 @@ pub async fn load_extension_applications(
                 continue;
             }
         };
-        let tools = tools_from_manifest(manifest.tools.clone(), None);
-        let app = ExtensionApplication::new(manifest, tools, Arc::new(host), path);
+        let app = ExtensionApplication::new(manifest, Arc::new(host), path);
         applications.push(Arc::new(app));
     }
 

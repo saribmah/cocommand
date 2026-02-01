@@ -1,5 +1,10 @@
-use crate::application::{Application, ApplicationKind, ApplicationTool};
+use std::sync::Arc;
+
+use crate::application::{boxed_tool_future, Application, ApplicationKind, ApplicationTool};
 use crate::error::CoreError;
+
+#[cfg(target_os = "macos")]
+use platform_macos;
 
 #[derive(Debug, Default)]
 pub struct SystemApplication;
@@ -29,6 +34,80 @@ impl Application for SystemApplication {
     }
 
     fn tools(&self) -> Vec<ApplicationTool> {
+        #[cfg(target_os = "macos")]
+        {
+        let list_open_execute = Arc::new(|input: serde_json::Value, _context| {
+            boxed_tool_future(async move {
+                let visible_only = input
+                    .get("visibleOnly")
+                    .and_then(|value| value.as_bool())
+                    .unwrap_or(false);
+                let apps = platform_macos::list_open_apps(visible_only)
+                    .map_err(CoreError::Internal)?;
+                Ok(serde_json::to_value(apps).map_err(|error| {
+                    CoreError::Internal(format!("failed to serialize open apps: {error}"))
+                })?)
+            })
+        });
+        let run_applescript_execute = Arc::new(|input: serde_json::Value, _context| {
+            boxed_tool_future(async move {
+                let script = input
+                    .get("script")
+                    .and_then(|value| value.as_str())
+                    .ok_or_else(|| CoreError::Internal("missing script".to_string()))?;
+                let output =
+                    platform_macos::run_applescript(script).map_err(CoreError::Internal)?;
+                Ok(serde_json::json!({ "output": output }))
+            })
+        });
+        let app_action_execute = Arc::new(|input: serde_json::Value, _context| {
+            boxed_tool_future(async move {
+                let action = input
+                    .get("action")
+                    .and_then(|value| value.as_str())
+                    .ok_or_else(|| CoreError::Internal("missing action".to_string()))?;
+                let bundle_id = input
+                    .get("bundleId")
+                    .and_then(|value| value.as_str());
+                let pid = input
+                    .get("pid")
+                    .and_then(|value| value.as_i64())
+                    .map(|value| value as i32);
+                if bundle_id.is_none() && pid.is_none() {
+                    return Err(CoreError::Internal("bundleId or pid is required".to_string()));
+                }
+                platform_macos::perform_app_action(bundle_id, pid, action)
+                    .map_err(CoreError::Internal)?;
+                Ok(serde_json::json!({ "status": "ok" }))
+            })
+        });
+        let window_action_execute = Arc::new(|input: serde_json::Value, _context| {
+            boxed_tool_future(async move {
+                let action = input
+                    .get("action")
+                    .and_then(|value| value.as_str())
+                    .ok_or_else(|| CoreError::Internal("missing action".to_string()))?;
+                let window_id = input
+                    .get("windowId")
+                    .and_then(|value| value.as_u64())
+                    .ok_or_else(|| CoreError::Internal("missing windowId".to_string()))?
+                    as u32;
+                platform_macos::perform_window_action(window_id, action)
+                    .map_err(CoreError::Internal)?;
+                Ok(serde_json::json!({ "status": "ok" }))
+            })
+        });
+        let list_installed_execute = Arc::new(|_input: serde_json::Value, _context| {
+            boxed_tool_future(async move {
+                let apps = platform_macos::list_installed_apps();
+                Ok(serde_json::to_value(apps).map_err(|error| {
+                    CoreError::Internal(format!(
+                        "failed to serialize installed apps: {error}"
+                    ))
+                })?)
+            })
+        });
+
         vec![
             ApplicationTool {
                 id: "list_open_apps".to_string(),
@@ -41,6 +120,7 @@ impl Application for SystemApplication {
                     },
                     "additionalProperties": false
                 }),
+                execute: list_open_execute,
             },
             ApplicationTool {
                 id: "run_applescript".to_string(),
@@ -54,6 +134,7 @@ impl Application for SystemApplication {
                     "required": ["script"],
                     "additionalProperties": false
                 }),
+                execute: run_applescript_execute,
             },
             ApplicationTool {
                 id: "list_installed_apps".to_string(),
@@ -64,6 +145,7 @@ impl Application for SystemApplication {
                     "properties": {},
                     "additionalProperties": false
                 }),
+                execute: list_installed_execute,
             },
             ApplicationTool {
                 id: "app_action".to_string(),
@@ -82,6 +164,7 @@ impl Application for SystemApplication {
                     "required": ["action"],
                     "additionalProperties": false
                 }),
+                execute: app_action_execute,
             },
             ApplicationTool {
                 id: "window_action".to_string(),
@@ -99,91 +182,101 @@ impl Application for SystemApplication {
                     "required": ["windowId", "action"],
                     "additionalProperties": false
                 }),
+                execute: window_action_execute,
             },
         ]
-    }
-
-    async fn execute(
-        &self,
-        tool_id: &str,
-        input: serde_json::Value,
-        _context: &crate::application::ApplicationContext,
-    ) -> crate::error::CoreResult<serde_json::Value> {
-        #[cfg(target_os = "macos")]
-        {
-            match tool_id {
-                "list_installed_apps" => {
-                    let apps = platform_macos::list_installed_apps();
-                    return Ok(serde_json::to_value(apps).map_err(|error| {
-                        CoreError::Internal(format!(
-                            "failed to serialize installed apps: {error}"
-                        ))
-                    })?);
-                }
-                "list_open_apps" => {
-                    let visible_only = input
-                        .get("visibleOnly")
-                        .and_then(|value| value.as_bool())
-                        .unwrap_or(false);
-                    let apps = platform_macos::list_open_apps(visible_only)
-                        .map_err(CoreError::Internal)?;
-                    return Ok(serde_json::to_value(apps).map_err(|error| {
-                        CoreError::Internal(format!("failed to serialize open apps: {error}"))
-                    })?);
-                }
-                "run_applescript" => {
-                    let script = input
-                        .get("script")
-                        .and_then(|value| value.as_str())
-                        .ok_or_else(|| CoreError::Internal("missing script".to_string()))?;
-                    let output = platform_macos::run_applescript(script)
-                        .map_err(CoreError::Internal)?;
-                    return Ok(serde_json::json!({ "output": output }));
-                }
-                "app_action" => {
-                    let action = input
-                        .get("action")
-                        .and_then(|value| value.as_str())
-                        .ok_or_else(|| CoreError::Internal("missing action".to_string()))?;
-                    let bundle_id = input
-                        .get("bundleId")
-                        .and_then(|value| value.as_str());
-                    let pid = input
-                        .get("pid")
-                        .and_then(|value| value.as_i64())
-                        .map(|value| value as i32);
-                    if bundle_id.is_none() && pid.is_none() {
-                        return Err(CoreError::Internal(
-                            "bundleId or pid is required".to_string(),
-                        ));
-                    }
-                    platform_macos::perform_app_action(bundle_id, pid, action)
-                        .map_err(CoreError::Internal)?;
-                    return Ok(serde_json::json!({ "status": "ok" }));
-                }
-                "window_action" => {
-                    let action = input
-                        .get("action")
-                        .and_then(|value| value.as_str())
-                        .ok_or_else(|| CoreError::Internal("missing action".to_string()))?;
-                    let window_id = input
-                        .get("windowId")
-                        .and_then(|value| value.as_u64())
-                        .ok_or_else(|| CoreError::Internal("missing windowId".to_string()))?
-                        as u32;
-                    platform_macos::perform_window_action(window_id, action)
-                        .map_err(CoreError::Internal)?;
-                    return Ok(serde_json::json!({ "status": "ok" }));
-                }
-                _ => {}
-            }
         }
         #[cfg(not(target_os = "macos"))]
         {
-            let _ = input;
+            let unsupported = |tool_id: &str| {
+                let tool_id = tool_id.to_string();
+                Arc::new(move |_input: serde_json::Value, _context| {
+                    let tool_id = tool_id.clone();
+                    boxed_tool_future(async move {
+                        Err(CoreError::Internal(format!(
+                            "system tool not supported: {tool_id}"
+                        )))
+                    })
+                })
+            };
+
+            vec![
+                ApplicationTool {
+                    id: "list_open_apps".to_string(),
+                    name: "List Open Apps".to_string(),
+                    description: Some("List running applications and their windows".to_string()),
+                    input_schema: serde_json::json!({
+                        "type": "object",
+                        "properties": {
+                            "visibleOnly": { "type": "boolean", "default": false }
+                        },
+                        "additionalProperties": false
+                    }),
+                    execute: unsupported("list_open_apps"),
+                },
+                ApplicationTool {
+                    id: "run_applescript".to_string(),
+                    name: "Run AppleScript".to_string(),
+                    description: Some("Run AppleScript automation".to_string()),
+                    input_schema: serde_json::json!({
+                        "type": "object",
+                        "properties": {
+                            "script": { "type": "string" }
+                        },
+                        "required": ["script"],
+                        "additionalProperties": false
+                    }),
+                    execute: unsupported("run_applescript"),
+                },
+                ApplicationTool {
+                    id: "list_installed_apps".to_string(),
+                    name: "List Installed Apps".to_string(),
+                    description: Some("List installed applications on this system".to_string()),
+                    input_schema: serde_json::json!({
+                        "type": "object",
+                        "properties": {},
+                        "additionalProperties": false
+                    }),
+                    execute: unsupported("list_installed_apps"),
+                },
+                ApplicationTool {
+                    id: "app_action".to_string(),
+                    name: "App Action".to_string(),
+                    description: Some("Perform an action on an application".to_string()),
+                    input_schema: serde_json::json!({
+                        "type": "object",
+                        "properties": {
+                            "bundleId": { "type": "string" },
+                            "pid": { "type": "integer" },
+                            "action": {
+                                "type": "string",
+                                "enum": ["activate", "hide", "quit"]
+                            }
+                        },
+                        "required": ["action"],
+                        "additionalProperties": false
+                    }),
+                    execute: unsupported("app_action"),
+                },
+                ApplicationTool {
+                    id: "window_action".to_string(),
+                    name: "Window Action".to_string(),
+                    description: Some("Perform an action on a window".to_string()),
+                    input_schema: serde_json::json!({
+                        "type": "object",
+                        "properties": {
+                            "windowId": { "type": "integer" },
+                            "action": {
+                                "type": "string",
+                                "enum": ["minimize", "close", "focus"]
+                            }
+                        },
+                        "required": ["windowId", "action"],
+                        "additionalProperties": false
+                    }),
+                    execute: unsupported("window_action"),
+                },
+            ]
         }
-        Err(CoreError::Internal(format!(
-            "system tool not supported: {tool_id}"
-        )))
     }
 }
