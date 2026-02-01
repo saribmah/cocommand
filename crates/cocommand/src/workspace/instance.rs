@@ -7,6 +7,7 @@ use crate::application::note::NoteApplication;
 use crate::application::registry::ApplicationRegistry;
 use crate::application::Application;
 use crate::application::installed::InstalledApplication;
+use crate::application::system::SystemApplication;
 use crate::error::{CoreError, CoreResult};
 use crate::extension::loader::load_extension_applications;
 use crate::storage::file::FileStorage;
@@ -62,6 +63,7 @@ impl WorkspaceInstance {
 async fn register_builtin_applications(registry: &Arc<RwLock<ApplicationRegistry>>) {
     let mut registry = registry.write().await;
     registry.register(Arc::new(NoteApplication::new()) as Arc<dyn Application>);
+    registry.register(Arc::new(SystemApplication::new()) as Arc<dyn Application>);
     register_installed_applications(&mut registry);
 }
 

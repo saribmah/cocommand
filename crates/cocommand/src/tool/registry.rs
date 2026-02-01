@@ -38,8 +38,20 @@ impl ToolRegistry {
             build_activate_application_tool(workspace.clone(), sessions.clone(), session_id),
         );
 
+        if let Some(system_app) = registry.get("system") {
+            for tool in system_app.tools() {
+                let raw_name = format!("{}.{}", system_app.id(), tool.id);
+                let tool_name = sanitize_tool_name(&raw_name);
+                let tool = build_tool(system_app.clone(), tool, context.clone());
+                tool_set.insert(tool_name, tool);
+            }
+        }
+
         for app_id in active_app_ids {
             if let Some(app) = registry.get(app_id) {
+                if app.id() == "system" {
+                    continue;
+                }
                 for tool in app.tools() {
                     let raw_name = format!("{}.{}", app_id, tool.id);
                     let tool_name = sanitize_tool_name(&raw_name);
