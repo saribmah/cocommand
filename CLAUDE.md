@@ -2,123 +2,129 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## What is Cocommand
+## Project Overview
 
-AI-native command bar for macOS (like Spotlight/Raycast with LLM-driven orchestration). Users type natural-language commands → the system interprets intent → routes to the correct tool → returns an execution plan or result.
+Cocommand (COCO) is an AI-native command bar for macOS. Users type natural-language commands, and the system interprets intent, routes to the correct tool, and returns results or execution plans.
 
-## Build & Development Commands
-
-**Prerequisites:** Bun (v1.2.17), Rust (2021 edition), Tauri CLI v2
-
-```bash
-# Install dependencies
-bun install
-
-# Frontend dev server (Vite)
-bun --cwd apps/desktop dev
-
-# Full desktop app (Tauri + Vite)
-bun --cwd apps/desktop tauri dev
-
-# Production build
-bun --cwd apps/desktop tauri build
-
-# Docs site
-bun docs:dev
-bun docs:build
-
-# Rust tests (core crate)
-cargo test -p cocommand
-
-# Single test
-cargo test -p cocommand <test_name>
-
-# Rust build check
-cargo check -p cocommand
-cargo check -p cocommand-desktop
+**Core execution pipeline:**
 ```
+User Command → Capability Router → LLM Planner → Permission Layer → Tool Executor → Workspace Patch
+```
+
+## Development Commands
+
+### Desktop App (full stack)
+```bash
+cd apps/desktop
+bun install
+bun tauri dev
+```
+
+### Frontend Only (React/Vite)
+```bash
+cd apps/desktop
+bun dev
+```
+
+### Rust Backend
+```bash
+cd crates/cocommand
+cargo check
+cargo test
+```
+
+### Documentation Site
+```bash
+cd apps/docs
+bun install
+bun dev
+```
+
+### Build Desktop App
+```bash
+cd apps/desktop
+bun tauri build
+```
+
+## Prerequisites
+
+- Bun v1.2.17+
+- Rust 2021 edition
+- Tauri CLI v2
 
 ## Architecture
 
-```
-┌─────────────────────────────────────────┐
-│  React UI (apps/desktop/src/)           │
-│  CommandBar → ResultCard/ConfirmPanel   │
-├─────────────────────────────────────────┤
-│  Tauri IPC (apps/desktop/src-tauri/)    │
-│  commands.rs ↔ state.rs ↔ window.rs    │
-├─────────────────────────────────────────┤
-│  Core Engine (crates/cocommand/src/)    │
-│  core.rs → routing → planner → tools   │
-├─────────────────────────────────────────┤
-│  Platform (crates/platform-macos/)      │
-└─────────────────────────────────────────┘
-```
+### Monorepo Structure
+- `apps/desktop/` - Tauri + React desktop app
+  - `src/` - React frontend (TypeScript)
+  - `src-tauri/` - Tauri backend (Rust)
+- `crates/cocommand/` - Core Rust library (Axum HTTP server, LLM integration, tool system)
+- `crates/platform-macos/` - macOS-specific bindings (objc2)
+- `apps/docs/` - Astro documentation site
+- `extensions/` - Example extensions
 
-### Core Engine (crates/cocommand/src/)
+### Backend (Rust - `crates/cocommand`)
 
-The `Core` struct in `core.rs` is the primary facade. All command processing flows through `Core::submit_command()`.
+**HTTP Server** (`server.rs`) - Axum-based REST API on port 4840:
+- `POST /sessions/message` - Process user commands
+- `GET /sessions/context` - Session context
+- `GET /workspace/applications` - List applications
+- `POST /workspace/applications/open` - Open application
+- `GET /events` - SSE event stream
 
-**Pipeline:** User text → `command::parse()` → `Router::route()` → `Planner` → Tool execution → `CoreResponse`
+**Key modules:**
+- `session/` - Session management with UUIDs, application caching
+- `workspace/` - Workspace state, config, file-based storage
+- `llm/` - LLM service wrapping `llm-kit` (OpenAI-compatible)
+- `tool/` - Tool registry (`search_application`, `get_application`, `activate_application`)
+- `application/` - Application registry (system apps, built-ins, extensions)
+- `extension/` - Extension host, manifest loading, sandboxed execution
+- `bus.rs` - Publish-subscribe event system
 
-Key modules:
-- **command/** — Parsing and normalization of natural-language input
-- **routing/** — Intent matching to find the right application/tool
-- **planner/** — Generates tool call plans from routed candidates
-- **workspace/** — Session-scoped state (follow-up mode, confirmation pending, app instances)
-- **tools/** — Registry, schema definitions, executor, invocation tracking
-- **permissions/** — Per-tool permission enforcement
-- **builtins/** — Built-in apps (Calculator, Clipboard, Notes)
-- **extensions/** — Extension loading system
-- **events/** — Event bus
+### Frontend (React - `apps/desktop/src`)
 
-### CoreResponse Types
+**State Management** (Zustand stores in `state/`):
+- `useCommandBar()` - Command input and results
+- `useSessionStore()` - Session context, message history
+- `useAiStore()` - LLM response streaming
+- `useApplicationStore()` - Available applications
+- `useServerStore()` - Backend server info
 
-All responses cross the Tauri boundary as one of:
-- `Artifact` — Renderable result with optional actions
-- `Preview` — Read-only display (e.g., last note)
-- `Confirmation` — Asks user to confirm a risky action
-- `Error` — User-displayable error message
+**Key components:**
+- `CommandBar.tsx` - Main command input + results
+- `ResultCard.tsx`, `SuggestionList.tsx`, `ConfirmPanel.tsx` - Result rendering
 
-### Workspace Model
+**IPC:** `lib/backend.ts` defines `BASE_URL = http://127.0.0.1:4840`
 
-Sessions use a virtual workspace with:
-- Follow-up mode (90s TTL, max 3 turns) for contextual multi-turn interaction
-- Confirmation pending state for risky operations
-- Application instance mounting with scoped tools
+### Tauri Bridge (`apps/desktop/src-tauri`)
 
-### Frontend (apps/desktop/src/)
+- Global hotkey: `Cmd+O` toggles main window
+- Backend server starts with retry logic (3 retries, 200ms delay)
+- Commands: `get_workspace_dir_cmd`, `set_workspace_dir_cmd`, `get_server_info_cmd`
 
-- **components/** — CommandBar, ResultCard, ConfirmPanel, MarkdownView, SuggestionList
-- **state/** — State management (commandbar.ts)
-- **lib/** — IPC bridge to Tauri backend
-- **types/** — Shared TypeScript types
+## Key Concepts
 
-### Tauri Layer (apps/desktop/src-tauri/src/)
+**Applications:** System apps (macOS), Built-ins (Clipboard, Calculator, Notes), Extensions (user-defined)
 
-- **commands.rs** — `#[tauri::command]` handlers exposed to frontend
-- **state.rs** — Holds the `Core` instance in Tauri managed state
-- **window.rs** — Window management (720x180, transparent, always-on-top)
+**Tools:** Executable interfaces invoked by the LLM with input/output schemas and risk levels (safe/confirm/destructive)
 
-## Monorepo Structure
+**Workspace:** LLM-readable session state tracking active applications, focused app, and mounted tools. Mutations only via Kernel Tools.
 
-Uses Bun workspaces. Key paths:
-- `apps/desktop` — Main Tauri + React desktop app
-- `apps/docs` — Documentation site
-- `crates/cocommand` — Core Rust engine (the brain)
-- `crates/platform-macos` — macOS platform integrations
-- `extensions/` — Extension template
+**Extensions:** TypeScript extensions running in sandboxed Deno host, defined by manifest with routing metadata, permissions, and tool declarations.
 
-## Key Dependencies
+## Code Style
 
-**Rust:** axum 0.7, tokio 1 (multi-thread), serde/serde_json, uuid v4
-**Frontend:** react 19, vite 7, @tauri-apps/api 2
-**Desktop:** tauri 2 (macos-private-api), tauri-plugin-global-shortcut 2
+- **JavaScript/React:** 2-space indentation, `camelCase` variables, `PascalCase` components
+- **Rust:** 4-space indentation, idiomatic `snake_case`
+- **JSON definitions:** `kebab-case` IDs, semver versions
+- **Commits:** Short, imperative, scope-light (e.g., `add planner`, `move planning to backend`)
 
-## Conventions
+## Testing
 
-- The core HTTP server runs on port 4840 (health endpoint)
-- Tauri window uses `macos-private-api` for transparent/borderless styling
-- Global shortcut for toggling the command bar
-- All cross-boundary types live in `crates/cocommand/src/types.rs`
-- Documentation milestones in `docs/hand-offs/`
+- Desktop E2E tests: `cargo test -p cocommand-desktop` (in `apps/desktop/src-tauri/`)
+- Backend unit tests: `cargo test` (in `crates/cocommand/`)
+- No dedicated JS test framework yet
+
+## External Dependencies
+
+The project uses a local `llm-kit-*` SDK suite (path: `../../../ai-sdk/llm-kit-*`) for LLM integration. Ensure this sibling directory exists.
