@@ -38,9 +38,12 @@ impl ToolRegistry {
             build_activate_application_tool(workspace.clone(), sessions.clone(), session_id),
         );
 
-        if let Some(system_app) = registry.get("system") {
-            for tool in system_app.tools() {
-                let raw_name = format!("{}.{}", system_app.id(), tool.id);
+        for app in registry.list() {
+            if app.kind() != crate::application::ApplicationKind::System {
+                continue;
+            }
+            for tool in app.tools() {
+                let raw_name = format!("{}.{}", app.id(), tool.id);
                 let tool_name = sanitize_tool_name(&raw_name);
                 let tool = build_tool(tool, context.clone());
                 tool_set.insert(tool_name, tool);
@@ -49,7 +52,7 @@ impl ToolRegistry {
 
         for app_id in active_app_ids {
             if let Some(app) = registry.get(app_id) {
-                if app.id() == "system" {
+                if app.kind() == crate::application::ApplicationKind::System {
                     continue;
                 }
                 for tool in app.tools() {

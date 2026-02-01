@@ -13,6 +13,7 @@ pub enum ApplicationKind {
 
 pub mod note;
 pub mod registry;
+pub mod screenshot;
 pub mod system;
 
 pub type ApplicationToolExecute = Arc<

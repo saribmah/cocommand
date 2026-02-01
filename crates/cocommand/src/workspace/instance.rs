@@ -6,6 +6,7 @@ use tokio::sync::RwLock;
 use crate::application::note::NoteApplication;
 use crate::application::registry::ApplicationRegistry;
 use crate::application::Application;
+use crate::application::screenshot::ScreenshotApplication;
 use crate::application::system::SystemApplication;
 use crate::error::{CoreError, CoreResult};
 use crate::extension::loader::load_extension_applications;
@@ -63,6 +64,7 @@ async fn register_builtin_applications(registry: &Arc<RwLock<ApplicationRegistry
     let mut registry = registry.write().await;
     registry.register(Arc::new(NoteApplication::new()) as Arc<dyn Application>);
     registry.register(Arc::new(SystemApplication::new()) as Arc<dyn Application>);
+    registry.register(Arc::new(ScreenshotApplication::new()) as Arc<dyn Application>);
 }
 
 async fn register_extension_applications(
