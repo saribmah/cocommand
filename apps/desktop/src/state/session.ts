@@ -42,7 +42,18 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     });
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(errorText || `Server error (${response.status})`);
+      let message = errorText || `Server error (${response.status})`;
+      if (errorText) {
+        try {
+          const parsed = JSON.parse(errorText) as { error?: unknown };
+          if (parsed?.error) {
+            message = normalizeErrorMessage(parsed.error);
+          }
+        } catch {
+          message = errorText;
+        }
+      }
+      throw new Error(message);
     }
     const reader = response.body?.getReader();
     if (!reader) {
@@ -84,7 +95,13 @@ export const useSessionStore = create<SessionState>((set, get) => ({
           }
         }
         if (parsed.event === "error") {
-          throw new Error(parsed.data?.error || "Streaming error");
+          const errorValue =
+            parsed.data && typeof parsed.data === "object"
+              ? (parsed.data as { error?: unknown }).error
+              : parsed.data;
+          const message = normalizeErrorMessage(errorValue || "Streaming error");
+          console.error("SSE error event", parsed.data ?? parsed);
+          throw new Error(message);
         }
       }
     }
@@ -96,6 +113,16 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   },
   getContext: () => get().context,
 }));
+
+function normalizeErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "string") return error;
+  try {
+    return JSON.stringify(error);
+  } catch {
+    return String(error);
+  }
+}
 
 function parseSseEvent(raw: string): StreamEvent | null {
   if (!raw.trim()) return null;
