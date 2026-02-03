@@ -59,3 +59,11 @@ export async function openSettingsWindow(): Promise<void> {
 export async function getServerInfo(): Promise<ServerInfo> {
   return invoke("get_server_info_cmd");
 }
+
+export async function getWorkspaceDir(): Promise<string> {
+  return invoke("get_workspace_dir_cmd");
+}
+
+export async function setWorkspaceDir(workspaceDir: string): Promise<string> {
+  return invoke("set_workspace_dir_cmd", { workspace_dir: workspaceDir });
+}

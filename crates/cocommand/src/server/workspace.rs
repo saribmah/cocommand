@@ -7,8 +7,14 @@ use std::sync::Arc;
 
 use crate::application::{Application, ApplicationContext, ApplicationKind, ApplicationTool};
 use crate::server::ServerState;
-use crate::workspace::WorkspaceAiPreferences;
+use crate::utils::time::now_secs;
+use crate::workspace::{WorkspaceAiPreferences, WorkspaceTheme};
 use crate::llm::LlmSettings;
+
+#[cfg(target_os = "macos")]
+use platform_macos::{
+    check_accessibility, check_automation, check_screen_recording, open_permission_settings,
+};
 
 #[derive(Debug, Serialize)]
 pub struct ApplicationInfo {
@@ -54,6 +60,51 @@ pub struct UpdateAiSettingsRequest {
     pub temperature: Option<f64>,
     pub max_output_tokens: Option<u32>,
     pub max_steps: Option<usize>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct WorkspaceSettingsResponse {
+    pub name: String,
+    pub theme: WorkspaceTheme,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateWorkspaceSettingsRequest {
+    pub name: Option<String>,
+    pub theme_mode: Option<String>,
+    pub theme_accent: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct OnboardingStatusResponse {
+    pub completed: bool,
+    pub completed_at: Option<u64>,
+    pub version: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateOnboardingRequest {
+    pub completed: bool,
+    pub version: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct PermissionStatus {
+    pub id: String,
+    pub label: String,
+    pub granted: bool,
+    pub required: bool,
+}
+
+#[derive(Debug, Serialize)]
+pub struct PermissionsResponse {
+    pub platform: String,
+    pub permissions: Vec<PermissionStatus>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct OpenPermissionRequest {
+    pub id: String,
 }
 
 pub(crate) async fn list_applications(
@@ -143,6 +194,135 @@ pub(crate) async fn get_ai_settings(
     }))
 }
 
+pub(crate) async fn get_workspace_settings(
+    State(state): State<Arc<ServerState>>,
+) -> Result<Json<WorkspaceSettingsResponse>, (StatusCode, String)> {
+    let config = state.workspace.config.read().await;
+    Ok(Json(WorkspaceSettingsResponse {
+        name: config.name.clone(),
+        theme: config.theme.clone(),
+    }))
+}
+
+pub(crate) async fn update_workspace_settings(
+    State(state): State<Arc<ServerState>>,
+    Json(payload): Json<UpdateWorkspaceSettingsRequest>,
+) -> Result<Json<WorkspaceSettingsResponse>, (StatusCode, String)> {
+    {
+        let mut config = state.workspace.config.write().await;
+        if let Some(name) = payload.name {
+            config.name = name;
+        }
+        if let Some(mode) = payload.theme_mode {
+            config.theme.mode = mode;
+        }
+        if let Some(accent) = payload.theme_accent {
+            config.theme.accent = accent;
+        }
+        config.last_modified = now_secs();
+    }
+
+    persist_workspace_config(state.clone()).await?;
+    let config = state.workspace.config.read().await;
+    Ok(Json(WorkspaceSettingsResponse {
+        name: config.name.clone(),
+        theme: config.theme.clone(),
+    }))
+}
+
+pub(crate) async fn get_onboarding_status(
+    State(state): State<Arc<ServerState>>,
+) -> Result<Json<OnboardingStatusResponse>, (StatusCode, String)> {
+    let config = state.workspace.config.read().await;
+    Ok(Json(OnboardingStatusResponse {
+        completed: config.onboarding.completed,
+        completed_at: config.onboarding.completed_at,
+        version: config.onboarding.version.clone(),
+    }))
+}
+
+pub(crate) async fn update_onboarding_status(
+    State(state): State<Arc<ServerState>>,
+    Json(payload): Json<UpdateOnboardingRequest>,
+) -> Result<Json<OnboardingStatusResponse>, (StatusCode, String)> {
+    {
+        let mut config = state.workspace.config.write().await;
+        config.onboarding.completed = payload.completed;
+        config.onboarding.completed_at = if payload.completed {
+            Some(now_secs())
+        } else {
+            None
+        };
+        if let Some(version) = payload.version {
+            config.onboarding.version = version;
+        }
+        config.last_modified = now_secs();
+    }
+
+    persist_workspace_config(state.clone()).await?;
+    let config = state.workspace.config.read().await;
+    Ok(Json(OnboardingStatusResponse {
+        completed: config.onboarding.completed,
+        completed_at: config.onboarding.completed_at,
+        version: config.onboarding.version.clone(),
+    }))
+}
+
+pub(crate) async fn get_permissions_status(
+    State(_state): State<Arc<ServerState>>,
+) -> Result<Json<PermissionsResponse>, (StatusCode, String)> {
+    #[cfg(target_os = "macos")]
+    {
+        let permissions = vec![
+            PermissionStatus {
+                id: "accessibility".to_string(),
+                label: "Accessibility".to_string(),
+                granted: check_accessibility(),
+                required: true,
+            },
+            PermissionStatus {
+                id: "screen-recording".to_string(),
+                label: "Screen Recording".to_string(),
+                granted: check_screen_recording(),
+                required: true,
+            },
+            PermissionStatus {
+                id: "automation".to_string(),
+                label: "Automation".to_string(),
+                granted: check_automation().unwrap_or(false),
+                required: true,
+            },
+        ];
+        Ok(Json(PermissionsResponse {
+            platform: "macos".to_string(),
+            permissions,
+        }))
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        Ok(Json(PermissionsResponse {
+            platform: "unsupported".to_string(),
+            permissions: Vec::new(),
+        }))
+    }
+}
+
+pub(crate) async fn open_permission(
+    State(_state): State<Arc<ServerState>>,
+    Json(payload): Json<OpenPermissionRequest>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    #[cfg(target_os = "macos")]
+    {
+        open_permission_settings(&payload.id)
+            .map_err(|error| (StatusCode::BAD_REQUEST, error))?;
+        Ok(Json(serde_json::json!({ "status": "ok" })))
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        Err((StatusCode::BAD_REQUEST, "unsupported platform".to_string()))
+    }
+}
+
 pub(crate) async fn update_ai_settings(
     State(state): State<Arc<ServerState>>,
     Json(payload): Json<UpdateAiSettingsRequest>,
@@ -158,7 +338,6 @@ pub(crate) async fn update_ai_settings(
         config.clone()
     })
     .map_err(|error| (StatusCode::INTERNAL_SERVER_ERROR, error.to_string()))?;
-
     let workspace_id = {
         let config = state.workspace.config.read().await;
         config.workspace_id.clone()
@@ -190,6 +369,27 @@ pub(crate) async fn update_ai_settings(
             .map(|value| !value.trim().is_empty())
             .unwrap_or(false),
     }))
+}
+
+async fn persist_workspace_config(
+    state: Arc<ServerState>,
+) -> Result<(), (StatusCode, String)> {
+    let value = serde_json::to_value({
+        let config = state.workspace.config.read().await;
+        config.clone()
+    })
+    .map_err(|error| (StatusCode::INTERNAL_SERVER_ERROR, error.to_string()))?;
+    let workspace_id = {
+        let config = state.workspace.config.read().await;
+        config.workspace_id.clone()
+    };
+    state
+        .workspace
+        .storage
+        .write(&["workspace", &workspace_id], &value)
+        .await
+        .map_err(|error| (StatusCode::INTERNAL_SERVER_ERROR, error.to_string()))?;
+    Ok(())
 }
 
 fn map_application(app: &dyn Application) -> ApplicationInfo {

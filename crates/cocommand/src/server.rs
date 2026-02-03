@@ -53,6 +53,30 @@ impl Server {
             .route("/workspace/applications/open", post(workspace::open_application))
             .route("/workspace/settings/ai", get(workspace::get_ai_settings))
             .route("/workspace/settings/ai", post(workspace::update_ai_settings))
+            .route(
+                "/workspace/settings/workspace",
+                get(workspace::get_workspace_settings),
+            )
+            .route(
+                "/workspace/settings/workspace",
+                post(workspace::update_workspace_settings),
+            )
+            .route(
+                "/workspace/settings/onboarding",
+                get(workspace::get_onboarding_status),
+            )
+            .route(
+                "/workspace/settings/onboarding",
+                post(workspace::update_onboarding_status),
+            )
+            .route(
+                "/workspace/settings/permissions",
+                get(workspace::get_permissions_status),
+            )
+            .route(
+                "/workspace/settings/permissions/open",
+                post(workspace::open_permission),
+            )
             .with_state(state.clone())
             .layer(cors);
         let listener = TcpListener::bind("127.0.0.1:0")

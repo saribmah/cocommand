@@ -17,6 +17,7 @@ pub fn run() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(|app, _shortcut, event| {
@@ -48,6 +49,11 @@ pub fn run() {
             let handle = app.handle();
             handle.global_shortcut().register("CmdOrCtrl+O")?;
             if let Some(window) = app.get_webview_window("main") {
+                let handle = app.handle();
+                let handle_for_main = handle.clone();
+                let _ = handle.run_on_main_thread(move || {
+                    let _ = window::position_main_window_on_active_screen(&handle_for_main);
+                });
                 let window_handle = window.clone();
                 window.on_window_event(move |event| {
                     if let WindowEvent::Focused(false) = event {

@@ -9,6 +9,7 @@
     "core:window:allow-set-min-size",
     "core:window:allow-set-max-size",
     "opener:default",
-    "global-shortcut:default"
+    "global-shortcut:default",
+    "dialog:default"
   ]
 }

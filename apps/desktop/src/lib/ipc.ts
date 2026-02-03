@@ -5,6 +5,8 @@ export {
   hideSettingsWindow,
   openSettingsWindow,
   getServerInfo,
+  getWorkspaceDir,
+  setWorkspaceDir,
 } from "../types/core";
 
 export type { CoreResult, ErrorResult, ServerInfo } from "../types/core";

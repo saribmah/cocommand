@@ -20,6 +20,7 @@ pub struct WorkspaceConfig {
     pub preferences: WorkspacePreferences,
     pub ai: WorkspaceAiPreferences,
     pub theme: WorkspaceTheme,
+    pub onboarding: WorkspaceOnboarding,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -70,6 +71,13 @@ pub struct WorkspaceTheme {
     pub accent: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WorkspaceOnboarding {
+    pub completed: bool,
+    pub completed_at: Option<u64>,
+    pub version: String,
+}
+
 impl WorkspaceConfig {
     pub fn default_new() -> Self {
         let now = now_secs();
@@ -102,7 +110,12 @@ impl WorkspaceConfig {
             },
             theme: WorkspaceTheme {
                 mode: "system".to_string(),
-                accent: "blue".to_string(),
+                accent: "copper".to_string(),
+            },
+            onboarding: WorkspaceOnboarding {
+                completed: false,
+                completed_at: None,
+                version: "1.0".to_string(),
             },
         }
     }
