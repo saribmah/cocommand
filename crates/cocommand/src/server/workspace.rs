@@ -5,7 +5,7 @@ use serde::Deserialize;
 use serde::Serialize;
 use std::sync::Arc;
 
-use crate::application::{Application, ApplicationContext, ApplicationKind, ApplicationTool};
+use crate::application::{Extension, ExtensionContext, ExtensionKind, ExtensionTool};
 use crate::server::ServerState;
 use crate::utils::time::now_secs;
 use crate::workspace::{WorkspaceAiPreferences, WorkspaceTheme};
@@ -112,7 +112,7 @@ pub(crate) async fn list_applications(
 ) -> Json<Vec<ApplicationInfo>> {
     let registry = state
         .workspace
-        .application_registry
+        .extension_registry
         .read()
         .await;
     let apps = registry
@@ -131,7 +131,7 @@ pub(crate) async fn open_application(
     let app = {
         let registry = state
             .workspace
-            .application_registry
+            .extension_registry
             .read()
             .await;
         registry
@@ -157,7 +157,7 @@ pub(crate) async fn open_application(
         .await
         .map_err(|error| (StatusCode::INTERNAL_SERVER_ERROR, error.to_string()))?;
 
-    let context = ApplicationContext {
+    let context = ExtensionContext {
         workspace: Arc::new(state.workspace.clone()),
         session_id,
     };
@@ -392,7 +392,7 @@ async fn persist_workspace_config(
     Ok(())
 }
 
-fn map_application(app: &dyn Application) -> ApplicationInfo {
+fn map_application(app: &dyn Extension) -> ApplicationInfo {
     ApplicationInfo {
         id: app.id().to_string(),
         name: app.name().to_string(),
@@ -406,7 +406,7 @@ fn map_application(app: &dyn Application) -> ApplicationInfo {
     }
 }
 
-fn map_tool(tool: ApplicationTool) -> ApplicationToolInfo {
+fn map_tool(tool: ExtensionTool) -> ApplicationToolInfo {
     ApplicationToolInfo {
         id: tool.id,
         name: tool.name,
@@ -415,11 +415,11 @@ fn map_tool(tool: ApplicationTool) -> ApplicationToolInfo {
     }
 }
 
-fn map_kind(kind: ApplicationKind) -> String {
+fn map_kind(kind: ExtensionKind) -> String {
     match kind {
-        ApplicationKind::System => "system",
-        ApplicationKind::BuiltIn => "built-in",
-        ApplicationKind::Custom => "custom",
+        ExtensionKind::System => "system",
+        ExtensionKind::BuiltIn => "built-in",
+        ExtensionKind::Custom => "custom",
     }
     .to_string()
 }

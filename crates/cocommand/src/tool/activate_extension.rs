@@ -6,7 +6,7 @@ use serde_json::json;
 use crate::session::SessionManager;
 use crate::workspace::WorkspaceInstance;
 
-pub fn build_activate_application_tool(
+pub fn build_activate_extension_tool(
     workspace: Arc<WorkspaceInstance>,
     sessions: Arc<SessionManager>,
     session_id: &str,
@@ -23,10 +23,10 @@ pub fn build_activate_application_tool(
                 .ok_or_else(|| json!({ "error": "missing id" }))?
                 .to_string();
             let app = {
-                let registry = workspace.application_registry.read().await;
+                let registry = workspace.extension_registry.read().await;
                 registry.get(&app_id)
             }
-            .ok_or_else(|| json!({ "error": "application not found" }))?;
+            .ok_or_else(|| json!({ "error": "extension not found" }))?;
             sessions
                 .with_session_mut(|session| {
                     let app_id = app_id.clone();
@@ -39,7 +39,7 @@ pub fn build_activate_application_tool(
                                 "session not found".to_string(),
                             ));
                         }
-                        let context = crate::application::ApplicationContext {
+                        let context = crate::application::ExtensionContext {
                             workspace,
                             session_id: session_id.clone(),
                         };
@@ -61,6 +61,6 @@ pub fn build_activate_application_tool(
         },
         "required": ["id"]
     }))
-    .with_description("Activate an application so its tools become available.")
+    .with_description("Activate an extension so its tools become available.")
     .with_execute(execute)
 }

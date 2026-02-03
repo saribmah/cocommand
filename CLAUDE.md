@@ -76,7 +76,7 @@ bun tauri build
 - `session/` - Session management with UUIDs, application caching
 - `workspace/` - Workspace state, config, file-based storage
 - `llm/` - LLM service wrapping `llm-kit` (OpenAI-compatible)
-- `tool/` - Tool registry (`search_application`, `get_application`, `activate_application`)
+- `tool/` - Tool registry (`search_extensions`, `get_extension`, `activate_extension`)
 - `application/` - Application registry (system apps, built-ins, extensions)
 - `extension/` - Extension host, manifest loading, sandboxed execution
 - `bus.rs` - Publish-subscribe event system

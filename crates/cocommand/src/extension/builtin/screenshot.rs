@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use crate::application::{boxed_tool_future, Application, ApplicationKind, ApplicationTool};
+use crate::application::{boxed_tool_future, Extension, ExtensionKind, ExtensionTool};
 use crate::error::{CoreError, CoreResult};
 use crate::utils::time::now_secs;
 
@@ -9,9 +9,9 @@ use crate::utils::time::now_secs;
 use platform_macos::{capture_screenshot, ScreenshotMode, ScreenshotOptions};
 
 #[derive(Debug, Default)]
-pub struct ScreenshotApplication;
+pub struct ScreenshotExtension;
 
-impl ScreenshotApplication {
+impl ScreenshotExtension {
     pub fn new() -> Self {
         Self
     }
@@ -50,7 +50,7 @@ impl ScreenshotApplication {
 }
 
 #[async_trait::async_trait]
-impl Application for ScreenshotApplication {
+impl Extension for ScreenshotExtension {
     fn id(&self) -> &str {
         "screenshot"
     }
@@ -59,19 +59,19 @@ impl Application for ScreenshotApplication {
         "Screenshot"
     }
 
-    fn kind(&self) -> ApplicationKind {
-        ApplicationKind::System
+    fn kind(&self) -> ExtensionKind {
+        ExtensionKind::System
     }
 
     fn tags(&self) -> Vec<String> {
         vec!["screenshot".to_string(), "screen".to_string(), "system".to_string()]
     }
 
-    fn tools(&self) -> Vec<ApplicationTool> {
+    fn tools(&self) -> Vec<ExtensionTool> {
         #[cfg(target_os = "macos")]
         {
             let capture_execute = Arc::new(
-                |input: serde_json::Value, context: crate::application::ApplicationContext| {
+                |input: serde_json::Value, context: crate::application::ExtensionContext| {
                 boxed_tool_future(async move {
                     let mode = Self::parse_mode(input.get("mode").and_then(|v| v.as_str()))?;
                     let display = input.get("display").and_then(|v| v.as_u64()).map(|v| v as u32);
@@ -132,7 +132,7 @@ impl Application for ScreenshotApplication {
                 })
             });
 
-            vec![ApplicationTool {
+            vec![ExtensionTool {
                 id: "capture_screenshot".to_string(),
                 name: "Capture Screenshot".to_string(),
                 description: Some("Capture a screenshot using the macOS screencapture tool".to_string()),
@@ -172,7 +172,7 @@ impl Application for ScreenshotApplication {
                 })
             });
 
-            vec![ApplicationTool {
+            vec![ExtensionTool {
                 id: "capture_screenshot".to_string(),
                 name: "Capture Screenshot".to_string(),
                 description: Some("Capture a screenshot using the macOS screencapture tool".to_string()),
@@ -203,7 +203,7 @@ impl Application for ScreenshotApplication {
         }
     }
 
-    async fn initialize(&self, _context: &crate::application::ApplicationContext) -> CoreResult<()> {
+    async fn initialize(&self, _context: &crate::application::ExtensionContext) -> CoreResult<()> {
         Ok(())
     }
 }

@@ -5,19 +5,15 @@ use std::sync::Arc;
 use crate::error::CoreResult;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ApplicationKind {
+pub enum ExtensionKind {
     System,
     BuiltIn,
     Custom,
 }
 
-pub mod note;
-pub mod registry;
-pub mod screenshot;
-pub mod system;
 
-pub type ApplicationToolExecute = Arc<
-    dyn Fn(serde_json::Value, ApplicationContext) -> Pin<Box<dyn Future<Output = CoreResult<serde_json::Value>> + Send>>
+pub type ExtensionToolExecute = Arc<
+    dyn Fn(serde_json::Value, ExtensionContext) -> Pin<Box<dyn Future<Output = CoreResult<serde_json::Value>> + Send>>
         + Send
         + Sync,
 >;
@@ -30,24 +26,24 @@ where
 }
 
 #[derive(Clone)]
-pub struct ApplicationTool {
+pub struct ExtensionTool {
     pub id: String,
     pub name: String,
     pub description: Option<String>,
     pub input_schema: serde_json::Value,
-    pub execute: ApplicationToolExecute,
+    pub execute: ExtensionToolExecute,
 }
 
 #[derive(Clone)]
-pub struct ApplicationContext {
+pub struct ExtensionContext {
     pub workspace: std::sync::Arc<crate::workspace::WorkspaceInstance>,
     pub session_id: String,
 }
 
-impl std::fmt::Debug for ApplicationContext {
+impl std::fmt::Debug for ExtensionContext {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         formatter
-            .debug_struct("ApplicationContext")
+            .debug_struct("ExtensionContext")
             .field("workspace", &self.workspace)
             .field("session_id", &self.session_id)
             .finish()
@@ -55,13 +51,13 @@ impl std::fmt::Debug for ApplicationContext {
 }
 
 #[async_trait::async_trait]
-pub trait Application: Send + Sync {
+pub trait Extension: Send + Sync {
     fn id(&self) -> &str;
     fn name(&self) -> &str;
-    fn kind(&self) -> ApplicationKind;
+    fn kind(&self) -> ExtensionKind;
     fn tags(&self) -> Vec<String>;
-    fn tools(&self) -> Vec<ApplicationTool>;
-    async fn initialize(&self, _context: &ApplicationContext) -> crate::error::CoreResult<()> {
+    fn tools(&self) -> Vec<ExtensionTool>;
+    async fn initialize(&self, _context: &ExtensionContext) -> crate::error::CoreResult<()> {
         Ok(())
     }
 }

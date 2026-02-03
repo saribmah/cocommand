@@ -3,10 +3,10 @@ use std::sync::Arc;
 use llm_kit_provider_utils::tool::{Tool, ToolExecutionOutput};
 use serde_json::json;
 
-use crate::application::ApplicationKind;
+use crate::application::ExtensionKind;
 use crate::workspace::WorkspaceInstance;
 
-pub fn build_search_applications_tool(workspace: Arc<WorkspaceInstance>) -> Tool {
+pub fn build_search_extensions_tool(workspace: Arc<WorkspaceInstance>) -> Tool {
     let execute = Arc::new(move |input: serde_json::Value, _opts| {
         let workspace = workspace.clone();
         ToolExecutionOutput::Single(Box::pin(async move {
@@ -20,7 +20,7 @@ pub fn build_search_applications_tool(workspace: Arc<WorkspaceInstance>) -> Tool
                 .get("limit")
                 .and_then(|value| value.as_u64())
                 .unwrap_or(8) as usize;
-            let registry = workspace.application_registry.read().await;
+            let registry = workspace.extension_registry.read().await;
             let mut items: Vec<(serde_json::Value, i64)> = registry
                 .list()
                 .into_iter()
@@ -60,15 +60,15 @@ pub fn build_search_applications_tool(workspace: Arc<WorkspaceInstance>) -> Tool
         },
         "required": ["query"]
     }))
-    .with_description("Search available applications by name or id.")
+    .with_description("Search available extensions by name or id.")
     .with_execute(execute)
 }
 
-pub(crate) fn map_kind(kind: ApplicationKind) -> &'static str {
+pub(crate) fn map_kind(kind: ExtensionKind) -> &'static str {
     match kind {
-        ApplicationKind::System => "system",
-        ApplicationKind::BuiltIn => "built-in",
-        ApplicationKind::Custom => "custom",
+        ExtensionKind::System => "system",
+        ExtensionKind::BuiltIn => "built-in",
+        ExtensionKind::Custom => "custom",
     }
 }
 

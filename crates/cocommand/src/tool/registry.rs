@@ -2,11 +2,11 @@ use std::sync::Arc;
 
 use llm_kit_core::tool::ToolSet;
 
-use crate::application::{ApplicationContext, ApplicationTool};
+use crate::application::{ExtensionContext, ExtensionTool};
 use crate::session::SessionManager;
-use crate::tool::activate_application::build_activate_application_tool;
-use crate::tool::get_application::build_get_application_tool;
-use crate::tool::search_application::build_search_applications_tool;
+use crate::tool::activate_extension::build_activate_extension_tool;
+use crate::tool::get_extension::build_get_extension_tool;
+use crate::tool::search_extensions::build_search_extensions_tool;
 use crate::workspace::WorkspaceInstance;
 
 pub struct ToolRegistry;
@@ -18,28 +18,28 @@ impl ToolRegistry {
         session_id: &str,
         active_app_ids: &[String],
     ) -> ToolSet {
-        let context = ApplicationContext {
+        let context = ExtensionContext {
             workspace: workspace.clone(),
             session_id: session_id.to_string(),
         };
-        let registry = workspace.application_registry.read().await;
+        let registry = workspace.extension_registry.read().await;
         let mut tool_set = ToolSet::new();
 
         tool_set.insert(
-            "search_applications".to_string(),
-            build_search_applications_tool(workspace.clone()),
+            "search_extensions".to_string(),
+            build_search_extensions_tool(workspace.clone()),
         );
         tool_set.insert(
-            "get_application".to_string(),
-            build_get_application_tool(workspace.clone()),
+            "get_extension".to_string(),
+            build_get_extension_tool(workspace.clone()),
         );
         tool_set.insert(
-            "activate_application".to_string(),
-            build_activate_application_tool(workspace.clone(), sessions.clone(), session_id),
+            "activate_extension".to_string(),
+            build_activate_extension_tool(workspace.clone(), sessions.clone(), session_id),
         );
 
         for app in registry.list() {
-            if app.kind() != crate::application::ApplicationKind::System {
+            if app.kind() != crate::application::ExtensionKind::System {
                 continue;
             }
             for tool in app.tools() {
@@ -52,7 +52,7 @@ impl ToolRegistry {
 
         for app_id in active_app_ids {
             if let Some(app) = registry.get(app_id) {
-                if app.kind() == crate::application::ApplicationKind::System {
+                if app.kind() == crate::application::ExtensionKind::System {
                     continue;
                 }
                 for tool in app.tools() {
@@ -69,8 +69,8 @@ impl ToolRegistry {
 }
 
 fn build_tool(
-    tool: ApplicationTool,
-    context: ApplicationContext,
+    tool: ExtensionTool,
+    context: ExtensionContext,
 ) -> llm_kit_provider_utils::tool::Tool {
     let description = tool.description.clone();
     let schema = tool.input_schema.clone();

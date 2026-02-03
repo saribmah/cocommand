@@ -16,7 +16,7 @@ pub use crate::session::{Session, SessionContext, SessionManager};
 pub use crate::workspace::WorkspaceInstance;
 pub use crate::bus::{Bus, BusEvent, Event};
 pub use crate::application::{
-    Application, ApplicationContext, ApplicationKind, ApplicationTool,
+    Extension, ExtensionContext, ExtensionKind, ExtensionTool,
 };
 pub use crate::llm::LlmService;
 pub use crate::storage::{SharedStorage, Storage};

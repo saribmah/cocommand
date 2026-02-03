@@ -1,20 +1,20 @@
 use std::sync::Arc;
 
-use crate::application::{boxed_tool_future, Application, ApplicationKind, ApplicationTool};
+use crate::application::{boxed_tool_future, Extension, ExtensionKind, ExtensionTool};
 use crate::error::CoreError;
 use serde_json::json;
 
 #[derive(Debug, Default)]
-pub struct NoteApplication;
+pub struct NoteExtension;
 
-impl NoteApplication {
+impl NoteExtension {
     pub fn new() -> Self {
         Self
     }
 }
 
 #[async_trait::async_trait]
-impl Application for NoteApplication {
+impl Extension for NoteExtension {
     fn id(&self) -> &str {
         "notes"
     }
@@ -23,15 +23,15 @@ impl Application for NoteApplication {
         "Notes"
     }
 
-    fn kind(&self) -> ApplicationKind {
-        ApplicationKind::BuiltIn
+    fn kind(&self) -> ExtensionKind {
+        ExtensionKind::BuiltIn
     }
 
     fn tags(&self) -> Vec<String> {
         vec!["notes".to_string(), "writing".to_string()]
     }
 
-    fn tools(&self) -> Vec<ApplicationTool> {
+    fn tools(&self) -> Vec<ExtensionTool> {
         let create_execute = Arc::new(|_input: serde_json::Value, _context| {
             boxed_tool_future(async move {
                 Err(CoreError::Internal(
@@ -48,7 +48,7 @@ impl Application for NoteApplication {
         });
 
         vec![
-            ApplicationTool {
+            ExtensionTool {
                 id: "create-note".to_string(),
                 name: "Create Note".to_string(),
                 description: Some("Create a new note".to_string()),
@@ -62,7 +62,7 @@ impl Application for NoteApplication {
                 }),
                 execute: create_execute,
             },
-            ApplicationTool {
+            ExtensionTool {
                 id: "list-notes".to_string(),
                 name: "List Notes".to_string(),
                 description: Some("Show recent notes".to_string()),

@@ -1,22 +1,22 @@
 use std::sync::Arc;
 
-use crate::application::{boxed_tool_future, Application, ApplicationKind, ApplicationTool};
+use crate::application::{boxed_tool_future, Extension, ExtensionKind, ExtensionTool};
 use crate::error::CoreError;
 
 #[cfg(target_os = "macos")]
 use platform_macos;
 
 #[derive(Debug, Default)]
-pub struct SystemApplication;
+pub struct SystemExtension;
 
-impl SystemApplication {
+impl SystemExtension {
     pub fn new() -> Self {
         Self
     }
 }
 
 #[async_trait::async_trait]
-impl Application for SystemApplication {
+impl Extension for SystemExtension {
     fn id(&self) -> &str {
         "system"
     }
@@ -25,15 +25,15 @@ impl Application for SystemApplication {
         "System"
     }
 
-    fn kind(&self) -> ApplicationKind {
-        ApplicationKind::System
+    fn kind(&self) -> ExtensionKind {
+        ExtensionKind::System
     }
 
     fn tags(&self) -> Vec<String> {
         vec!["system".to_string(), "os".to_string()]
     }
 
-    fn tools(&self) -> Vec<ApplicationTool> {
+    fn tools(&self) -> Vec<ExtensionTool> {
         #[cfg(target_os = "macos")]
         {
         let list_open_execute = Arc::new(|input: serde_json::Value, _context| {
@@ -127,7 +127,7 @@ impl Application for SystemApplication {
         });
 
         vec![
-            ApplicationTool {
+            ExtensionTool {
                 id: "list_open_apps".to_string(),
                 name: "List Open Apps".to_string(),
                 description: Some("List running applications and their windows".to_string()),
@@ -140,7 +140,7 @@ impl Application for SystemApplication {
                 }),
                 execute: list_open_execute,
             },
-            ApplicationTool {
+            ExtensionTool {
                 id: "list_windows".to_string(),
                 name: "List Windows".to_string(),
                 description: Some("List windows from the CG window registry".to_string()),
@@ -153,7 +153,7 @@ impl Application for SystemApplication {
                 }),
                 execute: list_windows_execute,
             },
-            ApplicationTool {
+            ExtensionTool {
                 id: "run_applescript".to_string(),
                 name: "Run AppleScript".to_string(),
                 description: Some("Run AppleScript automation".to_string()),
@@ -167,7 +167,7 @@ impl Application for SystemApplication {
                 }),
                 execute: run_applescript_execute,
             },
-            ApplicationTool {
+            ExtensionTool {
                 id: "list_installed_apps".to_string(),
                 name: "List Installed Apps".to_string(),
                 description: Some("List installed applications on this system".to_string()),
@@ -178,7 +178,7 @@ impl Application for SystemApplication {
                 }),
                 execute: list_installed_execute,
             },
-            ApplicationTool {
+            ExtensionTool {
                 id: "app_action".to_string(),
                 name: "App Action".to_string(),
                 description: Some("Perform an action on an application".to_string()),
@@ -197,7 +197,7 @@ impl Application for SystemApplication {
                 }),
                 execute: app_action_execute,
             },
-            ApplicationTool {
+            ExtensionTool {
                 id: "window_action".to_string(),
                 name: "Window Action".to_string(),
                 description: Some("Perform an action on a window".to_string()),
@@ -233,7 +233,7 @@ impl Application for SystemApplication {
             };
 
             vec![
-                ApplicationTool {
+                ExtensionTool {
                     id: "list_open_apps".to_string(),
                     name: "List Open Apps".to_string(),
                     description: Some("List running applications and their windows".to_string()),
@@ -246,7 +246,7 @@ impl Application for SystemApplication {
                     }),
                 execute: unsupported("list_open_apps"),
             },
-            ApplicationTool {
+            ExtensionTool {
                 id: "list_windows".to_string(),
                 name: "List Windows".to_string(),
                 description: Some("List windows from the CG window registry".to_string()),
@@ -259,7 +259,7 @@ impl Application for SystemApplication {
                 }),
                 execute: unsupported("list_windows"),
             },
-            ApplicationTool {
+            ExtensionTool {
                 id: "run_applescript".to_string(),
                 name: "Run AppleScript".to_string(),
                 description: Some("Run AppleScript automation".to_string()),
@@ -273,7 +273,7 @@ impl Application for SystemApplication {
                     }),
                     execute: unsupported("run_applescript"),
                 },
-                ApplicationTool {
+                ExtensionTool {
                     id: "list_installed_apps".to_string(),
                     name: "List Installed Apps".to_string(),
                     description: Some("List installed applications on this system".to_string()),
@@ -284,7 +284,7 @@ impl Application for SystemApplication {
                     }),
                     execute: unsupported("list_installed_apps"),
                 },
-                ApplicationTool {
+                ExtensionTool {
                     id: "app_action".to_string(),
                     name: "App Action".to_string(),
                     description: Some("Perform an action on an application".to_string()),
@@ -303,7 +303,7 @@ impl Application for SystemApplication {
                     }),
                     execute: unsupported("app_action"),
                 },
-            ApplicationTool {
+            ExtensionTool {
                 id: "window_action".to_string(),
                 name: "Window Action".to_string(),
                 description: Some("Perform an action on a window".to_string()),

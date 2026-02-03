@@ -3,11 +3,11 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
-use crate::application::note::NoteApplication;
-use crate::application::registry::ApplicationRegistry;
-use crate::application::Application;
-use crate::application::screenshot::ScreenshotApplication;
-use crate::application::system::SystemApplication;
+use crate::extension::builtin::note::NoteExtension;
+use crate::extension::registry::ExtensionRegistry;
+use crate::application::Extension;
+use crate::extension::builtin::screenshot::ScreenshotExtension;
+use crate::extension::builtin::system::SystemExtension;
 use crate::error::{CoreError, CoreResult};
 use crate::extension::loader::load_extension_applications;
 use crate::storage::file::FileStorage;
@@ -20,7 +20,7 @@ use crate::workspace::config::{
 pub struct WorkspaceInstance {
     pub workspace_dir: PathBuf,
     pub config: Arc<RwLock<WorkspaceConfig>>,
-    pub application_registry: Arc<RwLock<ApplicationRegistry>>,
+    pub extension_registry: Arc<RwLock<ExtensionRegistry>>,
     pub storage: SharedStorage,
 }
 
@@ -48,27 +48,27 @@ impl WorkspaceInstance {
         let storage_root = workspace_dir.join("storage");
         let storage: SharedStorage = Arc::new(FileStorage::new(storage_root));
         let config = load_or_create_workspace_storage(storage.as_ref()).await?;
-        let application_registry = Arc::new(RwLock::new(ApplicationRegistry::new()));
-        register_builtin_applications(&application_registry).await;
-        register_extension_applications(&application_registry, workspace_dir).await?;
+        let extension_registry = Arc::new(RwLock::new(ExtensionRegistry::new()));
+        register_builtin_applications(&extension_registry).await;
+        register_extension_applications(&extension_registry, workspace_dir).await?;
         Ok(Self {
             workspace_dir: workspace_dir.to_path_buf(),
             config: Arc::new(RwLock::new(config)),
-            application_registry,
+            extension_registry,
             storage,
         })
     }
 }
 
-async fn register_builtin_applications(registry: &Arc<RwLock<ApplicationRegistry>>) {
+async fn register_builtin_applications(registry: &Arc<RwLock<ExtensionRegistry>>) {
     let mut registry = registry.write().await;
-    registry.register(Arc::new(NoteApplication::new()) as Arc<dyn Application>);
-    registry.register(Arc::new(SystemApplication::new()) as Arc<dyn Application>);
-    registry.register(Arc::new(ScreenshotApplication::new()) as Arc<dyn Application>);
+    registry.register(Arc::new(NoteExtension::new()) as Arc<dyn Extension>);
+    registry.register(Arc::new(SystemExtension::new()) as Arc<dyn Extension>);
+    registry.register(Arc::new(ScreenshotExtension::new()) as Arc<dyn Extension>);
 }
 
 async fn register_extension_applications(
-    registry: &Arc<RwLock<ApplicationRegistry>>,
+    registry: &Arc<RwLock<ExtensionRegistry>>,
     workspace_dir: &Path,
 ) -> CoreResult<()> {
     let apps = load_extension_applications(workspace_dir).await?;

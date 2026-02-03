@@ -6,16 +6,16 @@ Tools are the LLM-facing interface that map to application actions or system fun
 
 ## Responsibilities
 
-- Provide core system tools (`search_applications`, `get_application`, `activate_application`).
+- Provide core system tools (`search_extensions`, `get_extension`, `activate_extension`).
 - Assemble the ToolSet for the active session.
 - Proxy application tools into LLM-callable tools.
 
 ## Primary entrypoints
 
 - `crates/cocommand/src/tool/registry.rs`
-- `crates/cocommand/src/tool/search_application.rs`
-- `crates/cocommand/src/tool/get_application.rs`
-- `crates/cocommand/src/tool/activate_application.rs`
+- `crates/cocommand/src/tool/search_extensions.rs`
+- `crates/cocommand/src/tool/get_extension.rs`
+- `crates/cocommand/src/tool/activate_extension.rs`
 
 ## How tools are assembled
 

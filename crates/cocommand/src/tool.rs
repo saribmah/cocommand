@@ -1,6 +1,6 @@
-pub mod search_application;
-pub mod get_application;
-pub mod activate_application;
+pub mod search_extensions;
+pub mod get_extension;
+pub mod activate_extension;
 pub mod registry;
 
 pub use registry::ToolRegistry;

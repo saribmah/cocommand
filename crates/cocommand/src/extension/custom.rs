@@ -1,23 +1,25 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use crate::application::{boxed_tool_future, Application, ApplicationContext, ApplicationKind, ApplicationTool};
+use crate::application::{
+    boxed_tool_future, Extension, ExtensionContext, ExtensionKind, ExtensionTool,
+};
 use crate::error::CoreResult;
 use crate::extension::host::ExtensionHost;
-use crate::extension::manifest::{ExtensionManifest, ExtensionTool};
+use crate::extension::manifest::{ExtensionManifest, ExtensionTool as ManifestTool};
 use tokio::sync::Mutex;
 use tokio::time::{timeout, Duration};
 
 #[derive(Clone)]
-pub struct ExtensionApplication {
+pub struct CustomExtension {
     manifest: ExtensionManifest,
-    tools: Vec<ApplicationTool>,
+    tools: Vec<ExtensionTool>,
     host: Arc<ExtensionHost>,
     extension_dir: PathBuf,
     initialized: Arc<Mutex<bool>>,
 }
 
-impl ExtensionApplication {
+impl CustomExtension {
     pub fn new(
         manifest: ExtensionManifest,
         host: Arc<ExtensionHost>,
@@ -46,7 +48,7 @@ impl ExtensionApplication {
 }
 
 #[async_trait::async_trait]
-impl Application for ExtensionApplication {
+impl Extension for CustomExtension {
     fn id(&self) -> &str {
         &self.manifest.id
     }
@@ -55,8 +57,8 @@ impl Application for ExtensionApplication {
         &self.manifest.name
     }
 
-    fn kind(&self) -> ApplicationKind {
-        ApplicationKind::Custom
+    fn kind(&self) -> ExtensionKind {
+        ExtensionKind::Custom
     }
 
     fn tags(&self) -> Vec<String> {
@@ -67,11 +69,11 @@ impl Application for ExtensionApplication {
             .unwrap_or_default()
     }
 
-    fn tools(&self) -> Vec<ApplicationTool> {
+    fn tools(&self) -> Vec<ExtensionTool> {
         self.tools.clone()
     }
 
-    async fn initialize(&self, _context: &ApplicationContext) -> CoreResult<()> {
+    async fn initialize(&self, _context: &ExtensionContext) -> CoreResult<()> {
         let mut guard = self.initialized.lock().await;
         if *guard {
             return Ok(());
@@ -97,12 +99,12 @@ impl Application for ExtensionApplication {
 }
 
 pub fn tools_from_manifest(
-    manifest_tools: Option<Vec<ExtensionTool>>,
+    manifest_tools: Option<Vec<ManifestTool>>,
     available_tools: Option<&[String]>,
     host: Arc<ExtensionHost>,
     initialized: Arc<Mutex<bool>>,
     extension_id: &str,
-) -> Vec<ApplicationTool> {
+) -> Vec<ExtensionTool> {
     let mut tools = Vec::new();
     if let Some(manifest_tools) = manifest_tools {
         for tool in manifest_tools {
@@ -124,14 +126,14 @@ pub fn tools_from_manifest(
                     let initialized = { *initialized.lock().await };
                     if !initialized {
                         return Err(crate::error::CoreError::InvalidInput(format!(
-                            "extension {} not initialized, please activate application first.",
+                            "extension {} not initialized, please activate extension first.",
                             extension_id
                         )));
                     }
                     host.invoke_tool(&tool_id, input).await
                 })
             });
-            tools.push(ApplicationTool {
+            tools.push(ExtensionTool {
                 id: tool.id.clone(),
                 name: tool.id.clone(),
                 description: None,
