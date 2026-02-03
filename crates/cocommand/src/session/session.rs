@@ -3,7 +3,7 @@ use std::sync::Arc;
 use uuid::Uuid;
 
 use crate::error::{CoreError, CoreResult};
-use crate::session::application_cache::ApplicationCache;
+use crate::session::extension_cache::ExtensionCache;
 use crate::utils::time::now_secs;
 use crate::workspace::WorkspaceInstance;
 
@@ -29,7 +29,7 @@ pub struct Session {
     pub(crate) session_id: String,
     pub(crate) started_at: u64,
     ended_at: Option<u64>,
-    application_cache: ApplicationCache,
+    extension_cache: ExtensionCache,
 }
 
 impl Session {
@@ -38,16 +38,16 @@ impl Session {
             let config = workspace.config.read().await;
             (
                 config.preferences.session.duration_seconds,
-                config.preferences.application_cache.max_applications,
+                config.preferences.extension_cache.max_extensions,
             )
         };
-        let cache = ApplicationCache::new(max_apps, ttl);
+        let cache = ExtensionCache::new(max_apps, ttl);
         let session = Self {
             workspace,
             session_id: Uuid::now_v7().to_string(),
             started_at: now_secs(),
             ended_at: None,
-            application_cache: cache,
+            extension_cache: cache,
         };
         session.persist_info().await?;
         Ok(session)
@@ -61,16 +61,16 @@ impl Session {
             let config = workspace.config.read().await;
             (
                 config.preferences.session.duration_seconds,
-                config.preferences.application_cache.max_applications,
+                config.preferences.extension_cache.max_extensions,
             )
         };
-        let cache = ApplicationCache::new(max_apps, ttl);
+        let cache = ExtensionCache::new(max_apps, ttl);
         Ok(Self {
             workspace,
             session_id: info.id,
             started_at: info.started_at,
             ended_at: info.ended_at,
-            application_cache: cache,
+            extension_cache: cache,
         })
     }
 
@@ -100,18 +100,18 @@ impl Session {
         })
     }
 
-    pub fn activate_application(&mut self, app_id: &str) {
-        self.application_cache
+    pub fn activate_extension(&mut self, app_id: &str) {
+        self.extension_cache
             .add(app_id, now_secs());
     }
 
-    pub fn active_application_ids(&self) -> Vec<String> {
-        self.application_cache.list_applications()
+    pub fn active_extension_ids(&self) -> Vec<String> {
+        self.extension_cache.list_extensions()
     }
 
     pub async fn destroy(&mut self) -> CoreResult<()> {
         self.ended_at = Some(now_secs());
-        self.application_cache = ApplicationCache::new(0, 1);
+        self.extension_cache = ExtensionCache::new(0, 1);
         self.persist_info().await?;
         Ok(())
     }

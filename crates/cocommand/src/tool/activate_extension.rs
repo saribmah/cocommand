@@ -39,12 +39,12 @@ pub fn build_activate_extension_tool(
                                 "session not found".to_string(),
                             ));
                         }
-                        let context = crate::application::ExtensionContext {
+                        let context = crate::extension::ExtensionContext {
                             workspace,
                             session_id: session_id.clone(),
                         };
                         app.initialize(&context).await?;
-                        session.activate_application(&app_id);
+                        session.activate_extension(&app_id);
                         Ok(())
                     })
                 })

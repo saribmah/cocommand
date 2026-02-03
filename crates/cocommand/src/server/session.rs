@@ -56,7 +56,7 @@ pub(crate) async fn record_message(
         .sessions
         .with_session_mut(|session| {
             Box::pin(async move {
-                let active_apps = session.active_application_ids();
+                let active_apps = session.active_extension_ids();
                 let ctx = session.context(None).await?;
                 Ok((session.session_id.clone(), active_apps, ctx))
             })
@@ -113,7 +113,7 @@ pub(crate) async fn record_message_stream(
             .sessions
             .with_session_mut(|session| {
                 Box::pin(async move {
-                    let active_apps = session.active_application_ids();
+                    let active_apps = session.active_extension_ids();
                     let ctx = session.context(None).await?;
                     Ok((session.session_id.clone(), active_apps, ctx))
                 })

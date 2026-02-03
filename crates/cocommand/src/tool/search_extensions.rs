@@ -3,7 +3,7 @@ use std::sync::Arc;
 use llm_kit_provider_utils::tool::{Tool, ToolExecutionOutput};
 use serde_json::json;
 
-use crate::application::ExtensionKind;
+use crate::extension::ExtensionKind;
 use crate::workspace::WorkspaceInstance;
 
 pub fn build_search_extensions_tool(workspace: Arc<WorkspaceInstance>) -> Tool {

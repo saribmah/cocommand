@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use crate::application::{
+use crate::extension::{
     boxed_tool_future, Extension, ExtensionContext, ExtensionKind, ExtensionTool,
 };
 use crate::error::CoreResult;

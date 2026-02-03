@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::application::{boxed_tool_future, Extension, ExtensionKind, ExtensionTool};
+use crate::extension::{boxed_tool_future, Extension, ExtensionKind, ExtensionTool};
 use crate::error::CoreError;
 use serde_json::json;
 

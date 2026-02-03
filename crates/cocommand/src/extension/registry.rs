@@ -1,11 +1,11 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use crate::application::Extension;
+use crate::extension::Extension;
 
 #[derive(Default)]
 pub struct ExtensionRegistry {
-    applications: HashMap<String, Arc<dyn Extension>>,
+    extensions: HashMap<String, Arc<dyn Extension>>,
 }
 
 impl ExtensionRegistry {
@@ -14,14 +14,14 @@ impl ExtensionRegistry {
     }
 
     pub fn register(&mut self, app: Arc<dyn Extension>) -> Option<Arc<dyn Extension>> {
-        self.applications.insert(app.id().to_string(), app)
+        self.extensions.insert(app.id().to_string(), app)
     }
 
     pub fn get(&self, app_id: &str) -> Option<Arc<dyn Extension>> {
-        self.applications.get(app_id).cloned()
+        self.extensions.get(app_id).cloned()
     }
 
     pub fn list(&self) -> Vec<Arc<dyn Extension>> {
-        self.applications.values().cloned().collect()
+        self.extensions.values().cloned().collect()
     }
 }

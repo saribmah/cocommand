@@ -1,13 +1,13 @@
 use std::path::Path;
 use std::sync::Arc;
 
-use crate::application::Extension;
+use crate::extension::Extension;
 use crate::error::{CoreError, CoreResult};
 use crate::extension::custom::CustomExtension;
 use crate::extension::host::{extension_host_entrypoint, ExtensionHost};
 use crate::extension::manifest::ExtensionManifest;
 
-pub async fn load_extension_applications(
+pub async fn load_custom_extensions(
     workspace_dir: &Path,
 ) -> CoreResult<Vec<Arc<dyn Extension>>> {
     let extensions_dir = workspace_dir.join("extensions");
@@ -15,7 +15,7 @@ pub async fn load_extension_applications(
         return Ok(Vec::new());
     }
 
-    let mut applications: Vec<Arc<dyn Extension>> = Vec::new();
+    let mut extensions: Vec<Arc<dyn Extension>> = Vec::new();
     let host_path = extension_host_entrypoint()?;
 
     for entry in std::fs::read_dir(&extensions_dir).map_err(|error| {
@@ -44,10 +44,10 @@ pub async fn load_extension_applications(
             }
         };
         let app = CustomExtension::new(manifest, Arc::new(host), path);
-        applications.push(Arc::new(app));
+        extensions.push(Arc::new(app));
     }
 
-    Ok(applications)
+    Ok(extensions)
 }
 
 fn read_manifest(path: &Path) -> CoreResult<ExtensionManifest> {

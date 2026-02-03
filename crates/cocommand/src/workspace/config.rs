@@ -39,7 +39,7 @@ pub struct WorkspaceApp {
 pub struct WorkspacePreferences {
     pub language: String,
     pub session: SessionPreferences,
-    pub application_cache: ApplicationCachePreferences,
+    pub extension_cache: ExtensionCachePreferences,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -61,8 +61,8 @@ pub struct SessionPreferences {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ApplicationCachePreferences {
-    pub max_applications: u32,
+pub struct ExtensionCachePreferences {
+    pub max_extensions: u32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -94,8 +94,8 @@ impl WorkspaceConfig {
                     rollover_mode: "rolling".to_string(),
                     duration_seconds: 86_400,
                 },
-                application_cache: ApplicationCachePreferences {
-                    max_applications: 8,
+                extension_cache: ExtensionCachePreferences {
+                    max_extensions: 8,
                 },
             },
             ai: WorkspaceAiPreferences {

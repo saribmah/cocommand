@@ -3,13 +3,13 @@ use std::time::Duration;
 use moka::sync::Cache;
 
 #[derive(Debug, Clone)]
-pub struct ApplicationCache {
+pub struct ExtensionCache {
     cache: Cache<String, u64>,
 }
 
-impl ApplicationCache {
-    pub fn new(max_applications: u32, ttl_seconds: u64) -> Self {
-        let max_capacity = if max_applications == 0 { 1 } else { max_applications as u64 };
+impl ExtensionCache {
+    pub fn new(max_extensions: u32, ttl_seconds: u64) -> Self {
+        let max_capacity = if max_extensions == 0 { 1 } else { max_extensions as u64 };
         let cache = Cache::builder()
             .max_capacity(max_capacity)
             .time_to_live(Duration::from_secs(ttl_seconds))
@@ -21,11 +21,11 @@ impl ApplicationCache {
         self.cache.insert(app_id.to_string(), opened_at);
     }
 
-    pub fn close_application(&self, app_id: &str) {
+    pub fn close_extension(&self, app_id: &str) {
         self.cache.invalidate(app_id);
     }
 
-    pub fn list_applications(&self) -> Vec<String> {
+    pub fn list_extensions(&self) -> Vec<String> {
         self.cache
             .iter()
             .map(|(key, _)| (*key).clone())
@@ -39,7 +39,7 @@ mod tests {
 
     #[test]
     fn evicts_on_capacity() {
-        let cache = ApplicationCache::new(2, 3600);
+        let cache = ExtensionCache::new(2, 3600);
         cache.add("one", 1);
         cache.add("two", 2);
         cache.add("three", 3);

@@ -5,11 +5,11 @@ use tokio::sync::RwLock;
 
 use crate::extension::builtin::note::NoteExtension;
 use crate::extension::registry::ExtensionRegistry;
-use crate::application::Extension;
+use crate::extension::Extension;
 use crate::extension::builtin::screenshot::ScreenshotExtension;
 use crate::extension::builtin::system::SystemExtension;
 use crate::error::{CoreError, CoreResult};
-use crate::extension::loader::load_extension_applications;
+use crate::extension::loader::load_custom_extensions;
 use crate::storage::file::FileStorage;
 use crate::storage::SharedStorage;
 use crate::workspace::config::{
@@ -49,8 +49,8 @@ impl WorkspaceInstance {
         let storage: SharedStorage = Arc::new(FileStorage::new(storage_root));
         let config = load_or_create_workspace_storage(storage.as_ref()).await?;
         let extension_registry = Arc::new(RwLock::new(ExtensionRegistry::new()));
-        register_builtin_applications(&extension_registry).await;
-        register_extension_applications(&extension_registry, workspace_dir).await?;
+        register_builtin_extensions(&extension_registry).await;
+        register_custom_extensions(&extension_registry, workspace_dir).await?;
         Ok(Self {
             workspace_dir: workspace_dir.to_path_buf(),
             config: Arc::new(RwLock::new(config)),
@@ -60,18 +60,18 @@ impl WorkspaceInstance {
     }
 }
 
-async fn register_builtin_applications(registry: &Arc<RwLock<ExtensionRegistry>>) {
+async fn register_builtin_extensions(registry: &Arc<RwLock<ExtensionRegistry>>) {
     let mut registry = registry.write().await;
     registry.register(Arc::new(NoteExtension::new()) as Arc<dyn Extension>);
     registry.register(Arc::new(SystemExtension::new()) as Arc<dyn Extension>);
     registry.register(Arc::new(ScreenshotExtension::new()) as Arc<dyn Extension>);
 }
 
-async fn register_extension_applications(
+async fn register_custom_extensions(
     registry: &Arc<RwLock<ExtensionRegistry>>,
     workspace_dir: &Path,
 ) -> CoreResult<()> {
-    let apps = load_extension_applications(workspace_dir).await?;
+    let apps = load_custom_extensions(workspace_dir).await?;
     if apps.is_empty() {
         return Ok(());
     }

@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use llm_kit_core::tool::ToolSet;
 
-use crate::application::{ExtensionContext, ExtensionTool};
+use crate::extension::{ExtensionContext, ExtensionTool};
 use crate::session::SessionManager;
 use crate::tool::activate_extension::build_activate_extension_tool;
 use crate::tool::get_extension::build_get_extension_tool;
@@ -39,7 +39,7 @@ impl ToolRegistry {
         );
 
         for app in registry.list() {
-            if app.kind() != crate::application::ExtensionKind::System {
+            if app.kind() != crate::extension::ExtensionKind::System {
                 continue;
             }
             for tool in app.tools() {
@@ -52,7 +52,7 @@ impl ToolRegistry {
 
         for app_id in active_app_ids {
             if let Some(app) = registry.get(app_id) {
-                if app.kind() == crate::application::ExtensionKind::System {
+                if app.kind() == crate::extension::ExtensionKind::System {
                     continue;
                 }
                 for tool in app.tools() {

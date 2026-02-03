@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use crate::application::{boxed_tool_future, Extension, ExtensionKind, ExtensionTool};
+use crate::extension::{boxed_tool_future, Extension, ExtensionKind, ExtensionTool};
 use crate::error::{CoreError, CoreResult};
 use crate::utils::time::now_secs;
 
@@ -71,7 +71,7 @@ impl Extension for ScreenshotExtension {
         #[cfg(target_os = "macos")]
         {
             let capture_execute = Arc::new(
-                |input: serde_json::Value, context: crate::application::ExtensionContext| {
+                |input: serde_json::Value, context: crate::extension::ExtensionContext| {
                 boxed_tool_future(async move {
                     let mode = Self::parse_mode(input.get("mode").and_then(|v| v.as_str()))?;
                     let display = input.get("display").and_then(|v| v.as_u64()).map(|v| v as u32);
@@ -203,7 +203,7 @@ impl Extension for ScreenshotExtension {
         }
     }
 
-    async fn initialize(&self, _context: &crate::application::ExtensionContext) -> CoreResult<()> {
+    async fn initialize(&self, _context: &crate::extension::ExtensionContext) -> CoreResult<()> {
         Ok(())
     }
 }

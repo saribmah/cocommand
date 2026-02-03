@@ -5,7 +5,7 @@ use serde::Deserialize;
 use serde::Serialize;
 use std::sync::Arc;
 
-use crate::application::{Extension, ExtensionContext, ExtensionKind, ExtensionTool};
+use crate::extension::{Extension, ExtensionContext, ExtensionKind, ExtensionTool};
 use crate::server::ServerState;
 use crate::utils::time::now_secs;
 use crate::workspace::{WorkspaceAiPreferences, WorkspaceTheme};
@@ -149,7 +149,7 @@ pub(crate) async fn open_application(
         .with_session_mut(|session| {
             let app_id = app_id.clone();
             Box::pin(async move {
-                session.activate_application(&app_id);
+                session.activate_extension(&app_id);
                 let context = session.context(None).await?;
                 Ok(context.session_id)
             })
