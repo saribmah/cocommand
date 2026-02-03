@@ -12,5 +12,9 @@ pub fn run_applescript(script: &str) -> Result<String, String> {
 }
 
 pub fn applescript_escape(value: &str) -> String {
-    value.replace('\\', "\\\\").replace('\"', "\\\"")
+    value
+        .replace('\\', "\\\\")
+        .replace('\"', "\\\"")
+        .replace('\n', "\\n")
+        .replace('\r', "\\r")
 }

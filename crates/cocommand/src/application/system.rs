@@ -49,6 +49,20 @@ impl Application for SystemApplication {
                 })?)
             })
         });
+        let list_windows_execute = Arc::new(|input: serde_json::Value, _context| {
+            boxed_tool_future(async move {
+                let visible_only = input
+                    .get("visibleOnly")
+                    .and_then(|value| value.as_bool())
+                    .unwrap_or(false);
+                let snapshot = platform_macos::list_windows_snapshot(visible_only)
+                    .map_err(CoreError::Internal)?;
+                Ok(serde_json::json!({
+                    "snapshotId": snapshot.snapshot_id,
+                    "windows": snapshot.windows,
+                }))
+            })
+        });
         let run_applescript_execute = Arc::new(|input: serde_json::Value, _context| {
             boxed_tool_future(async move {
                 let script = input
@@ -92,7 +106,11 @@ impl Application for SystemApplication {
                     .and_then(|value| value.as_u64())
                     .ok_or_else(|| CoreError::Internal("missing windowId".to_string()))?
                     as u32;
-                platform_macos::perform_window_action(window_id, action)
+                let snapshot_id = input
+                    .get("snapshotId")
+                    .and_then(|value| value.as_u64())
+                    .or_else(|| input.get("snapshot_id").and_then(|value| value.as_u64()));
+                platform_macos::perform_window_action(window_id, action, snapshot_id)
                     .map_err(CoreError::Internal)?;
                 Ok(serde_json::json!({ "status": "ok" }))
             })
@@ -121,6 +139,19 @@ impl Application for SystemApplication {
                     "additionalProperties": false
                 }),
                 execute: list_open_execute,
+            },
+            ApplicationTool {
+                id: "list_windows".to_string(),
+                name: "List Windows".to_string(),
+                description: Some("List windows from the CG window registry".to_string()),
+                input_schema: serde_json::json!({
+                    "type": "object",
+                    "properties": {
+                        "visibleOnly": { "type": "boolean", "default": false }
+                    },
+                    "additionalProperties": false
+                }),
+                execute: list_windows_execute,
             },
             ApplicationTool {
                 id: "run_applescript".to_string(),
@@ -174,6 +205,7 @@ impl Application for SystemApplication {
                     "type": "object",
                     "properties": {
                         "windowId": { "type": "integer" },
+                        "snapshotId": { "type": "integer" },
                         "action": {
                             "type": "string",
                             "enum": ["minimize", "close", "focus"]
@@ -212,14 +244,27 @@ impl Application for SystemApplication {
                         },
                         "additionalProperties": false
                     }),
-                    execute: unsupported("list_open_apps"),
-                },
-                ApplicationTool {
-                    id: "run_applescript".to_string(),
-                    name: "Run AppleScript".to_string(),
-                    description: Some("Run AppleScript automation".to_string()),
-                    input_schema: serde_json::json!({
-                        "type": "object",
+                execute: unsupported("list_open_apps"),
+            },
+            ApplicationTool {
+                id: "list_windows".to_string(),
+                name: "List Windows".to_string(),
+                description: Some("List windows from the CG window registry".to_string()),
+                input_schema: serde_json::json!({
+                    "type": "object",
+                    "properties": {
+                        "visibleOnly": { "type": "boolean", "default": false }
+                    },
+                    "additionalProperties": false
+                }),
+                execute: unsupported("list_windows"),
+            },
+            ApplicationTool {
+                id: "run_applescript".to_string(),
+                name: "Run AppleScript".to_string(),
+                description: Some("Run AppleScript automation".to_string()),
+                input_schema: serde_json::json!({
+                    "type": "object",
                         "properties": {
                             "script": { "type": "string" }
                         },
@@ -258,19 +303,20 @@ impl Application for SystemApplication {
                     }),
                     execute: unsupported("app_action"),
                 },
-                ApplicationTool {
-                    id: "window_action".to_string(),
-                    name: "Window Action".to_string(),
-                    description: Some("Perform an action on a window".to_string()),
-                    input_schema: serde_json::json!({
-                        "type": "object",
-                        "properties": {
-                            "windowId": { "type": "integer" },
-                            "action": {
-                                "type": "string",
-                                "enum": ["minimize", "close", "focus"]
-                            }
-                        },
+            ApplicationTool {
+                id: "window_action".to_string(),
+                name: "Window Action".to_string(),
+                description: Some("Perform an action on a window".to_string()),
+                input_schema: serde_json::json!({
+                    "type": "object",
+                    "properties": {
+                        "windowId": { "type": "integer" },
+                        "snapshotId": { "type": "integer" },
+                        "action": {
+                            "type": "string",
+                            "enum": ["minimize", "close", "focus"]
+                        }
+                    },
                         "required": ["windowId", "action"],
                         "additionalProperties": false
                     }),

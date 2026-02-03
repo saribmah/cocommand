@@ -18,4 +18,7 @@ pub use permissions::{
 };
 pub use screen::{active_screen_visible_frame, ScreenFrame};
 pub use screenshot::{capture_screenshot, ScreenshotMode, ScreenshotOptions, ScreenshotResult};
-pub use window::{perform_window_action, WindowInfo};
+pub use window::{
+    get_windows_snapshot, list_windows, list_windows_snapshot, perform_window_action, Rect,
+    WindowInfo, WindowKind, WindowState,
+};
