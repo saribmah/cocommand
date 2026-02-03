@@ -88,10 +88,16 @@ fn position_window_on_active_screen(window: &tauri::WebviewWindow) -> Result<(),
 
     let min_x = work_area.position.x + margin;
     let min_y = work_area.position.y + margin;
-    let max_x =
+    let mut max_x =
         work_area.position.x + work_area.size.width as i32 - window_size.width as i32 - margin;
-    let max_y =
+    let mut max_y =
         work_area.position.y + work_area.size.height as i32 - window_size.height as i32 - margin;
+    if max_x < min_x {
+        max_x = min_x;
+    }
+    if max_y < min_y {
+        max_y = min_y;
+    }
 
     if x < min_x {
         x = min_x;
