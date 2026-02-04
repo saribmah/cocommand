@@ -1,0 +1,35 @@
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cc-space-1);
+  padding: 4px 10px;
+  border-radius: var(--cc-radius-pill);
+  border: 1px solid var(--cc-border-soft);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--cc-text-secondary);
+  cursor: pointer;
+}
+
+.chip:hover {
+  border-color: var(--cc-border-strong);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.active {
+  color: var(--cc-text-primary);
+  border-color: var(--cc-border-strong);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.icon {
+  width: 12px;
+  height: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--cc-icon-muted);
+}
+
+.active .icon {
+  color: var(--cc-icon-primary);
+}

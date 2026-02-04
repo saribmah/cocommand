@@ -1,0 +1,21 @@
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cc-space-1);
+  padding: 2px 8px;
+  border-radius: var(--cc-radius-pill);
+  border: 1px solid var(--cc-border-soft);
+  color: var(--cc-text-secondary);
+  background: rgba(255, 255, 255, 0.04);
+  font-size: var(--cc-text-xs);
+  line-height: var(--cc-line-tight);
+}
+
+.size-sm {
+  padding: 2px 8px;
+}
+
+.size-md {
+  padding: 4px 10px;
+  font-size: var(--cc-text-sm);
+}

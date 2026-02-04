@@ -1,0 +1,21 @@
+.cc-reset {
+  box-sizing: border-box;
+}
+
+.cc-reset *,
+.cc-reset *::before,
+.cc-reset *::after {
+  box-sizing: inherit;
+}
+
+.cc-text-primary {
+  color: var(--cc-text-primary);
+}
+
+.cc-text-secondary {
+  color: var(--cc-text-secondary);
+}
+
+.cc-text-tertiary {
+  color: var(--cc-text-tertiary);
+}

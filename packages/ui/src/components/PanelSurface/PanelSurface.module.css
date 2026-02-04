@@ -1,0 +1,12 @@
+.panel {
+  background: var(--cc-surface-primary);
+  background-image: var(--cc-surface-gradient);
+  border: 1px solid var(--cc-border-soft);
+  border-radius: var(--cc-radius-panel);
+  box-shadow: var(--cc-glow-inset);
+  color: var(--cc-text-primary);
+}
+
+.elevated {
+  box-shadow: var(--cc-shadow-panel), var(--cc-glow-inset);
+}

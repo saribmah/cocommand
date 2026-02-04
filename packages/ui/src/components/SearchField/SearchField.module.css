@@ -1,0 +1,23 @@
+.field {
+  display: flex;
+  align-items: center;
+  gap: var(--cc-space-3);
+  padding: var(--cc-space-3) var(--cc-space-4);
+}
+
+.icon {
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--cc-icon-muted);
+}
+
+.placeholder {
+  flex: 1;
+}
+
+.shortcut {
+  margin-left: auto;
+}

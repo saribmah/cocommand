@@ -1,0 +1,45 @@
+.text {
+  font-family: var(--cc-font-sans);
+  line-height: var(--cc-line-normal);
+  letter-spacing: -0.01em;
+}
+
+.tone-primary {
+  color: var(--cc-text-primary);
+}
+
+.tone-secondary {
+  color: var(--cc-text-secondary);
+}
+
+.tone-tertiary {
+  color: var(--cc-text-tertiary);
+}
+
+.size-xs {
+  font-size: var(--cc-text-xs);
+}
+
+.size-sm {
+  font-size: var(--cc-text-sm);
+}
+
+.size-md {
+  font-size: var(--cc-text-md);
+}
+
+.size-lg {
+  font-size: var(--cc-text-lg);
+}
+
+.weight-regular {
+  font-weight: 400;
+}
+
+.weight-medium {
+  font-weight: 500;
+}
+
+.weight-semibold {
+  font-weight: 600;
+}

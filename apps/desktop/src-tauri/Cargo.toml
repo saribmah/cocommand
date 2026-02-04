@@ -2,7 +2,7 @@
 name = "cocommand-desktop"
 version = "0.1.0"
 description = "CoCommand App"
-authors = ["you"]
+authors = ["saribmahmood55@gmail.com"]
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html

@@ -1,0 +1,52 @@
+:root {
+  --cc-font-sans: "SF Pro Text", "SF Pro Display", "Inter", "Segoe UI", "Roboto", "Helvetica Neue", Arial, sans-serif;
+
+  --cc-bg-app: #b7b9be;
+
+  --cc-surface-primary: #2f3137;
+  --cc-surface-secondary: #3a3c42;
+  --cc-surface-elevated: #40434a;
+
+  --cc-border-soft: rgba(255, 255, 255, 0.08);
+  --cc-border-strong: rgba(255, 255, 255, 0.16);
+
+  --cc-text-primary: #f1f2f4;
+  --cc-text-secondary: #c6c9cf;
+  --cc-text-tertiary: #9aa0a8;
+
+  --cc-icon-primary: var(--cc-text-primary);
+  --cc-icon-muted: var(--cc-text-secondary);
+
+  --cc-accent: #d5d8de;
+
+  --cc-shadow-panel: 0 24px 60px rgba(0, 0, 0, 0.35);
+  --cc-shadow-soft: 0 10px 30px rgba(0, 0, 0, 0.28);
+  --cc-glow-inset: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+
+  --cc-radius-panel: 18px;
+  --cc-radius-card: 12px;
+  --cc-radius-pill: 8px;
+
+  --cc-space-1: 4px;
+  --cc-space-2: 8px;
+  --cc-space-3: 12px;
+  --cc-space-4: 16px;
+  --cc-space-5: 20px;
+  --cc-space-6: 24px;
+
+  --cc-text-xs: 12px;
+  --cc-text-sm: 13px;
+  --cc-text-md: 15px;
+  --cc-text-lg: 18px;
+
+  --cc-line-tight: 1.2;
+  --cc-line-normal: 1.4;
+
+  --cc-surface-gradient: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(0, 0, 0, 0.08));
+}
+
+.cc-theme-dark {
+  background: var(--cc-bg-app);
+  color: var(--cc-text-primary);
+  font-family: var(--cc-font-sans);
+}

@@ -1,0 +1,10 @@
+.item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cc-space-2);
+}
+
+.key {
+  display: inline-flex;
+  align-items: center;
+}

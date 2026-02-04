@@ -1,0 +1,13 @@
+.button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cc-space-2);
+  border: 0;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+}
+
+.button:hover {
+  opacity: 0.9;
+}
