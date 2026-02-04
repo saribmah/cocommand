@@ -1,0 +1,14 @@
+.page {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  background:
+    radial-gradient(120% 90% at 50% 10%, rgba(255, 255, 255, 0.35), rgba(255, 255, 255, 0) 55%),
+    var(--cc-bg-app);
+  padding: 40px;
+}
+
+.shell {
+  width: min(880px, 92vw);
+  min-height: 520px;
+}

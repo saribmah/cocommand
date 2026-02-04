@@ -3,4 +3,5 @@
   margin-top: var(--cc-space-3);
   margin-bottom: var(--cc-space-2);
   text-transform: none;
+  letter-spacing: 0.02em;
 }

@@ -5,12 +5,14 @@ import { useServerStore } from "./state/server";
 import { SettingsView } from "./views/settings/SettingsView";
 import { useOnboardingStore } from "./state/onboarding";
 import { OnboardingView } from "./views/onboarding/OnboardingView";
+import { UiKitView } from "./views/ui-kit/UiKitView";
 import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
 
 function App() {
   const fetchServerInfo = useServerStore((state) => state.fetchInfo);
   const serverInfo = useServerStore((state) => state.info);
   const isSettings = window.location.pathname === "/settings";
+  const isUiKit = window.location.pathname === "/ui-kit";
   const onboardingStatus = useOnboardingStore((state) => state.status);
   const onboardingLoaded = useOnboardingStore((state) => state.isLoaded);
   const onboardingError = useOnboardingStore((state) => state.error);
@@ -31,7 +33,7 @@ function App() {
   }, [serverInfo?.addr, fetchOnboarding]);
 
   useEffect(() => {
-    if (isSettings) return;
+    if (isSettings || isUiKit) return;
     if (!serverInfo || !onboardingLoaded) return;
     const window = getCurrentWindow();
     const applyLayout = async () => {
@@ -49,6 +51,10 @@ function App() {
 
   if (isSettings) {
     return <SettingsView />;
+  }
+
+  if (isUiKit) {
+    return <UiKitView />;
   }
 
   if (!serverInfo || !onboardingLoaded) {

@@ -3,7 +3,11 @@
   align-items: center;
   justify-content: center;
   border-radius: var(--cc-radius-card);
-  background: rgba(255, 255, 255, 0.03);
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.05),
+    rgba(255, 255, 255, 0.02)
+  );
   border: 1px solid var(--cc-border-soft);
   box-shadow: var(--cc-glow-inset);
 }
