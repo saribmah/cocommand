@@ -1,0 +1,22 @@
+.textarea {
+  width: 100%;
+  min-height: 120px;
+  padding: 10px 12px;
+  border-radius: var(--cc-radius-card);
+  border: 1px solid var(--cc-border-soft);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--cc-text-primary);
+  font-size: var(--cc-text-sm);
+  line-height: var(--cc-line-normal);
+  outline: none;
+  resize: vertical;
+}
+
+.textarea::placeholder {
+  color: var(--cc-text-tertiary);
+}
+
+.textarea:focus {
+  border-color: var(--cc-border-strong);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12);
+}

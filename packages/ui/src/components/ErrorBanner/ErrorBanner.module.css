@@ -1,0 +1,6 @@
+.banner {
+  border-radius: var(--cc-radius-card);
+  border: 1px solid rgba(255, 120, 120, 0.4);
+  background: rgba(255, 120, 120, 0.1);
+  padding: var(--cc-space-3);
+}

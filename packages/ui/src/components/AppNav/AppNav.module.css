@@ -1,0 +1,9 @@
+.nav {
+  display: flex;
+  align-items: center;
+  gap: var(--cc-space-2);
+  padding: 6px;
+  border-radius: var(--cc-radius-card);
+  border: 1px solid var(--cc-border-soft);
+  background: rgba(255, 255, 255, 0.03);
+}

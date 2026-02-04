@@ -1,0 +1,40 @@
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--cc-space-4);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: var(--cc-space-3);
+}
+
+.mark {
+  width: 42px;
+  height: 42px;
+  border-radius: var(--cc-radius-card);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--cc-border-soft);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  color: var(--cc-text-primary);
+}
+
+.kicker {
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+}
+
+.subtitle {
+  margin-top: 4px;
+}
+
+.meta {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cc-space-2);
+}
