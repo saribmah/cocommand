@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import type { ConfirmationResult } from "../types/core";
+import type { ConfirmationResult } from "../lib/ipc";
 import { MarkdownView } from "./MarkdownView";
 
 interface ConfirmPanelProps {

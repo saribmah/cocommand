@@ -1,4 +1,4 @@
-import type { CoreResult } from "../types/core";
+import type { CoreResult } from "../lib/ipc";
 import { MarkdownView } from "./MarkdownView";
 
 interface ResultCardProps {
