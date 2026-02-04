@@ -17,18 +17,19 @@ html,
 body,
 #root {
   height: 100%;
+  width: 100%;
 }
 
 body {
-  background: transparent;
+  background: var(--cc-surface-primary);
   overflow: hidden;
 }
 
 .app-container {
   min-height: 100%;
-  background:
-    radial-gradient(120% 90% at 50% 10%, rgba(255, 255, 255, 0.28), rgba(255, 255, 255, 0) 55%),
-    var(--cc-bg-app);
+  height: 100%;
+  width: 100%;
+  background: var(--cc-surface-primary);
 }
 
 .container {

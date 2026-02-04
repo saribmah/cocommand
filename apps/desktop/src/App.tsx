@@ -29,10 +29,10 @@ function App() {
     const applyLayout = async () => {
       const size = onboardingStatus?.completed
         ? new LogicalSize(720, 240)
-        : new LogicalSize(1100, 720);
+        : new LogicalSize(1200, 840);
       const minSize = onboardingStatus?.completed
         ? new LogicalSize(560, 200)
-        : new LogicalSize(920, 600);
+        : new LogicalSize(1040, 720);
       await window.setSize(size);
       await window.setMinSize(minSize);
     };
