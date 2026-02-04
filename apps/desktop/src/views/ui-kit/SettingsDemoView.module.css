@@ -1,0 +1,17 @@
+.shell {
+  min-height: 100vh;
+}
+
+.brand {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.4));
+}
+
+.status {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--cc-space-1);
+}

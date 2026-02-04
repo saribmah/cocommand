@@ -22,7 +22,7 @@
 }
 
 .done {
-  color: var(--cc-text-primary);
+  color: #7ee1b0;
 }
 
 .leading {
@@ -43,7 +43,7 @@
 }
 
 .done .leading {
-  color: var(--cc-text-primary);
-  border-color: var(--cc-border-strong);
-  background: rgba(255, 255, 255, 0.08);
+  color: #7ee1b0;
+  border-color: rgba(126, 225, 176, 0.6);
+  background: rgba(126, 225, 176, 0.12);
 }

@@ -1,0 +1,33 @@
+.shell {
+  min-height: 100vh;
+}
+
+.brand {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.4));
+}
+
+.modeGrid {
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.accentRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--cc-space-2);
+}
+
+.permissionRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--cc-space-3);
+  padding: var(--cc-space-2) 0;
+  border-bottom: 1px solid var(--cc-border-soft);
+}
+
+.permissionRow:last-child {
+  border-bottom: 0;
+}

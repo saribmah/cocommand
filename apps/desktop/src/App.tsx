@@ -6,6 +6,8 @@ import { SettingsView } from "./views/settings/SettingsView";
 import { useOnboardingStore } from "./state/onboarding";
 import { OnboardingView } from "./views/onboarding/OnboardingView";
 import { UiKitView } from "./views/ui-kit/UiKitView";
+import { OnboardingDemoView } from "./views/ui-kit/OnboardingDemoView";
+import { SettingsDemoView } from "./views/ui-kit/SettingsDemoView";
 import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
 
 function App() {
@@ -13,6 +15,8 @@ function App() {
   const serverInfo = useServerStore((state) => state.info);
   const isSettings = window.location.pathname === "/settings";
   const isUiKit = window.location.pathname === "/ui-kit";
+  const isUiOnboarding = window.location.pathname === "/ui-onboarding";
+  const isUiSettings = window.location.pathname === "/ui-settings";
   const onboardingStatus = useOnboardingStore((state) => state.status);
   const onboardingLoaded = useOnboardingStore((state) => state.isLoaded);
   const onboardingError = useOnboardingStore((state) => state.error);
@@ -33,7 +37,7 @@ function App() {
   }, [serverInfo?.addr, fetchOnboarding]);
 
   useEffect(() => {
-    if (isSettings || isUiKit) return;
+    if (isSettings || isUiKit || isUiOnboarding || isUiSettings) return;
     if (!serverInfo || !onboardingLoaded) return;
     const window = getCurrentWindow();
     const applyLayout = async () => {
@@ -55,6 +59,14 @@ function App() {
 
   if (isUiKit) {
     return <UiKitView />;
+  }
+
+  if (isUiOnboarding) {
+    return <OnboardingDemoView />;
+  }
+
+  if (isUiSettings) {
+    return <SettingsDemoView />;
   }
 
   if (!serverInfo || !onboardingLoaded) {

@@ -8,17 +8,28 @@ type AppHeaderProps = HTMLAttributes<HTMLDivElement> & {
   subtitle?: string;
   brand?: ReactNode;
   meta?: ReactNode;
+  kicker?: string | null;
 };
 
-export function AppHeader({ title, subtitle, brand, meta, className, ...props }: AppHeaderProps) {
+export function AppHeader({
+  title,
+  subtitle,
+  brand,
+  meta,
+  kicker = "Cocommand",
+  className,
+  ...props
+}: AppHeaderProps) {
   return (
     <header className={cx(styles.header, className)} {...props}>
       <div className={styles.brand}>
         {brand ? <div className={styles.mark}>{brand}</div> : null}
         <div>
-          <Text as="div" size="xs" tone="tertiary" className={styles.kicker}>
-            Cocommand
-          </Text>
+          {kicker ? (
+            <Text as="div" size="xs" tone="tertiary" className={styles.kicker}>
+              {kicker}
+            </Text>
+          ) : null}
           <Text as="div" size="lg" weight="semibold">
             {title}
           </Text>
