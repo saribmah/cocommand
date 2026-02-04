@@ -5,18 +5,32 @@ use cocommand::server::Server;
 use tauri::Manager;
 use tokio::time::{sleep, Duration};
 
+#[derive(Clone, Debug)]
+pub enum BootStatus {
+    Starting,
+    Ready,
+    Error,
+}
+
+#[derive(Clone, Debug)]
+pub struct BootState {
+    pub status: BootStatus,
+    pub error: Option<String>,
+}
+
 /// Shared application state for workspace/server lifecycle.
 pub struct AppState {
     pub workspace_dir: Arc<Mutex<PathBuf>>,
-    pub server: Arc<Mutex<Server>>,
+    pub server: Arc<Mutex<Option<Server>>>,
+    pub boot: Arc<Mutex<BootState>>,
 }
 
 impl AppState {
-    pub fn server_addr(&self) -> String {
+    pub fn server_addr(&self) -> Option<String> {
         self.server
             .lock()
-            .map(|handle| handle.addr().to_string())
-            .unwrap_or_else(|_| "unknown".to_string())
+            .ok()
+            .and_then(|handle| handle.as_ref().map(|server| server.addr().to_string()))
     }
 
     pub fn workspace_dir(&self) -> PathBuf {
@@ -28,10 +42,14 @@ impl AppState {
 }
 
 impl AppState {
-    pub fn new(workspace_dir: PathBuf, server: Server) -> Result<Self, String> {
+    pub fn new(workspace_dir: PathBuf) -> Result<Self, String> {
         Ok(Self {
             workspace_dir: Arc::new(Mutex::new(workspace_dir)),
-            server: Arc::new(Mutex::new(server)),
+            server: Arc::new(Mutex::new(None)),
+            boot: Arc::new(Mutex::new(BootState {
+                status: BootStatus::Starting,
+                error: None,
+            })),
         })
     }
 
@@ -44,13 +62,43 @@ impl AppState {
         Ok(())
     }
 
+    pub fn set_server(&self, server: Server) -> Result<(), String> {
+        let mut guard = self
+            .server
+            .lock()
+            .map_err(|_| "server lock poisoned".to_string())?;
+        *guard = Some(server);
+        Ok(())
+    }
+
     pub fn replace_server(&self, server: Server) -> Result<(), String> {
         let mut guard = self
             .server
             .lock()
             .map_err(|_| "server lock poisoned".to_string())?;
-        guard.shutdown()?;
-        *guard = server;
+        if let Some(existing) = guard.as_mut() {
+            existing.shutdown()?;
+        }
+        *guard = Some(server);
+        Ok(())
+    }
+
+    pub fn boot_state(&self) -> BootState {
+        self.boot
+            .lock()
+            .map(|state| state.clone())
+            .unwrap_or_else(|_| BootState {
+                status: BootStatus::Error,
+                error: Some("boot state lock poisoned".to_string()),
+            })
+    }
+
+    pub fn set_boot_status(&self, status: BootStatus, error: Option<String>) -> Result<(), String> {
+        let mut guard = self
+            .boot
+            .lock()
+            .map_err(|_| "boot state lock poisoned".to_string())?;
+        *guard = BootState { status, error };
         Ok(())
     }
 }

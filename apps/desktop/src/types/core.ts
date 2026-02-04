@@ -7,6 +7,13 @@ export interface ServerInfo {
   workspace_dir: string;
 }
 
+export interface ServerStatus {
+  status: "starting" | "ready" | "error";
+  addr?: string;
+  workspace_dir: string;
+  error?: string | null;
+}
+
 // --- Normalized UI types (uniform shape for rendering) ---
 
 export interface ArtifactAction {
@@ -58,6 +65,10 @@ export async function openSettingsWindow(): Promise<void> {
 
 export async function getServerInfo(): Promise<ServerInfo> {
   return invoke("get_server_info_cmd");
+}
+
+export async function getServerStatus(): Promise<ServerStatus> {
+  return invoke("get_server_status_cmd");
 }
 
 export async function getWorkspaceDir(): Promise<string> {

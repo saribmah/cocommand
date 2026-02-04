@@ -31,22 +31,33 @@ pub fn run() {
             let workspace_dir = workspace_path::load_workspace_dir(app.handle()).map_err(
                 |error| std::io::Error::new(std::io::ErrorKind::Other, error),
             )?;
-            let server_handle = tauri::async_runtime::block_on(
-                state::start_server_with_retry(workspace_dir.clone(), 3, 200),
-            )
-            .map_err(|error| std::io::Error::new(std::io::ErrorKind::Other, error))?;
-            let app_state = state::AppState::new(workspace_dir.clone(), server_handle)
-                .map_err(|error| {
-                std::io::Error::new(std::io::ErrorKind::Other, error)
-            })?;
-            println!(
-                "Backend server listening on {}",
-                app_state.server_addr()
-            );
+            let app_state = state::AppState::new(workspace_dir.clone())
+                .map_err(|error| std::io::Error::new(std::io::ErrorKind::Other, error))?;
             println!("Workspace directory: {}", app_state.workspace_dir().display());
             app.manage(app_state);
 
-            let handle = app.handle();
+            let handle = app.handle().clone();
+            let workspace_clone = workspace_dir.clone();
+            let handle_for_task = handle.clone();
+            tauri::async_runtime::spawn(async move {
+                match state::start_server_with_retry(workspace_clone, 3, 200).await {
+                    Ok(server_handle) => {
+                        if let Some(state) = handle_for_task.try_state::<state::AppState>() {
+                            let _ = state.set_server(server_handle);
+                            let _ = state.set_boot_status(state::BootStatus::Ready, None);
+                            if let Some(addr) = state.server_addr() {
+                                println!("Backend server listening on {}", addr);
+                            }
+                        }
+                    }
+                    Err(error) => {
+                        if let Some(state) = handle_for_task.try_state::<state::AppState>() {
+                            let _ = state.set_boot_status(state::BootStatus::Error, Some(error));
+                        }
+                    }
+                }
+            });
+
             handle.global_shortcut().register("CmdOrCtrl+O")?;
             if let Some(window) = app.get_webview_window("main") {
                 let handle = app.handle();
@@ -70,6 +81,7 @@ pub fn run() {
             commands::get_workspace_dir_cmd,
             commands::set_workspace_dir_cmd,
             commands::get_server_info_cmd,
+            commands::get_server_status_cmd,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

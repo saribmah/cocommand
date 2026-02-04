@@ -10,10 +10,20 @@ import { OnboardingDemoView } from "./views/ui-kit/OnboardingDemoView";
 import { SettingsDemoView } from "./views/ui-kit/SettingsDemoView";
 import { ResponsesDemoView } from "./views/ui-kit/ResponsesDemoView";
 import { getCurrentWindow, LogicalSize } from "@tauri-apps/api/window";
+import "@cocommand/ui";
+import {
+  AppPanel,
+  AppShell,
+  ButtonPrimary,
+  Text,
+} from "@cocommand/ui";
 
 function App() {
   const fetchServerInfo = useServerStore((state) => state.fetchInfo);
+  const fetchServerStatus = useServerStore((state) => state.fetchStatus);
   const serverInfo = useServerStore((state) => state.info);
+  const serverStatus = useServerStore((state) => state.status);
+  const serverStatusError = useServerStore((state) => state.statusError);
   const isSettings = window.location.pathname === "/settings";
   const isUiKit = window.location.pathname === "/ui-kit";
   const isUiOnboarding = window.location.pathname === "/ui-onboarding";
@@ -25,8 +35,21 @@ function App() {
   const fetchOnboarding = useOnboardingStore((state) => state.fetchStatus);
 
   useEffect(() => {
+    fetchServerStatus();
+  }, [fetchServerStatus]);
+
+  useEffect(() => {
+    if (serverStatus !== "ready") return;
     fetchServerInfo();
-  }, [fetchServerInfo]);
+  }, [serverStatus, fetchServerInfo]);
+
+  useEffect(() => {
+    if (serverStatus === "ready" || serverStatus === "error") return;
+    const timer = window.setInterval(() => {
+      fetchServerStatus();
+    }, 500);
+    return () => window.clearInterval(timer);
+  }, [serverStatus, fetchServerStatus]);
 
   useEffect(() => {
     if (!serverInfo || onboardingLoaded) return;
@@ -73,6 +96,30 @@ function App() {
 
   if (isUiResponses) {
     return <ResponsesDemoView />;
+  }
+
+  if (serverStatus !== "ready") {
+    return (
+      <AppShell className="cc-theme-dark cc-reset">
+        <AppPanel style={{ minHeight: 360, maxWidth: 620 }}>
+          <Text as="div" size="lg" weight="semibold">
+            {serverStatus === "starting"
+              ? "Starting Cocommand server..."
+              : "Failed to start server"}
+          </Text>
+          <Text as="div" size="sm" tone="secondary">
+            {serverStatus === "starting"
+              ? "Waiting for backend startup."
+              : serverStatusError ?? "Unknown error."}
+          </Text>
+          {serverStatus === "error" ? (
+            <ButtonPrimary onClick={() => fetchServerStatus()}>
+              Retry
+            </ButtonPrimary>
+          ) : null}
+        </AppPanel>
+      </AppShell>
+    );
   }
 
   if (!serverInfo || !onboardingLoaded) {
