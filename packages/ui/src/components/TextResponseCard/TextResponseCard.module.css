@@ -1,0 +1,29 @@
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cc-space-2);
+}
+
+.body {
+  font-size: var(--cc-text-sm);
+  color: var(--cc-text-secondary);
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+.body strong {
+  color: var(--cc-text-primary);
+}
+
+.body code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  background: rgba(0, 0, 0, 0.18);
+  padding: 2px 6px;
+  border-radius: 6px;
+  color: var(--cc-text-primary);
+}
+
+.body a {
+  color: var(--cc-text-primary);
+  text-decoration: underline;
+}

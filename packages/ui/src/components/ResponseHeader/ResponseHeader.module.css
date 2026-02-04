@@ -1,0 +1,35 @@
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--cc-space-2);
+  margin-bottom: var(--cc-space-2);
+}
+
+.left {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cc-space-2);
+}
+
+.icon {
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--cc-text-secondary);
+}
+
+.meta {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cc-space-2);
+  color: var(--cc-text-tertiary);
+}
+
+.actions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cc-space-2);
+}

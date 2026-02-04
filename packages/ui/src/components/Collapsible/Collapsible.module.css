@@ -1,0 +1,32 @@
+.details {
+  border-radius: var(--cc-radius-card);
+  border: 1px solid var(--cc-border-soft);
+  background: rgba(255, 255, 255, 0.02);
+  padding: var(--cc-space-2);
+}
+
+.summary {
+  cursor: pointer;
+  color: var(--cc-text-secondary);
+  font-size: var(--cc-text-xs);
+  list-style: none;
+}
+
+.summary::-webkit-details-marker {
+  display: none;
+}
+
+.summary::before {
+  content: "▸";
+  display: inline-block;
+  margin-right: var(--cc-space-1);
+  transition: transform 120ms ease;
+}
+
+.details[open] .summary::before {
+  transform: rotate(90deg);
+}
+
+.content {
+  margin-top: var(--cc-space-2);
+}

@@ -68,3 +68,26 @@ This roadmap is derived from `mocks/mock-1.webp` and `mocks/mock-2.webp`.
 - InfoCard
 - HighlightGrid
 - HighlightItem
+
+## LLM Response Cards
+
+### Core Structure
+- ResponseStack (vertical container)
+- ResponseBlock (base card surface)
+- ResponseHeader (icon + label + meta + actions)
+- ResponseMeta (right-side info like tokens, duration)
+
+### Content Cards
+- TextResponseCard (markdown/text body)
+- ToolCallCard (single card per tool_id with states: pending/running/success/error)
+  - Collapsible params section
+  - Result section revealed on success
+- FileCard (name + type + actions)
+- ReasoningCard (collapsed by default)
+- ErrorCard (error message + action)
+
+### Utilities
+- Collapsible
+- CodeBlock
+- Badge / IconBadge (status)
+- ActionRow (copy, expand, retry)

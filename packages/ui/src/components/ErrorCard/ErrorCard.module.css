@@ -1,0 +1,8 @@
+.card {
+  border-color: rgba(255, 120, 120, 0.4);
+  background: rgba(255, 120, 120, 0.08);
+}
+
+.message {
+  color: #ffb4a3;
+}

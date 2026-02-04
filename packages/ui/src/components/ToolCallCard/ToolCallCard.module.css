@@ -1,0 +1,32 @@
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cc-space-3);
+}
+
+.toolId {
+  color: var(--cc-text-tertiary);
+  font-size: var(--cc-text-xs);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cc-space-2);
+}
+
+.sectionLabel {
+  font-size: var(--cc-text-xs);
+  color: var(--cc-text-tertiary);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.error {
+  border-radius: var(--cc-radius-card);
+  border: 1px solid rgba(255, 120, 120, 0.4);
+  background: rgba(255, 120, 120, 0.1);
+  padding: var(--cc-space-3);
+  color: #ffb4a3;
+  font-size: var(--cc-text-sm);
+}
