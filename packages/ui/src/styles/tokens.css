@@ -46,7 +46,6 @@
 }
 
 .cc-theme-dark {
-  background: var(--cc-bg-app);
   color: var(--cc-text-primary);
   font-family: var(--cc-font-sans);
 }
