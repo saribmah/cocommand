@@ -1,4 +1,5 @@
 pub mod error;
+pub mod clipboard;
 pub mod server;
 pub mod workspace;
 pub mod session;

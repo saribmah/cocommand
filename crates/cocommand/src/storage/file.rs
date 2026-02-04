@@ -136,6 +136,18 @@ impl Storage for FileStorage {
 
         Ok(names)
     }
+
+    async fn delete(&self, keys: &[&str]) -> CoreResult<()> {
+        let path = self.build_path(keys)?;
+        match tokio::fs::remove_file(&path).await {
+            Ok(_) => Ok(()),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+            Err(error) => Err(CoreError::Internal(format!(
+                "failed to delete storage file {}: {error}",
+                path.display()
+            ))),
+        }
+    }
 }
 
 fn validate_key(key: &str) -> CoreResult<()> {

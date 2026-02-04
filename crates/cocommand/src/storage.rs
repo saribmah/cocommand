@@ -11,6 +11,7 @@ pub trait Storage: Send + Sync {
     async fn write(&self, keys: &[&str], data: &Value) -> CoreResult<()>;
     async fn read(&self, keys: &[&str]) -> CoreResult<Option<Value>>;
     async fn list(&self, keys: &[&str]) -> CoreResult<Vec<String>>;
+    async fn delete(&self, keys: &[&str]) -> CoreResult<()>;
 }
 
 pub type SharedStorage = Arc<dyn Storage>;

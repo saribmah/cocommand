@@ -5,9 +5,10 @@ use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::net::TcpListener;
-use tokio::sync::oneshot;
+use tokio::sync::{oneshot, watch};
 
 use crate::bus::Bus;
+use crate::clipboard::spawn_clipboard_watcher;
 use crate::llm::{LlmService, LlmSettings};
 use crate::session::SessionManager;
 use crate::workspace::WorkspaceInstance;
@@ -18,6 +19,7 @@ pub mod workspace;
 pub struct Server {
     addr: SocketAddr,
     shutdown: Option<oneshot::Sender<()>>,
+    clipboard_shutdown: Option<watch::Sender<bool>>,
     workspace: WorkspaceInstance,
 }
 
@@ -86,6 +88,7 @@ impl Server {
             .local_addr()
             .map_err(|error| error.to_string())?;
         let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
+        let (clipboard_shutdown_tx, clipboard_shutdown_rx) = watch::channel(false);
 
         tokio::spawn(async move {
             let _ = axum::serve(listener, app)
@@ -94,10 +97,12 @@ impl Server {
                 })
                 .await;
         });
+        spawn_clipboard_watcher(state.workspace.clone(), clipboard_shutdown_rx, 500);
 
         Ok(Server {
             addr,
             shutdown: Some(shutdown_tx),
+            clipboard_shutdown: Some(clipboard_shutdown_tx),
             workspace: state.workspace.clone(),
         })
     }
@@ -107,6 +112,9 @@ impl Server {
     }
 
     pub fn shutdown(&mut self) -> Result<(), String> {
+        if let Some(sender) = self.clipboard_shutdown.take() {
+            let _ = sender.send(true);
+        }
         if let Some(sender) = self.shutdown.take() {
             sender
                 .send(())
