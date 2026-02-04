@@ -15,10 +15,20 @@
   color: var(--cc-icon-muted);
 }
 
-.placeholder {
-  flex: 1;
-}
-
 .shortcut {
   margin-left: auto;
+}
+
+.input {
+  flex: 1;
+  border: 0;
+  background: transparent;
+  color: var(--cc-text-primary);
+  font-size: var(--cc-text-md);
+  line-height: var(--cc-line-normal);
+  outline: none;
+}
+
+.input::placeholder {
+  color: var(--cc-text-secondary);
 }

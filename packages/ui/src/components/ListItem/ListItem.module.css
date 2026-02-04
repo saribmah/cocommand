@@ -8,6 +8,7 @@
   background: transparent;
   border: 1px solid transparent;
   transition: background 120ms ease, border-color 120ms ease;
+  cursor: pointer;
 }
 
 .item:hover {
