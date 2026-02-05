@@ -1,0 +1,84 @@
+.shell {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.headerRow {
+  display: flex;
+  align-items: center;
+  gap: var(--cc-space-3);
+}
+
+.searchField {
+  flex: 1;
+  min-width: 0;
+}
+
+.filterRow {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--cc-space-2);
+}
+
+.content {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.scrollArea {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--cc-space-3);
+  padding-right: 2px;
+}
+
+.responseBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cc-space-1);
+}
+
+.responseBlock {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cc-space-2);
+}
+
+.responseBody :global(.markdown-view) {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.responseBody :global(.markdown-view p) {
+  margin: 0;
+  font-size: var(--cc-text-sm);
+  color: var(--cc-text-secondary);
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+.responseBody :global(.markdown-view strong) {
+  color: var(--cc-text-primary);
+}
+
+.responseBody :global(.markdown-view em) {
+  color: var(--cc-text-secondary);
+}
+
+.responseBody :global(.markdown-view code) {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  background: rgba(0, 0, 0, 0.18);
+  padding: 2px 6px;
+  border-radius: 6px;
+  color: var(--cc-text-primary);
+}

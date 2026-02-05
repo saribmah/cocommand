@@ -1,12 +1,77 @@
-import { useRef, useEffect, useMemo, useState, type KeyboardEvent } from "react";
+import "@cocommand/ui";
+import {
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+} from "react";
+import {
+  ActionHint,
+  ActionRow,
+  Badge,
+  ButtonPrimary,
+  ButtonSecondary,
+  Chip,
+  ChipGroup,
+  CloseButton,
+  CommandPaletteShell,
+  ContentArea,
+  Divider,
+  FilterArea,
+  FooterArea,
+  HeaderArea,
+  HintBar,
+  HintItem,
+  Icon,
+  IconContainer,
+  KeyHint,
+  ListItem,
+  ListSection,
+  ResponseBlock,
+  ResponseHeader,
+  ResponseStack,
+  SearchField,
+  StatusBadge,
+  Text,
+} from "@cocommand/ui";
 import { useCommandBar } from "../state/commandbar";
 import { useServerStore } from "../state/server";
 import { useApplicationStore } from "../state/applications";
-import { ResultCard } from "./ResultCard";
-import { ConfirmPanel } from "./ConfirmPanel";
-import { ApplicationPicker } from "./ApplicationPicker";
-import { SlashCommandPicker } from "./SlashCommandPicker";
-import "../styles/commandbar.css";
+import { MarkdownView } from "./MarkdownView";
+import styles from "./CommandBar.module.css";
+
+const SearchIcon = (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+    <circle cx="11" cy="11" r="6" />
+    <path d="M20 20l-3.8-3.8" />
+  </svg>
+);
+
+const AppIcon = (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+    <rect x="4" y="4" width="7" height="7" rx="2" />
+    <rect x="13" y="4" width="7" height="7" rx="2" />
+    <rect x="4" y="13" width="7" height="7" rx="2" />
+    <rect x="13" y="13" width="7" height="7" rx="2" />
+  </svg>
+);
+
+const CommandIcon = (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+    <path d="M5 7h14" />
+    <path d="M5 12h14" />
+    <path d="M5 17h10" />
+  </svg>
+);
+
+const ArrowIcon = (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
+    <path d="M7 17l10-10" />
+    <path d="M9 7h8v8" />
+  </svg>
+);
 
 function getMentionState(text: string): { query: string; start: number } | null {
   const match = /(^|\s)@([^\s@]*)$/.exec(text);
@@ -103,8 +168,8 @@ function matchScore(query: string, name: string, id: string, kind: string): numb
 }
 
 export function CommandBar() {
-  const inputRef = useRef<HTMLInputElement>(null);
-  const resultsRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const inputId = useId();
   const [mentionIndex, setMentionIndex] = useState(0);
   const [slashIndex, setSlashIndex] = useState(0);
   const {
@@ -117,7 +182,6 @@ export function CommandBar() {
     setResults,
     submit,
     dismiss,
-    dismissResult,
     confirmPending,
     cancelPending,
     reset,
@@ -149,22 +213,18 @@ export function CommandBar() {
   }, [mentionState, applicationsLoaded, fetchApplications]);
 
   useEffect(() => {
-    inputRef.current?.focus();
-  }, [results]);
+    const node = document.getElementById(inputId) as HTMLInputElement | null;
+    node?.focus();
+  }, [inputId, results]);
 
   useEffect(() => {
-    const node = resultsRef.current;
+    const node = scrollRef.current;
     if (!node) return;
     requestAnimationFrame(() => {
       node.scrollTop = node.scrollHeight;
     });
-  }, [results]);
+  }, [results, pendingConfirmation]);
 
-  useEffect(() => {
-    if (mentionState) {
-      console.log("[mentions] state", mentionState);
-    }
-  }, [mentionState]);
   const filteredApplications = useMemo(() => {
     if (!mentionState) return [];
     const query = normalizeQuery(mentionState.query);
@@ -177,11 +237,6 @@ export function CommandBar() {
       .sort((a, b) => b.score - a.score);
     return ranked.slice(0, 8).map((entry) => entry.app);
   }, [applications, mentionState]);
-
-  useEffect(() => {
-    if (!mentionState) return;
-    console.log("[mentions] apps", applications.length, "filtered", filteredApplications.length);
-  }, [mentionState, applications.length, filteredApplications.length]);
 
   useEffect(() => {
     if (mentionState) {
@@ -291,61 +346,158 @@ export function CommandBar() {
         break;
     }
   };
+
+  const showMentionList = mentionState && filteredApplications.length > 0;
+  const showSlashList = !mentionState && slashState && filteredSlashCommands.length > 0;
+  const showResponses = results.length > 0 || pendingConfirmation;
+
   return (
-    <div className="command-bar">
-      <div className="command-input-wrapper">
-        {followUpActive && (
-          <span className="follow-up-badge">Follow-up</span>
-        )}
-        <input
-          ref={inputRef}
-          className="command-input"
-          type="text"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder={followUpActive ? "Refine the previous result\u2026" : "How can I help..."}
-          disabled={isSubmitting || !!pendingConfirmation}
-          spellCheck={false}
-          autoComplete="off"
-        />
-        <span
-          className="server-status-badge"
-          data-status={serverInfo ? "online" : "offline"}
-        >
-          {serverInfo ? "Server online" : "Server offline"}
-        </span>
-      </div>
-      {mentionState && (
-        <ApplicationPicker
-          applications={filteredApplications}
-          selectedIndex={mentionIndex}
-          onSelect={(app) => {
-            const nextValue = applyMention(input, mentionState, app.name);
-            setInput(nextValue);
-          }}
-        />
-      )}
-      {!mentionState && slashState && (
-        <SlashCommandPicker
-          commands={filteredSlashCommands}
-          selectedIndex={slashIndex}
-          onSelect={(command) => {
-            const nextValue = applySlashCommand(input, slashState, command.id);
-            setInput(nextValue);
-          }}
-        />
-      )}
-      <div className="command-results" ref={resultsRef}>
-        {pendingConfirmation && (
-          <ConfirmPanel
-            confirmation={pendingConfirmation}
-            onConfirm={confirmPending}
-            onCancel={cancelPending}
+    <CommandPaletteShell className={styles.shell}>
+      <HeaderArea>
+        <div className={styles.headerRow}>
+          <SearchField
+            className={styles.searchField}
+            icon={<Icon>{SearchIcon}</Icon>}
+            placeholder={followUpActive ? "Refine the previous result..." : "How can I help..."}
+            inputProps={{
+              id: inputId,
+              value: input,
+              onChange: (e) => setInput(e.target.value),
+              onKeyDown: handleKeyDown,
+              disabled: isSubmitting || !!pendingConfirmation,
+              spellCheck: false,
+              autoComplete: "off",
+            }}
           />
-        )}
-        <ResultCard results={results} onDismiss={dismissResult} />
-      </div>
-    </div>
+          <StatusBadge
+            status={serverInfo ? "good" : "warn"}
+            label={serverInfo ? "Server online" : "Server offline"}
+          />
+        </div>
+        <Divider />
+      </HeaderArea>
+
+      <FilterArea>
+        <div className={styles.filterRow}>
+          <ChipGroup>
+            <Chip label="Recent" active={!mentionState && !slashState} />
+            <Chip label="Apps" active={!!mentionState} />
+            <Chip label="Commands" active={!!slashState && !mentionState} />
+          </ChipGroup>
+          {followUpActive ? <Badge tone="warn">Follow-up</Badge> : null}
+          {isSubmitting ? <Badge>Working...</Badge> : null}
+        </div>
+      </FilterArea>
+
+      <ContentArea className={styles.content}>
+        <div className={styles.scrollArea} ref={scrollRef}>
+          {showMentionList ? (
+            <ListSection label="Applications">
+              {filteredApplications.map((app, index) => (
+                <ListItem
+                  key={app.id}
+                  title={app.name}
+                  subtitle={`${app.kind} / ${app.id}`}
+                  icon={
+                    <IconContainer>
+                      <Icon>{AppIcon}</Icon>
+                    </IconContainer>
+                  }
+                  selected={index === mentionIndex}
+                  onMouseDown={(event) => {
+                    event.preventDefault();
+                    const nextValue = applyMention(input, mentionState, app.name);
+                    setInput(nextValue);
+                  }}
+                />
+              ))}
+            </ListSection>
+          ) : null}
+
+          {showSlashList ? (
+            <ListSection label="Commands">
+              {filteredSlashCommands.map((command, index) => (
+                <ListItem
+                  key={command.id}
+                  title={`/${command.id}`}
+                  subtitle={command.description}
+                  icon={
+                    <IconContainer>
+                      <Icon>{CommandIcon}</Icon>
+                    </IconContainer>
+                  }
+                  rightMeta={<ActionHint label="Enter" icon={<Icon>{ArrowIcon}</Icon>} />}
+                  selected={index === slashIndex}
+                  onMouseDown={(event) => {
+                    event.preventDefault();
+                    const nextValue = applySlashCommand(input, slashState, command.id);
+                    setInput(nextValue);
+                  }}
+                />
+              ))}
+            </ListSection>
+          ) : null}
+
+          {(showMentionList || showSlashList) && showResponses ? <Divider /> : null}
+
+          {showResponses ? (
+            <ResponseStack>
+              {pendingConfirmation ? (
+                <ResponseBlock className={styles.responseBlock}>
+                  <ResponseHeader label={pendingConfirmation.title} />
+                  <div className={styles.responseBody}>
+                    <MarkdownView content={pendingConfirmation.body} />
+                  </div>
+                  <ActionRow>
+                    <ButtonSecondary onClick={() => cancelPending()}>
+                      Cancel
+                    </ButtonSecondary>
+                    <ButtonPrimary onClick={() => confirmPending()}>
+                      Confirm
+                    </ButtonPrimary>
+                  </ActionRow>
+                </ResponseBlock>
+              ) : null}
+
+              {results.map((result, index) => (
+                <ResponseBlock key={`${result.type}-${index}`} className={styles.responseBlock}>
+                  <ResponseHeader label={result.title} />
+                  <div className={styles.responseBody}>
+                    <MarkdownView content={result.body} />
+                  </div>
+                  {result.type === "artifact" && result.actions.length > 0 ? (
+                    <ActionRow>
+                      {result.actions.map((action) => (
+                        <ButtonSecondary key={action.id}>
+                          {action.label}
+                        </ButtonSecondary>
+                      ))}
+                    </ActionRow>
+                  ) : null}
+                </ResponseBlock>
+              ))}
+            </ResponseStack>
+          ) : (
+            <Text size="sm" tone="secondary">
+              Type a command, use @ to target an app, or / for shortcuts.
+            </Text>
+          )}
+        </div>
+      </ContentArea>
+
+      <FooterArea>
+        <HintBar
+          left={
+            <>
+              <HintItem label="Navigate" keyHint={<KeyHint keys={["Up", "Down"]} />} />
+              <HintItem label="Enter" keyHint={<KeyHint keys="Enter" />} />
+              <HintItem label="Apps" keyHint={<KeyHint keys="@" />} />
+              <HintItem label="Command" keyHint={<KeyHint keys="/" />} />
+            </>
+          }
+          right={<CloseButton onClick={dismiss} />}
+        />
+      </FooterArea>
+    </CommandPaletteShell>
   );
 }
