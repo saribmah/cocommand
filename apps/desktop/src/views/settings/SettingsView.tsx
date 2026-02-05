@@ -1,8 +1,32 @@
-import "./SettingsView.css";
+import "@cocommand/ui";
 import { useEffect, useState } from "react";
 import { useServerStore } from "../../state/server";
 import { useAiStore } from "../../state/ai";
 import { hideSettingsWindow } from "../../lib/ipc";
+import styles from "./SettingsView.module.css";
+import {
+  AppContent,
+  AppFooter,
+  AppHeader,
+  AppNav,
+  AppPanel,
+  ButtonGroup,
+  ButtonPrimary,
+  ButtonSecondary,
+  Divider,
+  ErrorBanner,
+  Field,
+  FieldRow,
+  InfoCard,
+  InlineHelp,
+  NavTab,
+  NavTabs,
+  Pill,
+  StatusBadge,
+  Text,
+  TextArea,
+  TextInput,
+} from "@cocommand/ui";
 
 export function SettingsView() {
   const serverInfo = useServerStore((state) => state.info);
@@ -76,6 +100,8 @@ export function SettingsView() {
       });
       setAiForm((prev) => ({ ...prev, api_key: "" }));
       setAiToast("success");
+    } catch (error) {
+      setAiToast("error");
     } finally {
       setAiSaving(false);
     }
@@ -88,164 +114,120 @@ export function SettingsView() {
   }, [aiToast]);
 
   return (
-    <main className="settings-shell">
-      <header className="settings-bar">
-        <div className="settings-bar__brand">
-          <div className="settings-logo">CC</div>
-          <div>
-            <p className="settings-kicker">Cocommand</p>
-            <h1>Settings</h1>
-          </div>
-        </div>
-        <nav className="settings-tabs">
-          <button
-            className={`settings-tab ${tab === "overview" ? "is-active" : ""}`}
-            onClick={() => setTab("overview")}
-            type="button"
-          >
-            Overview
-          </button>
-          <button
-            className={`settings-tab ${tab === "workspace" ? "is-active" : ""}`}
-            onClick={() => setTab("workspace")}
-            type="button"
-          >
-            Workspace
-          </button>
-          <button
-            className={`settings-tab ${tab === "ai" ? "is-active" : ""}`}
-            onClick={() => setTab("ai")}
-            type="button"
-          >
-            AI
-          </button>
-        </nav>
-        <div className="settings-bar__status">
-          <span
-            className={`status-dot ${serverInfo ? "is-live" : "is-off"}`}
-            aria-hidden="true"
-          />
-          <div>
-            <p className="status-title">
-              {serverInfo ? "Server running" : "Server offline"}
-            </p>
-            <p className="status-meta">{serverInfo?.addr ?? "Not connected"}</p>
-          </div>
-        </div>
-      </header>
+    <main className={styles.shell}>
+      <AppPanel className={styles.panel}>
+        <AppHeader
+          title="Settings"
+          subtitle="Configure your workspace and AI providers."
+          brand={<img className={styles.brand} src="/logo_dark.png" alt="Cocommand" />}
+          kicker={null}
+          meta={
+            <div className={styles.status}>
+              <StatusBadge
+                status={serverInfo ? "good" : "warn"}
+                label={serverInfo ? "Server running" : "Server offline"}
+              />
+              <Text size="xs" tone="tertiary">
+                {serverInfo?.addr ?? "Not connected"}
+              </Text>
+            </div>
+          }
+        />
 
-      <section className="settings-section">
-        {tab === "overview" && (
-          <div className="settings-panel">
-            <div className="settings-section-title">
-              <h2>General</h2>
-              <p className="settings-muted">
+        <AppNav>
+          <NavTabs>
+            <NavTab label="Overview" active={tab === "overview"} onClick={() => setTab("overview")} />
+            <NavTab
+              label="Workspace"
+              active={tab === "workspace"}
+              onClick={() => setTab("workspace")}
+            />
+            <NavTab label="AI" active={tab === "ai"} onClick={() => setTab("ai")} />
+          </NavTabs>
+        </AppNav>
+
+        <AppContent>
+          {tab === "overview" && (
+            <InfoCard>
+              <Text as="h3" size="lg" weight="semibold">
+                Overview
+              </Text>
+              <Text as="p" size="sm" tone="secondary">
                 Core configuration for this device.
-              </p>
-            </div>
-            <div className="settings-list">
-              <div className="settings-row">
-                <div className="settings-row__title">Server address</div>
-                <div className="settings-row__value">
-                  {serverInfo?.addr ?? "Not connected"}
+              </Text>
+              <Divider />
+              <Field label="Server address">
+                <Text size="sm">{serverInfo?.addr ?? "Not connected"}</Text>
+              </Field>
+              <Field label="Workspace path">
+                <Text size="sm">{serverInfo?.workspace_dir ?? "Unknown"}</Text>
+              </Field>
+              <Field label="Shortcuts">
+                <div className={styles.shortcutRow}>
+                  <Pill>/settings</Pill>
+                  <Pill>Esc</Pill>
+                  <Pill>/help</Pill>
                 </div>
-              </div>
-              <div className="settings-row">
-                <div className="settings-row__title">Workspace path</div>
-                <div className="settings-row__value">
-                  {serverInfo?.workspace_dir ?? "Unknown"}
-                </div>
-              </div>
-              <div className="settings-row">
-                <div className="settings-row__title">Shortcuts</div>
-                <div className="settings-row__value">
-                  <span className="settings-pill">/settings</span>
-                  <span className="settings-pill">Esc</span>
-                  <span className="settings-pill">/help</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
+              </Field>
+            </InfoCard>
+          )}
 
-        {tab === "workspace" && (
-          <div className="settings-panel">
-            <div className="settings-section-title">
-              <h2>Workspace</h2>
-              <p className="settings-muted">
+          {tab === "workspace" && (
+            <InfoCard>
+              <Text as="h3" size="lg" weight="semibold">
+                Workspace
+              </Text>
+              <Text as="p" size="sm" tone="secondary">
                 Configure where Cocommand stores sessions and files.
-              </p>
-            </div>
-            <div className="settings-list">
-              <div className="settings-row">
-                <div className="settings-row__title">Workspace path</div>
-                <div className="settings-row__value">
-                  {serverInfo?.workspace_dir ?? "Unknown"}
-                </div>
-              </div>
-            </div>
-            <div className="settings-placeholder">
-              Workspace controls are coming next.
-            </div>
-          </div>
-        )}
+              </Text>
+              <Divider />
+              <Field label="Workspace path">
+                <TextInput value={serverInfo?.workspace_dir ?? ""} readOnly />
+              </Field>
+              <InlineHelp text="Workspace controls are coming next." />
+            </InfoCard>
+          )}
 
-        {tab === "ai" && (
-          <div className="settings-panel">
-            <div className="settings-section-title">
-              <h2>AI</h2>
-              <p className="settings-muted">Configure models and providers</p>
-            </div>
-            <div className="settings-list">
-              <div className="settings-row settings-row--input">
-                <div className="settings-row__title">Provider</div>
-                <div className="settings-row__value">
-                  <input
-                    className="settings-input"
-                    value={aiForm.provider}
-                    onChange={(event) => handleAiChange("provider", event.target.value)}
-                    placeholder="openai-compatible"
-                  />
-                </div>
-              </div>
-              <div className="settings-row settings-row--input">
-                <div className="settings-row__title">Base URL</div>
-                <div className="settings-row__value">
-                  <input
-                    className="settings-input"
-                    value={aiForm.base_url}
-                    onChange={(event) => handleAiChange("base_url", event.target.value)}
-                    placeholder="https://api.openai.com/v1"
-                  />
-                </div>
-              </div>
-              <div className="settings-row settings-row--input">
-                <div className="settings-row__title">Model</div>
-                <div className="settings-row__value">
-                  <input
-                    className="settings-input"
-                    value={aiForm.model}
-                    onChange={(event) => handleAiChange("model", event.target.value)}
-                    placeholder="gpt-4o-mini"
-                  />
-                </div>
-              </div>
-              <div className="settings-row settings-row--input">
-                <div className="settings-row__title">System prompt</div>
-                <div className="settings-row__value">
-                  <textarea
-                    className="settings-input settings-input--textarea"
-                    value={aiForm.system_prompt}
-                    onChange={(event) => handleAiChange("system_prompt", event.target.value)}
-                    placeholder="You are Cocommand, a helpful command assistant."
-                  />
-                </div>
-              </div>
-              <div className="settings-row settings-row--input">
-                <div className="settings-row__title">Temperature</div>
-                <div className="settings-row__value">
-                  <input
-                    className="settings-input"
+          {tab === "ai" && (
+            <InfoCard>
+              <Text as="h3" size="lg" weight="semibold">
+                AI configuration
+              </Text>
+              <Text as="p" size="sm" tone="secondary">
+                Configure the provider and model used by the command planner.
+              </Text>
+              <Divider />
+              <Field label="Provider">
+                <TextInput
+                  value={aiForm.provider}
+                  onChange={(event) => handleAiChange("provider", event.target.value)}
+                  placeholder="openai-compatible"
+                />
+              </Field>
+              <Field label="Base URL">
+                <TextInput
+                  value={aiForm.base_url}
+                  onChange={(event) => handleAiChange("base_url", event.target.value)}
+                  placeholder="https://api.openai.com/v1"
+                />
+              </Field>
+              <Field label="Model">
+                <TextInput
+                  value={aiForm.model}
+                  onChange={(event) => handleAiChange("model", event.target.value)}
+                  placeholder="gpt-4o-mini"
+                />
+              </Field>
+              <Field label="System prompt">
+                <TextArea
+                  value={aiForm.system_prompt}
+                  onChange={(event) => handleAiChange("system_prompt", event.target.value)}
+                  placeholder="You are Cocommand, a helpful command assistant."
+                />
+              </Field>
+              <Field label="Temperature">
+                <FieldRow>
+                  <TextInput
                     value={aiForm.temperature}
                     onChange={(event) => handleAiChange("temperature", event.target.value)}
                     type="number"
@@ -253,66 +235,67 @@ export function SettingsView() {
                     min="0"
                     max="2"
                   />
-                </div>
-              </div>
-              <div className="settings-row settings-row--input">
-                <div className="settings-row__title">Max output tokens</div>
-                <div className="settings-row__value">
-                  <input
-                    className="settings-input"
-                    value={aiForm.max_output_tokens}
-                    onChange={(event) =>
-                      handleAiChange("max_output_tokens", event.target.value)
-                    }
-                    type="number"
-                    min="256"
-                  />
-                </div>
-              </div>
-              <div className="settings-row settings-row--input">
-                <div className="settings-row__title">Max steps</div>
-                <div className="settings-row__value">
-                  <input
-                    className="settings-input"
-                    value={aiForm.max_steps}
-                    onChange={(event) => handleAiChange("max_steps", event.target.value)}
-                    type="number"
-                    min="1"
-                  />
-                </div>
-              </div>
-              <div className="settings-row settings-row--input">
-                <div className="settings-row__title">API key</div>
-                <div className="settings-row__value">
-                  <input
-                    className="settings-input"
-                    value={aiForm.api_key}
-                    onChange={(event) => handleAiChange("api_key", event.target.value)}
-                    placeholder={aiSettings?.has_api_key ? "Configured" : "sk-..."}
-                    type="password"
-                  />
-                </div>
-              </div>
-            </div>
-            {serverInfo && aiError && (
-              <div className="settings-error">{aiError}</div>
-            )}
-            {aiToast === "success" && (
-              <div className="settings-toast">Settings saved</div>
-            )}
-            <div className="settings-actions">
-              <button
-                className="settings-button"
-                type="button"
-                onClick={saveAiSettings}
-                disabled={aiSaving}
-              >
+                  <Text size="xs" tone="tertiary">
+                    Range 0–2
+                  </Text>
+                </FieldRow>
+              </Field>
+              <Field label="Max output tokens">
+                <TextInput
+                  value={aiForm.max_output_tokens}
+                  onChange={(event) => handleAiChange("max_output_tokens", event.target.value)}
+                  type="number"
+                  min="256"
+                />
+              </Field>
+              <Field label="Max steps">
+                <TextInput
+                  value={aiForm.max_steps}
+                  onChange={(event) => handleAiChange("max_steps", event.target.value)}
+                  type="number"
+                  min="1"
+                />
+              </Field>
+              <Field label="API key" help={aiSettings?.has_api_key ? "Stored securely" : undefined}>
+                <TextInput
+                  value={aiForm.api_key}
+                  onChange={(event) => handleAiChange("api_key", event.target.value)}
+                  placeholder={aiSettings?.has_api_key ? "Configured" : "sk-..."}
+                  type="password"
+                />
+              </Field>
+              <InlineHelp text="Required to continue unless already configured." />
+              {serverInfo && aiError ? <ErrorBanner message={aiError} /> : null}
+            </InfoCard>
+          )}
+        </AppContent>
+
+        <AppFooter>
+          <ButtonGroup>
+            <ButtonSecondary onClick={hideSettingsWindow}>Close</ButtonSecondary>
+            {tab === "ai" ? (
+              <ButtonPrimary onClick={saveAiSettings} disabled={aiSaving}>
                 {aiSaving ? "Saving..." : "Save changes"}
-              </button>
-            </div>
-          </div>
-        )}
-      </section>
+              </ButtonPrimary>
+            ) : null}
+          </ButtonGroup>
+          {tab === "ai" ? (
+            aiToast === "success" ? (
+              <StatusBadge status="good" label="Settings saved" />
+            ) : aiToast === "error" ? (
+              <StatusBadge status="warn" label="Save failed" />
+            ) : (
+              <Text size="xs" tone="tertiary">
+                Press Esc to close
+              </Text>
+            )
+          ) : (
+            <Text size="xs" tone="tertiary">
+              Press Esc to close
+            </Text>
+          )}
+        </AppFooter>
+      </AppPanel>
     </main>
   );
 }

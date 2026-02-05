@@ -51,7 +51,7 @@ pub fn open_settings_window(app: tauri::AppHandle) -> Result<(), String> {
         .title("Settings")
         .inner_size(720.0, 520.0)
         .resizable(true)
-        .decorations(true)
+        .decorations(false)
         .always_on_top(false)
         .build()
         .map_err(|error| error.to_string())?;
