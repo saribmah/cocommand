@@ -1,15 +1,22 @@
-import { useState, useCallback } from "react";
-import { hideWindow, openSettingsWindow, type CoreResult } from "../lib/ipc";
+import { useCallback, useState } from "react";
+import { hideWindow, openSettingsWindow } from "../lib/ipc";
 import { useSessionStore } from "./session";
 import type { MessagePart, StreamEvent, StreamPart } from "../types/session";
+
+interface PendingConfirmation {
+  title: string;
+  body: string;
+  confirmation_id?: string;
+}
 
 export interface CommandBarState {
   input: string;
   selectedIndex: number;
   isSubmitting: boolean;
-  results: CoreResult[];
-  pendingConfirmation: null;
+  parts: MessagePart[];
+  pendingConfirmation: PendingConfirmation | null;
   followUpActive: boolean;
+  error: string | null;
 }
 
 export function useCommandBar() {
@@ -17,17 +24,18 @@ export function useCommandBar() {
     input: "",
     selectedIndex: -1,
     isSubmitting: false,
-    results: [],
+    parts: [],
     pendingConfirmation: null,
     followUpActive: false,
+    error: null,
   });
 
   const setInput = useCallback((value: string) => {
     setState((s) => ({ ...s, input: value }));
   }, []);
 
-  const setResults = useCallback((results: CoreResult[]) => {
-    setState((s) => ({ ...s, results }));
+  const setError = useCallback((error: string | null) => {
+    setState((s) => ({ ...s, error }));
   }, []);
 
   const reset = useCallback(() => {
@@ -35,9 +43,10 @@ export function useCommandBar() {
       input: "",
       selectedIndex: -1,
       isSubmitting: false,
-      results: [],
+      parts: [],
       pendingConfirmation: null,
       followUpActive: false,
+      error: null,
     });
   }, []);
 
@@ -50,86 +59,43 @@ export function useCommandBar() {
     if (text === "/settings") {
       await openSettingsWindow();
       hideWindow();
-      setState((s) => ({
-        ...s,
-        input: "",
-        results: [],
-        isSubmitting: false,
-      }));
+      setState((s) => ({ ...s, input: "", parts: [], isSubmitting: false, error: null }));
       return;
     }
 
-    setState((s) => ({ ...s, isSubmitting: true }));
+    setState((s) => ({ ...s, isSubmitting: true, parts: [], error: null }));
 
     try {
-      const streamBlocks: StreamBlock[] = [];
-
-      const sessionResult: CoreResult = {
-        type: "preview",
-        title: "Session",
-        body: "",
-      };
-      setState((s) => ({
-        ...s,
-        results: [sessionResult],
-      }));
+      const streamParts: MessagePart[] = [];
 
       const response = await sendMessage(text, (event: StreamEvent) => {
         if (event.event === "part") {
           const part = (event.data as { part?: StreamPart })?.part;
           if (!part) return;
-          applyStreamPart(part, streamBlocks);
-          const body = buildStreamBody(streamBlocks);
-          setState((s) => ({
-            ...s,
-            results: [
-              {
-                type: "preview",
-                title: "Session",
-                body,
-              },
-            ],
-          }));
+          applyStreamPart(part, streamParts);
+          setState((s) => ({ ...s, parts: [...streamParts] }));
         }
       });
 
-      const sessionBody = formatMessageParts(response.reply_parts);
-      const finalResult: CoreResult | null = sessionBody
-        ? {
-            type: "preview",
-            title: "Session",
-            body: sessionBody,
-          }
-        : null;
       setState((s) => ({
         ...s,
         input: "",
         isSubmitting: false,
-        results: finalResult ? [finalResult] : [],
+        parts: response.reply_parts ?? [],
         pendingConfirmation: null,
         followUpActive: false,
+        error: null,
       }));
     } catch (err) {
       console.error("CommandBar submit error", err);
-      const errorResult: CoreResult = {
-        type: "error",
-        title: "Error",
-        body: normalizeErrorMessage(err),
-      };
       setState((s) => ({
         ...s,
         isSubmitting: false,
-        results: [errorResult],
+        parts: [],
+        error: normalizeErrorMessage(err),
       }));
     }
   }, [state.input, sendMessage]);
-
-  const dismissResult = useCallback((index: number) => {
-    setState((s) => ({
-      ...s,
-      results: s.results.filter((_, i) => i !== index),
-    }));
-  }, []);
 
   const confirmPending = useCallback(async () => {}, []);
   const cancelPending = useCallback(async () => {}, []);
@@ -137,20 +103,19 @@ export function useCommandBar() {
   const dismiss = useCallback(() => {
     if (state.pendingConfirmation) {
       cancelPending();
-    } else if (state.results.length > 0) {
-      setState((s) => ({ ...s, results: [] }));
+    } else if (state.parts.length > 0 || state.error) {
+      setState((s) => ({ ...s, parts: [], error: null }));
     } else {
       hideWindow();
     }
-  }, [state.pendingConfirmation, state.results.length, cancelPending]);
+  }, [state.pendingConfirmation, state.parts.length, state.error, cancelPending]);
 
   return {
     ...state,
     setInput,
-    setResults,
+    setError,
     submit,
     dismiss,
-    dismissResult,
     confirmPending,
     cancelPending,
     reset,
@@ -167,130 +132,84 @@ function normalizeErrorMessage(error: unknown): string {
   }
 }
 
-function formatMessageParts(parts: MessagePart[]): string {
-  return parts
-    .map((part) => {
-      switch (part.type) {
-        case "text":
-          return part.text;
-        case "reasoning":
-          return `\n\n[Reasoning]\n${part.text}`;
-        case "tool-call":
-          return `\n\n[ToolCall] ${part.tool_name} (running)`;
-        case "tool-result":
-          return `\n\n[ToolResult${part.is_error ? " Error" : ""}] ${
-            part.tool_name
-          } (${part.is_error ? "failed" : "ok"})`;
-        case "source":
-          return `\n\n[Source] ${part.source_type}\n${formatSource(part)}`;
-        case "file":
-          return `\n\n[File] ${part.media_type}${part.name ? ` (${part.name})` : ""}`;
-        default:
-          return "";
-      }
-    })
-    .join("");
-}
-
-function formatSource(part: MessagePart & { type: "source" }): string {
-  const bits = [];
-  if (part.title) bits.push(part.title);
-  if (part.url) bits.push(part.url);
-  if (part.filename) bits.push(part.filename);
-  return bits.join("\n");
-}
-
-type StreamBlockType =
-  | "text"
-  | "reasoning"
-  | "tool"
-  | "source"
-  | "file";
-
-interface StreamBlock {
-  type: StreamBlockType;
-  text: string;
-}
-
-function applyStreamPart(part: StreamPart, blocks: StreamBlock[]): void {
+function applyStreamPart(part: StreamPart, parts: MessagePart[]): void {
   switch (part.type) {
     case "text-delta": {
-      const last = blocks[blocks.length - 1];
+      const last = parts[parts.length - 1];
       if (!last || last.type !== "text") {
-        blocks.push({ type: "text", text: part.text ?? "" });
+        parts.push({ type: "text", text: part.text ?? "" });
       } else {
         last.text += part.text ?? "";
       }
       return;
     }
     case "reasoning-delta": {
-      const last = blocks[blocks.length - 1];
+      const last = parts[parts.length - 1];
       if (!last || last.type !== "reasoning") {
-        blocks.push({ type: "reasoning", text: part.text ?? "" });
+        parts.push({ type: "reasoning", text: part.text ?? "" });
       } else {
         last.text += part.text ?? "";
       }
       return;
     }
-    case "tool-call":
-      blocks.push({
-        type: "tool",
-        text: `[ToolCall] ${part.toolName ?? part.tool_name ?? ""} (running)`,
+    case "tool-call": {
+      const toolName = part.toolName ?? part.tool_name ?? "tool";
+      const callId = part.toolCallId ?? part.tool_call_id ?? `tool_${parts.length}`;
+      parts.push({
+        type: "tool-call",
+        call_id: callId,
+        tool_name: toolName,
+        input: part.input ?? {},
       });
       return;
-    case "tool-result":
-      blocks.push({
-        type: "tool",
-        text: `[ToolResult] ${part.toolName ?? part.tool_name ?? ""} (ok)`,
+    }
+    case "tool-result": {
+      const toolName = part.toolName ?? part.tool_name ?? "tool";
+      const callId = part.toolCallId ?? part.tool_call_id ?? `tool_${parts.length}`;
+      parts.push({
+        type: "tool-result",
+        call_id: callId,
+        tool_name: toolName,
+        output: part.output ?? {},
+        is_error: false,
       });
       return;
-    case "tool-error":
-      blocks.push({
-        type: "tool",
-        text: `[ToolResult Error] ${
-          part.toolName ?? part.tool_name ?? ""
-        } (failed)`,
+    }
+    case "tool-error": {
+      const toolName = part.toolName ?? part.tool_name ?? "tool";
+      const callId = part.toolCallId ?? part.tool_call_id ?? `tool_${parts.length}`;
+      parts.push({
+        type: "tool-result",
+        call_id: callId,
+        tool_name: toolName,
+        output: part.error ?? part.output ?? {},
+        is_error: true,
       });
       return;
-    case "source":
-      blocks.push({
+    }
+    case "source": {
+      const id = part.title ?? part.url ?? `source_${parts.length}`;
+      parts.push({
         type: "source",
-        text: `[Source] ${part.sourceType ?? part.source_type ?? ""}\n${formatSourcePart(
-          part
-        )}`,
+        id,
+        source_type: part.sourceType ?? part.source_type ?? "source",
+        url: part.url ?? null,
+        title: part.title ?? null,
+        media_type: part.mediaType ?? part.media_type ?? null,
+        filename: part.name ?? null,
       });
       return;
-    case "file":
-      blocks.push({
+    }
+    case "file": {
+      parts.push({
         type: "file",
-        text: `[File] ${part.mediaType ?? part.media_type ?? ""}${
-          part.name ? ` (${part.name})` : ""
-        }`,
+        base64: "",
+        media_type: part.mediaType ?? part.media_type ?? "",
+        name: part.name ?? null,
       });
       return;
+    }
     default:
       return;
   }
-}
-
-function buildStreamBody(blocks: StreamBlock[]): string {
-  return blocks
-    .map((block) => {
-      if (block.type === "reasoning") {
-        return `\n\n[Reasoning]\n${block.text}`;
-      }
-      if (block.type === "text") {
-        return block.text;
-      }
-      return `\n\n${block.text}`;
-    })
-    .join("");
-}
-
-function formatSourcePart(part: StreamPart): string {
-  const bits: string[] = [];
-  if (part.title) bits.push(String(part.title));
-  if (part.url) bits.push(String(part.url));
-  if (part.name) bits.push(String(part.name));
-  return bits.join("\n");
 }

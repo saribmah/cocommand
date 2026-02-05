@@ -19,6 +19,8 @@ import {
   CommandPaletteShell,
   ContentArea,
   Divider,
+  ErrorCard,
+  FileCard,
   FilterArea,
   FooterArea,
   HeaderArea,
@@ -29,17 +31,20 @@ import {
   KeyHint,
   ListItem,
   ListSection,
+  ReasoningCard,
   ResponseBlock,
   ResponseHeader,
   ResponseStack,
   SearchField,
   StatusBadge,
   Text,
+  ToolCallCard,
 } from "@cocommand/ui";
+import { MarkdownResponseCard } from "./MarkdownResponseCard";
 import { useCommandBar } from "../state/commandbar";
 import { useServerStore } from "../state/server";
 import { useApplicationStore } from "../state/applications";
-import { MarkdownView } from "./MarkdownView";
+import type { MessagePart, SourcePart } from "../types/session";
 import styles from "./CommandBar.module.css";
 
 const SearchIcon = (
@@ -167,6 +172,142 @@ function matchScore(query: string, name: string, id: string, kind: string): numb
   return best > 0 ? best : -1;
 }
 
+type ToolState = "pending" | "running" | "success" | "error";
+
+type DisplayItem =
+  | { kind: "text"; text: string }
+  | { kind: "reasoning"; text: string }
+  | {
+      kind: "tool";
+      toolName: string;
+      toolId: string;
+      state: ToolState;
+      params?: string;
+      result?: string;
+      errorMessage?: string;
+    }
+  | { kind: "file"; name: string; mediaType?: string | null }
+  | { kind: "source"; label: string; body: string };
+
+function formatPayload(value: unknown): string | undefined {
+  if (value === undefined) return undefined;
+  if (value === null) return "null";
+  if (typeof value === "string") return value;
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return String(value);
+  }
+}
+
+function formatSourceBody(part: SourcePart): string {
+  const lines = [part.title, part.url, part.filename].filter(Boolean) as string[];
+  return lines.length > 0 ? lines.join("\n") : part.source_type;
+}
+
+function toDisplayItems(parts: MessagePart[]): DisplayItem[] {
+  const items: DisplayItem[] = [];
+  const toolIndex = new Map<string, number>();
+
+  const appendText = (text: string) => {
+    if (!text) return;
+    const last = items[items.length - 1];
+    if (last && last.kind === "text") {
+      last.text += text;
+    } else {
+      items.push({ kind: "text", text });
+    }
+  };
+
+  const appendReasoning = (text: string) => {
+    if (!text) return;
+    const last = items[items.length - 1];
+    if (last && last.kind === "reasoning") {
+      last.text += text;
+    } else {
+      items.push({ kind: "reasoning", text });
+    }
+  };
+
+  for (const part of parts) {
+    switch (part.type) {
+      case "text":
+        appendText(part.text);
+        break;
+      case "reasoning":
+        appendReasoning(part.text);
+        break;
+      case "tool-call": {
+        const toolId = part.call_id || `tool_${items.length}`;
+        const entry: DisplayItem = {
+          kind: "tool",
+          toolName: part.tool_name,
+          toolId,
+          state: "running",
+          params: formatPayload(part.input),
+        };
+        toolIndex.set(toolId, items.length);
+        items.push(entry);
+        break;
+      }
+      case "tool-result": {
+        const toolId = part.call_id || `tool_${items.length}`;
+        const index = toolIndex.get(toolId);
+        const state: ToolState = part.is_error ? "error" : "success";
+        const payload = formatPayload(part.output);
+        if (index !== undefined) {
+          const existing = items[index];
+          if (existing.kind === "tool") {
+            existing.state = state;
+            if (state === "error") {
+              existing.errorMessage = payload;
+            } else {
+              existing.result = payload;
+            }
+          }
+        } else {
+          items.push({
+            kind: "tool",
+            toolName: part.tool_name,
+            toolId,
+            state,
+            result: state === "success" ? payload : undefined,
+            errorMessage: state === "error" ? payload : undefined,
+          });
+        }
+        break;
+      }
+      case "file": {
+        items.push({
+          kind: "file",
+          name: part.name ?? "Untitled file",
+          mediaType: part.media_type,
+        });
+        break;
+      }
+      case "source": {
+        items.push({
+          kind: "source",
+          label: "Source",
+          body: formatSourceBody(part),
+        });
+        break;
+      }
+      default:
+        break;
+    }
+  }
+
+  return items;
+}
+
+function formatFileType(mediaType?: string | null): string | undefined {
+  if (!mediaType) return undefined;
+  const bits = mediaType.split("/");
+  if (bits.length < 2) return mediaType.toUpperCase();
+  return bits[1].toUpperCase();
+}
+
 export function CommandBar() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputId = useId();
@@ -175,11 +316,12 @@ export function CommandBar() {
   const {
     input,
     isSubmitting,
-    results,
+    parts,
     pendingConfirmation,
     followUpActive,
+    error,
     setInput,
-    setResults,
+    setError,
     submit,
     dismiss,
     confirmPending,
@@ -215,7 +357,7 @@ export function CommandBar() {
   useEffect(() => {
     const node = document.getElementById(inputId) as HTMLInputElement | null;
     node?.focus();
-  }, [inputId, results]);
+  }, [inputId, parts]);
 
   useEffect(() => {
     const node = scrollRef.current;
@@ -223,7 +365,7 @@ export function CommandBar() {
     requestAnimationFrame(() => {
       node.scrollTop = node.scrollHeight;
     });
-  }, [results, pendingConfirmation]);
+  }, [parts, pendingConfirmation]);
 
   const filteredApplications = useMemo(() => {
     if (!mentionState) return [];
@@ -326,13 +468,7 @@ export function CommandBar() {
                 reset();
               })
               .catch((err) => {
-                setResults([
-                  {
-                    type: "error",
-                    title: "Error",
-                    body: String(err),
-                  },
-                ]);
+                setError(String(err));
               });
             return;
           }
@@ -347,12 +483,14 @@ export function CommandBar() {
     }
   };
 
+  const displayItems = useMemo(() => toDisplayItems(parts), [parts]);
   const showMentionList = mentionState && filteredApplications.length > 0;
   const showSlashList = !mentionState && slashState && filteredSlashCommands.length > 0;
-  const showResponses = results.length > 0 || pendingConfirmation;
+  const showResponses = displayItems.length > 0 || pendingConfirmation || !!error;
 
   return (
-    <CommandPaletteShell className={styles.shell}>
+    <main className={styles.host}>
+      <CommandPaletteShell className={styles.shell}>
       <HeaderArea>
         <div className={styles.headerRow}>
           <SearchField
@@ -442,12 +580,14 @@ export function CommandBar() {
 
           {showResponses ? (
             <ResponseStack>
+              {error ? <ErrorCard message={error} /> : null}
+
               {pendingConfirmation ? (
                 <ResponseBlock className={styles.responseBlock}>
                   <ResponseHeader label={pendingConfirmation.title} />
-                  <div className={styles.responseBody}>
-                    <MarkdownView content={pendingConfirmation.body} />
-                  </div>
+                  <Text size="sm" tone="secondary">
+                    {pendingConfirmation.body}
+                  </Text>
                   <ActionRow>
                     <ButtonSecondary onClick={() => cancelPending()}>
                       Cancel
@@ -459,29 +599,57 @@ export function CommandBar() {
                 </ResponseBlock>
               ) : null}
 
-              {results.map((result, index) => (
-                <ResponseBlock key={`${result.type}-${index}`} className={styles.responseBlock}>
-                  <ResponseHeader label={result.title} />
-                  <div className={styles.responseBody}>
-                    <MarkdownView content={result.body} />
-                  </div>
-                  {result.type === "artifact" && result.actions.length > 0 ? (
-                    <ActionRow>
-                      {result.actions.map((action) => (
-                        <ButtonSecondary key={action.id}>
-                          {action.label}
-                        </ButtonSecondary>
-                      ))}
-                    </ActionRow>
-                  ) : null}
-                </ResponseBlock>
-              ))}
+              {displayItems.map((item, index) => {
+                switch (item.kind) {
+                  case "text":
+                    return (
+                      <MarkdownResponseCard key={`text-${index}`} body={item.text} />
+                    );
+                  case "reasoning":
+                    return (
+                      <ReasoningCard
+                        key={`reasoning-${index}`}
+                        reasoning={item.text}
+                      />
+                    );
+                  case "tool":
+                    return (
+                      <ToolCallCard
+                        key={`tool-${item.toolId}-${index}`}
+                        toolName={item.toolName}
+                        toolId={item.toolId}
+                        state={item.state}
+                        params={item.params}
+                        result={item.result}
+                        errorMessage={item.errorMessage}
+                      />
+                    );
+                  case "file":
+                    return (
+                      <FileCard
+                        key={`file-${index}`}
+                        fileName={item.name}
+                        fileType={formatFileType(item.mediaType)}
+                      />
+                    );
+                  case "source":
+                    return (
+                      <MarkdownResponseCard
+                        key={`source-${index}`}
+                        label={item.label}
+                        body={item.body}
+                      />
+                    );
+                  default:
+                    return null;
+                }
+              })}
             </ResponseStack>
-          ) : (
+          ) : !showMentionList && !showSlashList ? (
             <Text size="sm" tone="secondary">
               Type a command, use @ to target an app, or / for shortcuts.
             </Text>
-          )}
+          ) : null}
         </div>
       </ContentArea>
 
@@ -498,6 +666,7 @@ export function CommandBar() {
           right={<CloseButton onClick={dismiss} />}
         />
       </FooterArea>
-    </CommandPaletteShell>
+      </CommandPaletteShell>
+    </main>
   );
 }

@@ -1,0 +1,43 @@
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cc-space-2);
+}
+
+.body {
+  font-size: var(--cc-text-sm);
+  color: var(--cc-text-secondary);
+  line-height: 1.55;
+}
+
+.markdown {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.markdown p {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.markdown strong {
+  color: var(--cc-text-primary);
+}
+
+.markdown em {
+  color: var(--cc-text-secondary);
+}
+
+.markdown code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  background: rgba(0, 0, 0, 0.18);
+  padding: 2px 6px;
+  border-radius: 6px;
+  color: var(--cc-text-primary);
+}
+
+.markdown a {
+  color: var(--cc-text-primary);
+  text-decoration: underline;
+}
