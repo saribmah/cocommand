@@ -346,29 +346,30 @@ export function OnboardingRedesignView() {
   };
 
   return (
-    <AppPanel className={styles.panel}>
-      <AppHeader
-        title="Onboarding"
-        subtitle={steps[stepIndex]?.subtitle}
-        brand={<img className={styles.brand} src="/logo_dark.png" alt="Cocommand" />}
-        kicker={null}
-      />
+    <main className={styles.shell}>
+      <AppPanel className={styles.panel}>
+        <AppHeader
+          title="Onboarding"
+          subtitle={steps[stepIndex]?.subtitle}
+          brand={<img className={styles.brand} src="/logo_dark.png" alt="Cocommand" />}
+          kicker={null}
+        />
 
-      <AppNav>
-        <NavTabs>
-          {steps.map((step, index) => (
-            <NavTab
-              key={step.id}
-              label={step.title}
-              active={index === stepIndex}
-              done={index < stepIndex}
-              leading={String(index + 1)}
-            />
-          ))}
-        </NavTabs>
-      </AppNav>
+        <AppNav>
+          <NavTabs>
+            {steps.map((step, index) => (
+              <NavTab
+                key={step.id}
+                label={step.title}
+                active={index === stepIndex}
+                done={index < stepIndex}
+                leading={String(index + 1)}
+              />
+            ))}
+          </NavTabs>
+        </AppNav>
 
-      <AppContent>
+        <AppContent className={styles.content}>
         {stepId === "welcome" && (
           <InfoCard>
             <Text as="h3" size="lg" weight="semibold">
@@ -564,28 +565,29 @@ export function OnboardingRedesignView() {
         )}
 
         {error ? <ErrorBanner message={error} /> : null}
-      </AppContent>
+        </AppContent>
 
-      <AppFooter>
-        <ButtonGroup>
-          <ButtonSecondary onClick={handleBack} disabled={stepIndex === 0 || busy}>
-            Back
-          </ButtonSecondary>
-          <ButtonPrimary
-            onClick={handleNext}
-            disabled={
-              busy ||
-              (stepId === "permissions" && !allPermissionsGranted) ||
-              (stepId === "workspace" && workspaceType === "remote")
-            }
-          >
-            {busy ? "Working..." : stepId === "finish" ? "Enter Cocommand" : "Continue"}
-          </ButtonPrimary>
-        </ButtonGroup>
-        <Text size="xs" tone="tertiary">
-          Step {stepIndex + 1} of {steps.length}
-        </Text>
-      </AppFooter>
-    </AppPanel>
+        <AppFooter>
+          <ButtonGroup>
+            <ButtonSecondary onClick={handleBack} disabled={stepIndex === 0 || busy}>
+              Back
+            </ButtonSecondary>
+            <ButtonPrimary
+              onClick={handleNext}
+              disabled={
+                busy ||
+                (stepId === "permissions" && !allPermissionsGranted) ||
+                (stepId === "workspace" && workspaceType === "remote")
+              }
+            >
+              {busy ? "Working..." : stepId === "finish" ? "Enter Cocommand" : "Continue"}
+            </ButtonPrimary>
+          </ButtonGroup>
+          <Text size="xs" tone="tertiary">
+            Step {stepIndex + 1} of {steps.length}
+          </Text>
+        </AppFooter>
+      </AppPanel>
+    </main>
   );
 }
