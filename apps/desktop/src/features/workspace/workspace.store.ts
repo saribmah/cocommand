@@ -38,7 +38,7 @@ export const createWorkspaceStore = (getServer: () => ServerInfo | null) => {
     permissionsError: null,
     fetchConfig: async () => {
       const server = getServer();
-      if (!server) {
+      if (!server || !server.addr) {
         set({ config: null, isLoaded: false, error: null });
         return;
       }
@@ -56,7 +56,7 @@ export const createWorkspaceStore = (getServer: () => ServerInfo | null) => {
     },
     updateConfig: async (config) => {
       const server = getServer();
-      if (!server) {
+      if (!server || !server.addr) {
         throw new Error("Server unavailable");
       }
       const url = buildServerUrl(server.addr, "/workspace/config");
@@ -75,7 +75,7 @@ export const createWorkspaceStore = (getServer: () => ServerInfo | null) => {
     },
     fetchPermissionsStatus: async () => {
       const server = getServer();
-      if (!server) {
+      if (!server || !server.addr) {
         set({
           permissionsPlatform: null,
           permissions: [],
@@ -108,7 +108,7 @@ export const createWorkspaceStore = (getServer: () => ServerInfo | null) => {
     },
     openPermission: async (id) => {
       const server = getServer();
-      if (!server) {
+      if (!server || !server.addr) {
         throw new Error("Server unavailable");
       }
       const url = buildServerUrl(server.addr, "/workspace/settings/permissions/open");

@@ -80,7 +80,7 @@ pub fn run() {
             window::hide_settings_window,
             commands::get_workspace_dir_cmd,
             commands::set_workspace_dir_cmd,
-            commands::get_server_status_cmd,
+            commands::get_server_info_cmd,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

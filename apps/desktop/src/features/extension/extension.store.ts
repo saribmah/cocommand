@@ -25,7 +25,7 @@ export const createExtensionStore = (getServer: () => ServerInfo | null) => {
     error: null,
     fetchExtensions: async () => {
       const server = getServer();
-      if (!server) {
+      if (!server || !server.addr) {
         set({ extensions: [], isLoaded: false, error: null });
         return;
       }
@@ -44,7 +44,7 @@ export const createExtensionStore = (getServer: () => ServerInfo | null) => {
     },
     openExtension: async (id) => {
       const server = getServer();
-      if (!server) {
+      if (!server || !server.addr) {
         throw new Error("Server unavailable");
       }
 

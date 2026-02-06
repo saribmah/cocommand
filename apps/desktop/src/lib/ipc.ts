@@ -3,11 +3,6 @@ import { invoke } from "@tauri-apps/api/core";
 // --- Bridge types (exact match of Rust serde output) ---
 
 export interface ServerInfo {
-  addr: string;
-  workspace_dir: string;
-}
-
-export interface ServerStatus {
   status: "starting" | "ready" | "error";
   addr?: string | null;
   workspace_dir: string;
@@ -63,8 +58,8 @@ export async function openSettingsWindow(): Promise<void> {
   return invoke("open_settings_window");
 }
 
-export async function getServerStatus(): Promise<ServerStatus> {
-  return invoke("get_server_status_cmd");
+export async function getServerInfo(): Promise<ServerInfo> {
+  return invoke("get_server_info_cmd");
 }
 
 export async function getWorkspaceDir(): Promise<string> {

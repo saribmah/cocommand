@@ -77,7 +77,7 @@ export const createSessionStore = (getServer: () => ServerInfo | null) => {
     clear: () => set({ context: null }),
     sendMessage: async (text, onEvent) => {
       const server = getServer();
-      if (!server) {
+      if (!server || !server.addr) {
         throw new Error("Server unavailable");
       }
 

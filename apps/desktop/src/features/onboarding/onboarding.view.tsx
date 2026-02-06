@@ -234,7 +234,13 @@ export function OnboardingView() {
       try {
         if (workspacePath !== serverInfo.workspace_dir) {
           const newAddr = await setWorkspaceDir(workspacePath);
-          setServerInfo({ addr: newAddr, workspace_dir: workspacePath });
+          setServerInfo({
+            ...serverInfo,
+            status: "ready",
+            addr: newAddr,
+            workspace_dir: workspacePath,
+            error: null,
+          });
           await fetchWorkspaceConfig();
         }
         setStepIndex(stepIndex + 1);

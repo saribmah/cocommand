@@ -11,7 +11,7 @@ pub fn get_workspace_dir_cmd(state: State<'_, AppState>) -> Result<String, Strin
 }
 
 #[tauri::command]
-pub fn get_server_status_cmd(state: State<'_, AppState>) -> Result<ServerStatusDto, String> {
+pub fn get_server_info_cmd(state: State<'_, AppState>) -> Result<ServerStatusDto, String> {
     let boot = state.boot_state();
     let status = match boot.status {
         BootStatus::Starting => "starting",
