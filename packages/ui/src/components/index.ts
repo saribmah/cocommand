@@ -40,6 +40,7 @@ export { KeyHint } from "./KeyHint/KeyHint";
 export { ListItem } from "./ListItem/ListItem";
 export { ListSection } from "./ListSection/ListSection";
 export { ListSectionHeader } from "./ListSectionHeader/ListSectionHeader";
+export { MarkdownResponseCard } from "./MarkdownResponseCard/MarkdownResponseCard";
 export { NavTab } from "./NavTab/NavTab";
 export { NavTabs } from "./NavTabs/NavTabs";
 export { OptionGroup } from "./OptionGroup/OptionGroup";

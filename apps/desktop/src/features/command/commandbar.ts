@@ -1,6 +1,6 @@
 import { useCallback, useState } from "react";
-import { hideWindow, openSettingsWindow } from "../lib/ipc";
-import type { MessagePart, StreamEvent, StreamPart } from "../features/session/session.types";
+import { hideWindow, openSettingsWindow } from "../../lib/ipc";
+import type { MessagePart, StreamEvent, StreamPart } from "../session/session.types";
 
 interface PendingConfirmation {
   title: string;

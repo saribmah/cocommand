@@ -8,6 +8,7 @@
       "name": "cocommand",
       "version": "0.1.0",
       "dependencies": {
+        "@cocommand/demo": "workspace:*",
         "@cocommand/ui": "workspace:*",
         "@tauri-apps/api": "^2",
         "@tauri-apps/plugin-dialog": "^2",
@@ -34,6 +35,10 @@
         "astro": "^5.6.1",
         "sharp": "^0.34.2",
       },
+    },
+    "packages/demo": {
+      "name": "@cocommand/demo",
+      "version": "0.0.0",
     },
     "packages/ui": {
       "name": "@cocommand/ui",
@@ -98,6 +103,8 @@
     "@babel/types": ["@babel/types@7.28.6", "", { "dependencies": { "@babel/helper-string-parser": "^7.27.1", "@babel/helper-validator-identifier": "^7.28.5" } }, "sha512-0ZrskXVEHSWIqZM/sQZ4EV3jZJXRkio/WCxaqKZP1g//CEWEPSfeZFcms4XeKBCHU0ZKnIkdJeU/kF+eRp5lBg=="],
 
     "@capsizecss/unpack": ["@capsizecss/unpack@4.0.0", "", { "dependencies": { "fontkitten": "^1.0.0" } }, "sha512-VERIM64vtTP1C4mxQ5thVT9fK0apjPFobqybMtA1UdUujWka24ERHbRHFGmpbbhp73MhV+KSsHQH9C6uOTdEQA=="],
+
+    "@cocommand/demo": ["@cocommand/demo@workspace:packages/demo"],
 
     "@cocommand/ui": ["@cocommand/ui@workspace:packages/ui"],
 

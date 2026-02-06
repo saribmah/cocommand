@@ -16,6 +16,8 @@ export function OnboardingProvider({ children }: OnboardingProviderProps) {
     void fetchConfig();
   }, [isLoaded, fetchConfig]);
 
+  console.log({config, isLoaded, error});
+
   if (error) {
     return (
       <AppPanel style={{ minHeight: 360, maxWidth: 620 }}>

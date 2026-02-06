@@ -1,5 +1,6 @@
 import type { HTMLAttributes } from "react";
-import { ResponseBlock, ResponseHeader } from "@cocommand/ui";
+import { ResponseBlock } from "../ResponseBlock/ResponseBlock";
+import { ResponseHeader } from "../ResponseHeader/ResponseHeader";
 import styles from "./MarkdownResponseCard.module.css";
 
 interface MarkdownResponseCardProps extends HTMLAttributes<HTMLDivElement> {

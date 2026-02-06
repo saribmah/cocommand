@@ -31,6 +31,7 @@ import {
   KeyHint,
   ListItem,
   ListSection,
+  MarkdownResponseCard,
   ReasoningCard,
   ResponseBlock,
   ResponseHeader,
@@ -40,7 +41,6 @@ import {
   Text,
   ToolCallCard,
 } from "@cocommand/ui";
-import { MarkdownResponseCard } from "../../components/MarkdownResponseCard";
 import { useExtensionContext } from "../extension/extension.context";
 import { useSessionContext } from "../session/session.context";
 import { useServerContext } from "../server/server.context";
