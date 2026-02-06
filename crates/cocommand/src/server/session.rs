@@ -47,7 +47,7 @@ pub struct RecordMessageResponse {
     pub reply_parts: Vec<MessagePart>,
 }
 
-pub(crate) async fn session_message_stream(
+pub(crate) async fn session_message(
     State(state): State<Arc<ServerState>>,
     Json(payload): Json<RecordMessageRequest>,
 ) -> Sse<impl tokio_stream::Stream<Item = Result<Event, Infallible>>> {

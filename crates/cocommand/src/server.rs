@@ -49,7 +49,7 @@ impl Server {
         let app = Router::new()
             .route("/health", get(health))
             .route("/events", get(events::stream_events))
-            .route("/sessions/message/stream", post(session::session_message_stream))
+            .route("/sessions/message", post(session::session_message))
             .route("/sessions/context", get(session::session_context))
             .route("/workspace/applications", get(extension::list_applications))
             .route("/workspace/applications/open", post(extension::open_application))
