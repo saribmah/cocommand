@@ -17,7 +17,10 @@ export type ServerStore = ReturnType<typeof createServerStore>
 export const createServerStore = (status: ServerStatus) => {
     return create<ServerState>()(
         (set, get) => ({
-            info: null,
+            info:
+                typeof status.addr === "string" && status.addr.length > 0
+                    ? { addr: status.addr, workspace_dir: status.workspace_dir }
+                    : null,
             status: status.status,
             statusError: status.error ?? null,
             workspaceDir: status.workspace_dir,
