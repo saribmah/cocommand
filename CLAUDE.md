@@ -100,7 +100,7 @@ bun tauri build
 
 - Global hotkey: `Cmd+O` toggles main window
 - Backend server starts with retry logic (3 retries, 200ms delay)
-- Commands: `get_workspace_dir_cmd`, `set_workspace_dir_cmd`, `get_server_info_cmd`
+- Commands: `get_workspace_dir_cmd`, `set_workspace_dir_cmd`, `get_server_status_cmd`
 
 ## Key Concepts
 

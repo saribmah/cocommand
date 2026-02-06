@@ -13,7 +13,6 @@ import "@cocommand/ui";
 import { Route, Routes, useLocation } from "react-router-dom";
 import { AppContainer } from "./layout/AppContainer";
 import { AppInit } from "./layout/AppInit";
-import { OnboardingGate } from "./layout/OnboardingGate";
 
 function App() {
   const { pathname } = useLocation();
@@ -51,11 +50,9 @@ function App() {
           <Route
             path="/"
             element={
-              <OnboardingGate>
-                <main className="container">
-                  <CommandBar />
-                </main>
-              </OnboardingGate>
+              <main className="container">
+                <CommandBar />
+              </main>
             }
           />
         </Routes>

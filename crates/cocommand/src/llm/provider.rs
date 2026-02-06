@@ -4,7 +4,7 @@ use llm_kit_openai_compatible::OpenAICompatibleClient;
 use llm_kit_provider::LanguageModel;
 
 use crate::error::{CoreError, CoreResult};
-use crate::workspace::WorkspaceAiPreferences;
+use crate::workspace::WorkspaceLLMPreferences;
 
 const DEFAULT_BASE_URL: &str = "https://api.openai.com/v1";
 const DEFAULT_MODEL: &str = "gpt-4o-mini";
@@ -25,7 +25,7 @@ pub struct LlmSettings {
 }
 
 impl LlmSettings {
-    pub fn from_workspace(ai: &WorkspaceAiPreferences) -> Self {
+    pub fn from_workspace(ai: &WorkspaceLLMPreferences) -> Self {
         let base_url = if ai.base_url.trim().is_empty() {
             DEFAULT_BASE_URL.to_string()
         } else {

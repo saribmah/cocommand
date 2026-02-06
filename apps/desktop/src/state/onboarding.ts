@@ -25,7 +25,7 @@ export const useOnboardingStore = create<OnboardingState>((set) => ({
       set({ status: null, isLoaded: false, error: null });
       return;
     }
-    const url = buildServerUrl(server.addr, "/workspace/settings/onboarding");
+    const url = buildServerUrl(server.addr, "/onboarding");
     try {
       const response = await fetch(url);
       if (!response.ok) {
@@ -42,7 +42,7 @@ export const useOnboardingStore = create<OnboardingState>((set) => ({
     if (!server) {
       throw new Error("Server unavailable");
     }
-    const url = buildServerUrl(server.addr, "/workspace/settings/onboarding");
+    const url = buildServerUrl(server.addr, "/onboarding");
     const response = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },

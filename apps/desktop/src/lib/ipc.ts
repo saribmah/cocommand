@@ -9,7 +9,7 @@ export interface ServerInfo {
 
 export interface ServerStatus {
   status: "starting" | "ready" | "error";
-  addr?: string;
+  addr?: string | null;
   workspace_dir: string;
   error?: string | null;
 }
@@ -61,10 +61,6 @@ export async function hideSettingsWindow(): Promise<void> {
 
 export async function openSettingsWindow(): Promise<void> {
   return invoke("open_settings_window");
-}
-
-export async function getServerInfo(): Promise<ServerInfo> {
-  return invoke("get_server_info_cmd");
 }
 
 export async function getServerStatus(): Promise<ServerStatus> {

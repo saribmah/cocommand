@@ -12,7 +12,9 @@ use crate::clipboard::spawn_clipboard_watcher;
 use crate::llm::{LlmService, LlmSettings};
 use crate::session::SessionManager;
 use crate::workspace::WorkspaceInstance;
+pub mod extension;
 pub mod events;
+pub mod onboarding;
 pub mod session;
 pub mod workspace;
 
@@ -32,7 +34,7 @@ impl Server {
         let bus = Bus::new(512);
         let settings = {
             let config = workspace.config.read().await;
-            LlmSettings::from_workspace(&config.ai)
+            LlmSettings::from_workspace(&config.llm)
         };
         let llm = LlmService::new(settings).map_err(|e| e.to_string())?;
         let state = Arc::new(ServerState {
@@ -51,25 +53,17 @@ impl Server {
             .route("/sessions/message", post(session::record_message))
             .route("/sessions/message/stream", post(session::record_message_stream))
             .route("/sessions/context", get(session::session_context))
-            .route("/workspace/applications", get(workspace::list_applications))
-            .route("/workspace/applications/open", post(workspace::open_application))
-            .route("/workspace/settings/ai", get(workspace::get_ai_settings))
-            .route("/workspace/settings/ai", post(workspace::update_ai_settings))
+            .route("/workspace/applications", get(extension::list_applications))
+            .route("/workspace/applications/open", post(extension::open_application))
+            .route("/workspace/config", get(workspace::get_workspace_config))
+            .route("/workspace/config", post(workspace::update_workspace_config))
             .route(
-                "/workspace/settings/workspace",
-                get(workspace::get_workspace_settings),
+                "/onboarding",
+                get(onboarding::get_onboarding_status),
             )
             .route(
-                "/workspace/settings/workspace",
-                post(workspace::update_workspace_settings),
-            )
-            .route(
-                "/workspace/settings/onboarding",
-                get(workspace::get_onboarding_status),
-            )
-            .route(
-                "/workspace/settings/onboarding",
-                post(workspace::update_onboarding_status),
+                "/onboarding",
+                post(onboarding::update_onboarding_status),
             )
             .route(
                 "/workspace/settings/permissions",

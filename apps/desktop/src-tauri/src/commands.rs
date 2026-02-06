@@ -11,17 +11,6 @@ pub fn get_workspace_dir_cmd(state: State<'_, AppState>) -> Result<String, Strin
 }
 
 #[tauri::command]
-pub fn get_server_info_cmd(state: State<'_, AppState>) -> Result<ServerInfoDto, String> {
-    let addr = state
-        .server_addr()
-        .ok_or_else(|| "server not ready".to_string())?;
-    Ok(ServerInfoDto {
-        addr,
-        workspace_dir: state.workspace_dir().display().to_string(),
-    })
-}
-
-#[tauri::command]
 pub fn get_server_status_cmd(state: State<'_, AppState>) -> Result<ServerStatusDto, String> {
     let boot = state.boot_state();
     let status = match boot.status {
@@ -54,12 +43,6 @@ pub async fn set_workspace_dir_cmd(
     Ok(state
         .server_addr()
         .unwrap_or_else(|| "unknown".to_string()))
-}
-
-#[derive(serde::Serialize)]
-pub struct ServerInfoDto {
-    pub addr: String,
-    pub workspace_dir: String,
 }
 
 #[derive(serde::Serialize)]

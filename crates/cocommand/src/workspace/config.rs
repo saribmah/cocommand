@@ -14,23 +14,23 @@ pub struct WorkspaceConfig {
     pub version: String,
     pub workspace_id: String,
     pub name: String,
-    pub created_at: u64,
-    pub last_modified: u64,
-    pub apps: WorkspaceApps,
+    pub extensions: WorkspaceExtensions,
     pub preferences: WorkspacePreferences,
-    pub ai: WorkspaceAiPreferences,
+    pub llm: WorkspaceLLMPreferences,
     pub theme: WorkspaceTheme,
     pub onboarding: WorkspaceOnboarding,
+    pub created_at: u64,
+    pub last_modified: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct WorkspaceApps {
-    pub installed: Vec<WorkspaceApp>,
+pub struct WorkspaceExtensions {
+    pub installed: Vec<WorkspaceExtension>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct WorkspaceApp {
-    pub app_id: String,
+pub struct WorkspaceExtension {
+    pub extension_id: String,
     pub version: String,
     pub enabled: bool,
 }
@@ -43,7 +43,7 @@ pub struct WorkspacePreferences {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct WorkspaceAiPreferences {
+pub struct WorkspaceLLMPreferences {
     pub provider: String,
     pub base_url: String,
     pub api_key: Option<String>,
@@ -87,7 +87,7 @@ impl WorkspaceConfig {
             name: "Default Workspace".to_string(),
             created_at: now,
             last_modified: now,
-            apps: WorkspaceApps { installed: Vec::new() },
+            extensions: WorkspaceExtensions { installed: Vec::new() },
             preferences: WorkspacePreferences {
                 language: "en".to_string(),
                 session: SessionPreferences {
@@ -98,7 +98,7 @@ impl WorkspaceConfig {
                     max_extensions: 8,
                 },
             },
-            ai: WorkspaceAiPreferences {
+            llm: WorkspaceLLMPreferences {
                 provider: "openai-compatible".to_string(),
                 base_url: "https://api.openai.com/v1".to_string(),
                 api_key: None,

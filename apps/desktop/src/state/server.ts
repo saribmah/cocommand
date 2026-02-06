@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { getServerInfo, getServerStatus, type ServerInfo } from "../lib/ipc";
+import { getServerStatus, type ServerInfo } from "../lib/ipc";
 
 interface ServerState {
   info: ServerInfo | null;
@@ -8,7 +8,6 @@ interface ServerState {
   workspaceDir: string | null;
   setInfo: (info: ServerInfo) => void;
   clear: () => void;
-  fetchInfo: () => Promise<void>;
   fetchStatus: () => Promise<void>;
   getInfo: () => ServerInfo | null;
 }
@@ -18,26 +17,25 @@ export const useServerStore = create<ServerState>((set, get) => ({
   status: "starting",
   statusError: null,
   workspaceDir: null,
-  setInfo: (info) => set({ info }),
+  setInfo: (info) => set({ info, workspaceDir: info.workspace_dir }),
   clear: () => set({ info: null }),
-  fetchInfo: async () => {
-    try {
-      const info = await getServerInfo();
-      set({ info });
-    } catch {
-      set({ info: null });
-    }
-  },
   fetchStatus: async () => {
     try {
       const status = await getServerStatus();
+      const info =
+        typeof status.addr === "string" && status.addr.length > 0
+          ? { addr: status.addr, workspace_dir: status.workspace_dir }
+          : null;
       set({
+        info,
         status: status.status,
         statusError: status.error ?? null,
         workspaceDir: status.workspace_dir,
       });
     } catch (error) {
       set({
+        info: null,
+        workspaceDir: null,
         status: "error",
         statusError: String(error),
       });
