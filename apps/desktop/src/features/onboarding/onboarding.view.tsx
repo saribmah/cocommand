@@ -393,7 +393,7 @@ export function OnboardingView() {
           </NavTabs>
         </AppNav>
 
-        <AppContent className="app-shell-content">
+        <AppContent className={`app-shell-content ${styles.content}`}>
           {stepId === "welcome" && (
             <InfoCard>
               <Text as="h3" size="lg" weight="semibold">
