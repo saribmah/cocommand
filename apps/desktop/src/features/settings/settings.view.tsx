@@ -125,8 +125,8 @@ export function SettingsView() {
   }, [llmToast]);
 
   return (
-    <main className={styles.shell}>
-      <AppPanel className={styles.panel}>
+    <main className="app-shell">
+      <AppPanel className="app-shell-panel">
         <AppHeader
           title="Settings"
           subtitle="Configure your workspace and model providers."
@@ -161,7 +161,7 @@ export function SettingsView() {
           </NavTabs>
         </AppNav>
 
-        <AppContent className={styles.content}>
+        <AppContent className="app-shell-content">
           {tab === "overview" && (
             <InfoCard>
               <Text as="h3" size="lg" weight="semibold">

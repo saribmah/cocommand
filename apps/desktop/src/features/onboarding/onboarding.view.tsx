@@ -370,8 +370,8 @@ export function OnboardingView() {
   };
 
   return (
-    <main className={styles.shell}>
-      <AppPanel className={styles.panel}>
+    <main className="app-shell">
+      <AppPanel className="app-shell-panel">
         <AppHeader
           title="Onboarding"
           subtitle={steps[stepIndex]?.subtitle}
@@ -393,7 +393,7 @@ export function OnboardingView() {
           </NavTabs>
         </AppNav>
 
-        <AppContent className={styles.content}>
+        <AppContent className="app-shell-content">
           {stepId === "welcome" && (
             <InfoCard>
               <Text as="h3" size="lg" weight="semibold">

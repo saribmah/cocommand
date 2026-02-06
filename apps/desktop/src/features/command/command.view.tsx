@@ -492,8 +492,8 @@ export function CommandView() {
   const showResponses = displayItems.length > 0 || pendingConfirmation || !!error;
 
   return (
-    <main className={styles.host}>
-      <CommandPaletteShell className={styles.shell}>
+    <main className="app-shell">
+      <CommandPaletteShell className={`app-shell-panel ${styles.shell}`}>
       <HeaderArea>
         <div className={styles.headerRow}>
           <SearchField
