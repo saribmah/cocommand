@@ -1,7 +1,6 @@
 import { useCallback, useState } from "react";
 import { hideWindow, openSettingsWindow } from "../lib/ipc";
-import { useSessionStore } from "./session";
-import type { MessagePart, StreamEvent, StreamPart } from "../types/session";
+import type { MessagePart, StreamEvent, StreamPart } from "../features/session/session.types";
 
 interface PendingConfirmation {
   title: string;
@@ -19,7 +18,12 @@ export interface CommandBarState {
   error: string | null;
 }
 
-export function useCommandBar() {
+type SendMessageFn = (
+  text: string,
+  onEvent?: (event: StreamEvent) => void
+) => Promise<{ reply_parts?: MessagePart[] }>;
+
+export function useCommandBar(sendMessage: SendMessageFn) {
   const [state, setState] = useState<CommandBarState>({
     input: "",
     selectedIndex: -1,
@@ -49,8 +53,6 @@ export function useCommandBar() {
       error: null,
     });
   }, []);
-
-  const sendMessage = useSessionStore((store) => store.sendMessage);
 
   const submit = useCallback(async (override?: string) => {
     const text = (override ?? state.input).trim();

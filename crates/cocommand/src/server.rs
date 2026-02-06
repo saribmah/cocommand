@@ -14,7 +14,6 @@ use crate::session::SessionManager;
 use crate::workspace::WorkspaceInstance;
 pub mod extension;
 pub mod events;
-pub mod onboarding;
 pub mod session;
 pub mod workspace;
 
@@ -57,14 +56,6 @@ impl Server {
             .route("/workspace/applications/open", post(extension::open_application))
             .route("/workspace/config", get(workspace::get_workspace_config))
             .route("/workspace/config", post(workspace::update_workspace_config))
-            .route(
-                "/onboarding",
-                get(onboarding::get_onboarding_status),
-            )
-            .route(
-                "/onboarding",
-                post(onboarding::update_onboarding_status),
-            )
             .route(
                 "/workspace/settings/permissions",
                 get(workspace::get_permissions_status),

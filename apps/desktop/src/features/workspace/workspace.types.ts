@@ -45,6 +45,18 @@ export interface WorkspaceOnboarding {
   version: string;
 }
 
+export interface WorkspacePermissionStatus {
+  id: string;
+  label: string;
+  granted: boolean;
+  required: boolean;
+}
+
+export interface WorkspacePermissionsResponse {
+  platform: string;
+  permissions: WorkspacePermissionStatus[];
+}
+
 export interface WorkspaceConfig {
   version: string;
   workspace_id: string;
@@ -56,15 +68,4 @@ export interface WorkspaceConfig {
   onboarding: WorkspaceOnboarding;
   created_at: number;
   last_modified: number;
-}
-
-export interface WorkspaceSettings {
-  name: string;
-  theme: WorkspaceTheme;
-}
-
-export interface UpdateWorkspaceSettingsPayload {
-  name?: string;
-  theme_mode?: string;
-  theme_accent?: string;
 }

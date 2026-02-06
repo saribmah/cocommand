@@ -40,12 +40,13 @@ import {
   Text,
   ToolCallCard,
 } from "@cocommand/ui";
-import { MarkdownResponseCard } from "./MarkdownResponseCard";
-import { useCommandBar } from "../state/commandbar";
-import { useServerStore } from "../state/server";
-import { useApplicationStore } from "../state/applications";
-import type { MessagePart, SourcePart } from "../types/session";
-import styles from "./CommandBar.module.css";
+import { MarkdownResponseCard } from "../../components/MarkdownResponseCard";
+import { useExtensionContext } from "../extension/extension.context";
+import { useSessionContext } from "../session/session.context";
+import { useServerContext } from "../server/server.context";
+import { useCommandBar } from "./commandbar";
+import type { MessagePart, SourcePart } from "../session/session.types";
+import styles from "./command.module.css";
 
 const SearchIcon = (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
@@ -54,7 +55,7 @@ const SearchIcon = (
   </svg>
 );
 
-const AppIcon = (
+const ExtensionIcon = (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">
     <rect x="4" y="4" width="7" height="7" rx="2" />
     <rect x="13" y="4" width="7" height="7" rx="2" />
@@ -110,30 +111,32 @@ function applySlashCommand(
 
 function resolveMentions(
   text: string,
-  applications: { id: string; name: string }[]
+  extensions: { id: string; name: string }[]
 ): string {
   return text.replace(/@([^\s@]+)/g, (full, name) => {
     const normalized = String(name).trim().toLowerCase();
-    const match = applications.find(
-      (app) =>
-        app.name.toLowerCase() === normalized || app.id.toLowerCase() === normalized
+    const match = extensions.find(
+      (extension) =>
+        extension.name.toLowerCase() === normalized ||
+        extension.id.toLowerCase() === normalized
     );
     if (!match) return full;
     return `@${match.id}`;
   });
 }
 
-function findExactMentionId(
+function findExactMentionExtensionId(
   text: string,
-  applications: { id: string; name: string }[]
+  extensions: { id: string; name: string }[]
 ): string | null {
   const trimmed = text.trim();
   if (!trimmed.startsWith("@")) return null;
   const mention = trimmed.slice(1).trim();
   const normalized = mention.toLowerCase();
-  const match = applications.find(
-    (app) =>
-      app.id.toLowerCase() === normalized || app.name.toLowerCase() === normalized
+  const match = extensions.find(
+    (extension) =>
+      extension.id.toLowerCase() === normalized ||
+      extension.name.toLowerCase() === normalized
   );
   return match ? match.id : null;
 }
@@ -308,11 +311,12 @@ function formatFileType(mediaType?: string | null): string | undefined {
   return bits[1].toUpperCase();
 }
 
-export function CommandBar() {
+export function CommandView() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputId = useId();
   const [mentionIndex, setMentionIndex] = useState(0);
   const [slashIndex, setSlashIndex] = useState(0);
+  const sendMessage = useSessionContext((state) => state.sendMessage);
   const {
     input,
     isSubmitting,
@@ -327,12 +331,12 @@ export function CommandBar() {
     confirmPending,
     cancelPending,
     reset,
-  } = useCommandBar();
-  const serverInfo = useServerStore((state) => state.info);
-  const applications = useApplicationStore((state) => state.applications);
-  const applicationsLoaded = useApplicationStore((state) => state.isLoaded);
-  const fetchApplications = useApplicationStore((state) => state.fetchApplications);
-  const openApplication = useApplicationStore((state) => state.openApplication);
+  } = useCommandBar(sendMessage);
+  const serverInfo = useServerContext((state) => state.info);
+  const extensions = useExtensionContext((state) => state.extensions);
+  const extensionsLoaded = useExtensionContext((state) => state.isLoaded);
+  const fetchExtensions = useExtensionContext((state) => state.fetchExtensions);
+  const openExtension = useExtensionContext((state) => state.openExtension);
 
   const mentionState = useMemo(() => getMentionState(input), [input]);
   const slashState = useMemo(() => getSlashState(input), [input]);
@@ -345,14 +349,14 @@ export function CommandBar() {
 
   useEffect(() => {
     if (!serverInfo) return;
-    fetchApplications();
-  }, [serverInfo, fetchApplications]);
+    fetchExtensions();
+  }, [serverInfo, fetchExtensions]);
 
   useEffect(() => {
     if (!mentionState) return;
-    if (applicationsLoaded) return;
-    fetchApplications();
-  }, [mentionState, applicationsLoaded, fetchApplications]);
+    if (extensionsLoaded) return;
+    fetchExtensions();
+  }, [mentionState, extensionsLoaded, fetchExtensions]);
 
   useEffect(() => {
     const node = document.getElementById(inputId) as HTMLInputElement | null;
@@ -367,18 +371,18 @@ export function CommandBar() {
     });
   }, [parts, pendingConfirmation]);
 
-  const filteredApplications = useMemo(() => {
+  const filteredExtensions = useMemo(() => {
     if (!mentionState) return [];
     const query = normalizeQuery(mentionState.query);
-    const ranked = applications
-      .map((app) => ({
-        app,
-        score: matchScore(query, app.name, app.id, app.kind),
+    const ranked = extensions
+      .map((extension) => ({
+        extension,
+        score: matchScore(query, extension.name, extension.id, extension.kind),
       }))
       .filter((entry) => (query.length === 0 ? true : entry.score >= 0))
       .sort((a, b) => b.score - a.score);
-    return ranked.slice(0, 8).map((entry) => entry.app);
-  }, [applications, mentionState]);
+    return ranked.slice(0, 8).map((entry) => entry.extension);
+  }, [extensions, mentionState]);
 
   useEffect(() => {
     if (mentionState) {
@@ -406,22 +410,22 @@ export function CommandBar() {
   }, [slashCommands, slashState]);
 
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (mentionState && filteredApplications.length > 0) {
+    if (mentionState && filteredExtensions.length > 0) {
       if (e.key === "ArrowDown") {
         e.preventDefault();
-        setMentionIndex((idx) => (idx + 1) % filteredApplications.length);
+        setMentionIndex((idx) => (idx + 1) % filteredExtensions.length);
         return;
       }
       if (e.key === "ArrowUp") {
         e.preventDefault();
         setMentionIndex((idx) =>
-          idx <= 0 ? filteredApplications.length - 1 : idx - 1
+          idx <= 0 ? filteredExtensions.length - 1 : idx - 1
         );
         return;
       }
       if (e.key === "Enter") {
         e.preventDefault();
-        const selected = filteredApplications[mentionIndex];
+        const selected = filteredExtensions[mentionIndex];
         if (selected) {
           const nextValue = applyMention(input, mentionState, selected.name);
           setInput(nextValue);
@@ -460,10 +464,9 @@ export function CommandBar() {
         e.preventDefault();
         {
           const trimmed = input.trim();
-          const mentionId = findExactMentionId(trimmed, applications);
-          if (mentionId) {
-            const appId = mentionId;
-            openApplication(appId)
+          const mentionExtensionId = findExactMentionExtensionId(trimmed, extensions);
+          if (mentionExtensionId) {
+            openExtension(mentionExtensionId)
               .then(() => {
                 reset();
               })
@@ -472,7 +475,7 @@ export function CommandBar() {
               });
             return;
           }
-          const resolved = resolveMentions(input, applications);
+          const resolved = resolveMentions(input, extensions);
           submit(resolved);
         }
         break;
@@ -484,7 +487,7 @@ export function CommandBar() {
   };
 
   const displayItems = useMemo(() => toDisplayItems(parts), [parts]);
-  const showMentionList = mentionState && filteredApplications.length > 0;
+  const showMentionList = mentionState && filteredExtensions.length > 0;
   const showSlashList = !mentionState && slashState && filteredSlashCommands.length > 0;
   const showResponses = displayItems.length > 0 || pendingConfirmation || !!error;
 
@@ -519,7 +522,7 @@ export function CommandBar() {
         <div className={styles.filterRow}>
           <ChipGroup>
             <Chip label="Recent" active={!mentionState && !slashState} />
-            <Chip label="Apps" active={!!mentionState} />
+            <Chip label="Extensions" active={!!mentionState} />
             <Chip label="Commands" active={!!slashState && !mentionState} />
           </ChipGroup>
           {followUpActive ? <Badge tone="warn">Follow-up</Badge> : null}
@@ -530,21 +533,21 @@ export function CommandBar() {
       <ContentArea className={styles.content}>
         <div className={styles.scrollArea} ref={scrollRef}>
           {showMentionList ? (
-            <ListSection label="Applications">
-              {filteredApplications.map((app, index) => (
+            <ListSection label="Extensions">
+              {filteredExtensions.map((extension, index) => (
                 <ListItem
-                  key={app.id}
-                  title={app.name}
-                  subtitle={`${app.kind} / ${app.id}`}
+                  key={extension.id}
+                  title={extension.name}
+                  subtitle={`${extension.kind} / ${extension.id}`}
                   icon={
                     <IconContainer>
-                      <Icon>{AppIcon}</Icon>
+                      <Icon>{ExtensionIcon}</Icon>
                     </IconContainer>
                   }
                   selected={index === mentionIndex}
                   onMouseDown={(event) => {
                     event.preventDefault();
-                    const nextValue = applyMention(input, mentionState, app.name);
+                    const nextValue = applyMention(input, mentionState, extension.name);
                     setInput(nextValue);
                   }}
                 />
@@ -647,7 +650,7 @@ export function CommandBar() {
             </ResponseStack>
           ) : !showMentionList && !showSlashList ? (
             <Text size="sm" tone="secondary">
-              Type a command, use @ to target an app, or / for shortcuts.
+              Type a command, use @ to target an extension, or / for shortcuts.
             </Text>
           ) : null}
         </div>
@@ -659,7 +662,7 @@ export function CommandBar() {
             <>
               <HintItem label="Navigate" keyHint={<KeyHint keys={["Up", "Down"]} />} />
               <HintItem label="Enter" keyHint={<KeyHint keys="Enter" />} />
-              <HintItem label="Apps" keyHint={<KeyHint keys="@" />} />
+              <HintItem label="Extensions" keyHint={<KeyHint keys="@" />} />
               <HintItem label="Command" keyHint={<KeyHint keys="/" />} />
             </>
           }

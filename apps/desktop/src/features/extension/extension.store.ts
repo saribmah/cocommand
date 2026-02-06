@@ -1,8 +1,6 @@
 import { create } from "zustand";
 import type { ServerInfo } from "../../lib/ipc";
-import type { ApplicationInfo } from "../../types/application";
-
-export type ExtensionInfo = ApplicationInfo;
+import {ExtensionInfo} from "./extension.types.ts";
 
 export interface ExtensionState {
   extensions: ExtensionInfo[];

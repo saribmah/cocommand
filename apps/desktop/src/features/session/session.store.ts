@@ -5,7 +5,7 @@ import type {
   RecordMessageResponse,
   SessionContext,
   StreamEvent,
-} from "../../types/session";
+} from "./session.types";
 
 export interface SessionState {
   context: SessionContext | null;
