@@ -26,7 +26,7 @@ impl LlmService {
         })
     }
 
-    pub async fn generate_reply_parts(
+    pub async fn stream_text(
         &self,
         messages: &[llm_kit_provider_utils::message::Message],
         tools: llm_kit_core::tool::ToolSet,

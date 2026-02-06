@@ -47,56 +47,6 @@ pub struct RecordMessageResponse {
     pub reply_parts: Vec<MessagePart>,
 }
 
-pub(crate) async fn record_message(
-    State(state): State<Arc<ServerState>>,
-    Json(payload): Json<RecordMessageRequest>,
-) -> Result<Json<RecordMessageResponse>, (StatusCode, String)> {
-    let storage = state.workspace.storage.clone();
-    let (session_id, active_apps, ctx) = state
-        .sessions
-        .with_session_mut(|session| {
-            Box::pin(async move {
-                let active_apps = session.active_extension_ids();
-                let ctx = session.context(None).await?;
-                Ok((session.session_id.clone(), active_apps, ctx))
-            })
-        })
-        .await
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-    Message::store(&storage, &Message::from_text(&session_id, "user", &payload.text))
-        .await
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-    let message_history = Message::load(&storage, &session_id)
-        .await
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-    let prompt_messages: Vec<llm_kit_provider_utils::message::Message> = message_history
-        .iter()
-        .flat_map(Message::to_prompt_messages)
-        .collect();
-    let tools = ToolRegistry::tools(
-        Arc::new(state.workspace.clone()),
-        state.sessions.clone(),
-        &session_id,
-        &active_apps,
-    )
-    .await;
-    let reply = state
-        .llm
-        .generate_reply_parts(&prompt_messages, tools)
-        .await
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-    let assistant_message = Message::from_stream(&session_id, "assistant", &reply)
-        .await
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-    Message::store(&storage, &assistant_message)
-        .await
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
-    Ok(Json(RecordMessageResponse {
-        context: to_api_context(ctx),
-        reply_parts: assistant_message.parts.clone(),
-    }))
-}
-
 pub(crate) async fn record_message_stream(
     State(state): State<Arc<ServerState>>,
     Json(payload): Json<RecordMessageRequest>,
@@ -163,7 +113,7 @@ pub(crate) async fn record_message_stream(
         .await;
         let reply = match state
             .llm
-            .generate_reply_parts(&prompt_messages, tools)
+            .stream_text(&prompt_messages, tools)
             .await
         {
             Ok(result) => result,
