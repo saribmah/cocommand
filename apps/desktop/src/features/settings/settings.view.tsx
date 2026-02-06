@@ -161,7 +161,7 @@ export function SettingsView() {
           </NavTabs>
         </AppNav>
 
-        <AppContent className="app-shell-content">
+        <AppContent className={`app-shell-content ${styles.content}`}>
           {tab === "overview" && (
             <InfoCard>
               <Text as="h3" size="lg" weight="semibold">

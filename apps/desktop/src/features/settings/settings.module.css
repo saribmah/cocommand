@@ -17,3 +17,8 @@
   flex-wrap: wrap;
   gap: var(--cc-space-2);
 }
+
+.content {
+  min-height: 0;
+  overflow-y: auto;
+}
