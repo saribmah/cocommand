@@ -17,8 +17,8 @@ pub use crate::error::{CoreError, CoreResult};
 pub use crate::extension::{Extension, ExtensionContext, ExtensionKind, ExtensionTool};
 pub use crate::llm::LlmService;
 pub use crate::message::{
-    outputs_to_parts, stream_result_to_parts, FilePart, Message, MessagePart, MessageRole,
-    ReasoningPart, SourcePart, TextPart, ToolCallPart, ToolErrorPart, ToolResultPart,
+    FilePart, Message, MessagePart, PartBase, ReasoningPart, SourcePart, TextPart, ToolCallPart,
+    ToolErrorPart, ToolResultPart,
 };
 pub use crate::session::{Session, SessionContext, SessionManager};
 pub use crate::storage::{SharedStorage, Storage};

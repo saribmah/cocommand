@@ -4,8 +4,8 @@ use crate::bus::Bus;
 use crate::error::{CoreError, CoreResult};
 use crate::llm::LlmService;
 use crate::message::parts::{
-    FilePart, MessagePart, ReasoningPart, SourcePart, TextPart, ToolCallPart, ToolErrorPart,
-    ToolResultPart,
+    FilePart, MessagePart, PartBase, ReasoningPart, SourcePart, TextPart, ToolCallPart,
+    ToolErrorPart, ToolResultPart,
 };
 use crate::message::{Message, MessageInfo};
 use crate::session::{SessionContext, SessionManager};
@@ -16,7 +16,6 @@ use llm_kit_core::stream_text::TextStreamPart;
 use llm_kit_provider::language_model::content::source::LanguageModelSource;
 use serde::Serialize;
 use tokio_stream::StreamExt;
-use uuid::Uuid;
 
 #[derive(Debug, Clone)]
 pub struct SessionMessageCommandInput {
@@ -111,12 +110,20 @@ impl SessionMessageStreamState {
             TextStreamPart::ToolInputDelta { .. } => {}
             TextStreamPart::ToolInputEnd { .. } => {}
             TextStreamPart::Source { source } => {
-                self.store_part(MessagePart::Source(map_source_to_part(&source)), context)
-                    .await?;
+                self.store_part(
+                    MessagePart::Source(map_source_to_part(
+                        &source,
+                        context.session_id,
+                        context.message_id,
+                    )),
+                    context,
+                )
+                .await?;
             }
             TextStreamPart::File { file } => {
                 self.store_part(
                     MessagePart::File(FilePart {
+                        base: PartBase::new(context.session_id, context.message_id),
                         base64: file.base64,
                         media_type: file.media_type,
                         name: file.name,
@@ -128,6 +135,7 @@ impl SessionMessageStreamState {
             TextStreamPart::ToolCall { tool_call } => {
                 self.store_part(
                     MessagePart::ToolCall(ToolCallPart {
+                        base: PartBase::new(context.session_id, context.message_id),
                         call_id: tool_call.tool_call_id,
                         tool_name: tool_call.tool_name,
                         input: tool_call.input,
@@ -139,6 +147,7 @@ impl SessionMessageStreamState {
             TextStreamPart::ToolResult { tool_result } => {
                 self.store_part(
                     MessagePart::ToolResult(ToolResultPart {
+                        base: PartBase::new(context.session_id, context.message_id),
                         call_id: tool_result.tool_call_id,
                         tool_name: tool_result.tool_name,
                         output: tool_result.output,
@@ -151,6 +160,7 @@ impl SessionMessageStreamState {
             TextStreamPart::ToolError { tool_error } => {
                 self.store_part(
                     MessagePart::ToolError(ToolErrorPart {
+                        base: PartBase::new(context.session_id, context.message_id),
                         call_id: tool_error.tool_call_id,
                         tool_name: tool_error.tool_name,
                         error: tool_error.error,
@@ -197,8 +207,14 @@ impl SessionMessageStreamState {
             return Ok(());
         }
         let text = std::mem::take(&mut self.current_text);
-        self.store_part(MessagePart::Text(TextPart { text }), context)
-            .await
+        self.store_part(
+            MessagePart::Text(TextPart {
+                base: PartBase::new(context.session_id, context.message_id),
+                text,
+            }),
+            context,
+        )
+        .await
     }
 
     async fn flush_reasoning(&mut self, context: &StorePartContext<'_>) -> CoreResult<()> {
@@ -207,8 +223,14 @@ impl SessionMessageStreamState {
             return Ok(());
         }
         let text = std::mem::take(&mut self.current_reasoning);
-        self.store_part(MessagePart::Reasoning(ReasoningPart { text }), context)
-            .await
+        self.store_part(
+            MessagePart::Reasoning(ReasoningPart {
+                base: PartBase::new(context.session_id, context.message_id),
+                text,
+            }),
+            context,
+        )
+        .await
     }
 
     async fn store_part(
@@ -216,8 +238,8 @@ impl SessionMessageStreamState {
         part: MessagePart,
         context: &StorePartContext<'_>,
     ) -> CoreResult<()> {
-        let part_id = Uuid::now_v7().to_string();
-        Message::store_part(context.storage, context.message_id, &part_id, &part).await?;
+        let part_id = part.base().id.clone();
+        Message::store_part(context.storage, &part).await?;
         let _ = context.bus.publish(SessionMessagePartUpdatedEvent {
             event: "part.updated".to_string(),
             request_id: context.request_id.to_string(),
@@ -361,10 +383,15 @@ fn publish_context(bus: &Bus, request_id: &str, context: &SessionContext) {
     });
 }
 
-fn map_source_to_part(source: &llm_kit_core::output::SourceOutput) -> SourcePart {
+fn map_source_to_part(
+    source: &llm_kit_core::output::SourceOutput,
+    session_id: &str,
+    message_id: &str,
+) -> SourcePart {
     match &source.source {
         LanguageModelSource::Url { id, url, title, .. } => SourcePart {
-            id: id.clone(),
+            base: PartBase::new(session_id, message_id),
+            source_id: Some(id.clone()),
             source_type: "url".to_string(),
             url: Some(url.clone()),
             title: title.clone(),
@@ -378,7 +405,8 @@ fn map_source_to_part(source: &llm_kit_core::output::SourceOutput) -> SourcePart
             filename,
             ..
         } => SourcePart {
-            id: id.clone(),
+            base: PartBase::new(session_id, message_id),
+            source_id: Some(id.clone()),
             source_type: "document".to_string(),
             url: None,
             title: Some(title.clone()),
@@ -518,7 +546,7 @@ mod tests {
         assert_eq!(state.mapped_parts().len(), 1);
         assert!(matches!(
             state.mapped_parts().first(),
-            Some(MessagePart::Text(TextPart { text })) if text == "hello"
+            Some(MessagePart::Text(TextPart { text, .. })) if text == "hello"
         ));
 
         let stored = Message::load(&workspace.storage, &session_id)
@@ -531,7 +559,7 @@ mod tests {
         assert_eq!(assistant.parts.len(), 1);
         assert!(matches!(
             assistant.parts.first(),
-            Some(MessagePart::Text(TextPart { text })) if text == "hello"
+            Some(MessagePart::Text(TextPart { text, .. })) if text == "hello"
         ));
     }
 
@@ -623,11 +651,11 @@ mod tests {
         assert_eq!(state.mapped_parts().len(), 2);
         assert!(matches!(
             state.mapped_parts().first(),
-            Some(MessagePart::Text(TextPart { text })) if text == "hello"
+            Some(MessagePart::Text(TextPart { text, .. })) if text == "hello"
         ));
         assert!(matches!(
             state.mapped_parts().get(1),
-            Some(MessagePart::Text(TextPart { text })) if text == "world"
+            Some(MessagePart::Text(TextPart { text, .. })) if text == "world"
         ));
     }
 
@@ -713,11 +741,11 @@ mod tests {
 
         assert!(state.mapped_parts().iter().any(|part| matches!(
             part,
-            MessagePart::Text(TextPart { text }) if text == "hello"
+            MessagePart::Text(TextPart { text, .. }) if text == "hello"
         )));
         assert!(state.mapped_parts().iter().any(|part| matches!(
             part,
-            MessagePart::Reasoning(ReasoningPart { text }) if text == "think"
+            MessagePart::Reasoning(ReasoningPart { text, .. }) if text == "think"
         )));
     }
 

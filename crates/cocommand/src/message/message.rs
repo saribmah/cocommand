@@ -1,12 +1,13 @@
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use uuid::Uuid;
 
 use crate::error::{CoreError, CoreResult};
 use crate::storage::SharedStorage;
 use crate::utils::time::now_rfc3339;
 
-use crate::message::parts::{MessagePart, TextPart};
-use llm_kit_core::stream_text::StreamTextResult;
+use crate::message::info::MessageInfo;
+use crate::message::parts::{MessagePart, PartBase, TextPart};
 use llm_kit_provider_utils::message::{
     AssistantContentPart, AssistantMessage, DataContent, FilePart as LlmFilePart,
     Message as LlmMessage, ReasoningPart as LlmReasoningPart, TextPart as LlmTextPart,
@@ -15,61 +16,31 @@ use llm_kit_provider_utils::message::{
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "lowercase")]
-pub enum MessageRole {
-    System,
-    User,
-    Assistant,
-    Tool,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Message {
-    pub id: String,
-    pub role: MessageRole,
-    pub timestamp: String,
-    pub parts: Vec<MessagePart>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct MessageInfo {
-    pub id: String,
-    #[serde(rename = "sessionId")]
-    pub session_id: String,
-    pub role: String,
-    #[serde(rename = "createdAt")]
-    pub created_at: String,
-    #[serde(rename = "updatedAt")]
-    pub updated_at: String,
-}
-
-pub type UserMessageInfo = MessageInfo;
-pub type AssistantMessageInfo = MessageInfo;
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct MessageWithParts {
     pub info: MessageInfo,
     pub parts: Vec<MessagePart>,
 }
 
 impl Message {
-    pub fn from_text(session_id: &str, role: &str, text: &str) -> MessageWithParts {
+    pub fn from_text(session_id: &str, role: &str, text: &str) -> Message {
         let timestamp = now_rfc3339();
-        MessageWithParts {
-            info: MessageInfo {
-                id: Uuid::now_v7().to_string(),
-                session_id: session_id.to_string(),
-                role: role.to_string(),
-                created_at: timestamp.clone(),
-                updated_at: timestamp,
-            },
+        let info = MessageInfo {
+            id: Uuid::now_v7().to_string(),
+            session_id: session_id.to_string(),
+            role: role.to_string(),
+            created_at: timestamp.clone(),
+            updated_at: timestamp,
+        };
+        Message {
+            info: info.clone(),
             parts: vec![MessagePart::Text(TextPart {
+                base: PartBase::new(session_id, info.id.as_str()),
                 text: text.to_string(),
             })],
         }
     }
 
-    pub fn to_prompt_messages(message: &MessageWithParts) -> Vec<LlmMessage> {
+    pub fn to_prompt_messages(message: &Message) -> Vec<LlmMessage> {
         match message.info.role.as_str() {
             "user" => user_message_to_prompt(message),
             "assistant" => assistant_message_to_prompt(message),
@@ -78,39 +49,23 @@ impl Message {
         }
     }
 
-    pub fn to_text(message: &MessageWithParts) -> String {
-        message
-            .parts
-            .iter()
-            .filter_map(|part| match part {
-                MessagePart::Text(text) => Some(text.text.as_str()),
-                _ => None,
-            })
-            .collect::<Vec<_>>()
-            .join("")
-    }
-
-    pub async fn load(
-        storage: &SharedStorage,
-        session_id: &str,
-    ) -> CoreResult<Vec<MessageWithParts>> {
+    pub async fn load(storage: &SharedStorage, session_id: &str) -> CoreResult<Vec<Message>> {
         let mut message_ids = storage.list(&["messages", session_id]).await?;
         message_ids.sort();
         let mut items = Vec::new();
         for message_id in message_ids {
             if let Some(info) = load_message_info(storage, session_id, &message_id).await? {
-                let parts = load_message_parts(storage, &message_id).await?;
-                items.push(MessageWithParts { info, parts });
+                let parts = load_message_parts(storage, session_id, &message_id).await?;
+                items.push(Message { info, parts });
             }
         }
         Ok(items)
     }
 
-    pub async fn store(storage: &SharedStorage, message: &MessageWithParts) -> CoreResult<()> {
+    pub async fn store(storage: &SharedStorage, message: &Message) -> CoreResult<()> {
         save_message_info(storage, &message.info).await?;
         for part in &message.parts {
-            let part_id = Uuid::now_v7().to_string();
-            save_message_part(storage, &message.info.id, &part_id, part).await?;
+            save_message_part(storage, &message.info.id, &part.base().id, part).await?;
         }
         Ok(())
     }
@@ -119,13 +74,9 @@ impl Message {
         save_message_info(storage, info).await
     }
 
-    pub async fn store_part(
-        storage: &SharedStorage,
-        message_id: &str,
-        part_id: &str,
-        part: &MessagePart,
-    ) -> CoreResult<()> {
-        save_message_part(storage, message_id, part_id, part).await
+    pub async fn store_part(storage: &SharedStorage, part: &MessagePart) -> CoreResult<()> {
+        let base = part.base();
+        save_message_part(storage, &base.message_id, &base.id, part).await
     }
 
     pub async fn touch_info(storage: &SharedStorage, info: &mut MessageInfo) -> CoreResult<()> {
@@ -133,41 +84,24 @@ impl Message {
         save_message_info(storage, info).await
     }
 
-    pub async fn from_stream(
-        session_id: &str,
-        role: &str,
-        result: &StreamTextResult,
-    ) -> CoreResult<MessageWithParts> {
-        let parts = crate::message::stream_result_to_parts(result).await?;
+    pub fn from_parts(session_id: &str, role: &str, parts: Vec<MessagePart>) -> Message {
         let timestamp = now_rfc3339();
-        Ok(MessageWithParts {
-            info: MessageInfo {
-                id: Uuid::now_v7().to_string(),
-                session_id: session_id.to_string(),
-                role: role.to_string(),
-                created_at: timestamp.clone(),
-                updated_at: timestamp,
-            },
-            parts,
-        })
-    }
-
-    pub fn from_parts(session_id: &str, role: &str, parts: Vec<MessagePart>) -> MessageWithParts {
-        let timestamp = now_rfc3339();
-        MessageWithParts {
-            info: MessageInfo {
-                id: Uuid::now_v7().to_string(),
-                session_id: session_id.to_string(),
-                role: role.to_string(),
-                created_at: timestamp.clone(),
-                updated_at: timestamp,
-            },
-            parts,
-        }
+        let info = MessageInfo {
+            id: Uuid::now_v7().to_string(),
+            session_id: session_id.to_string(),
+            role: role.to_string(),
+            created_at: timestamp.clone(),
+            updated_at: timestamp,
+        };
+        let parts = parts
+            .into_iter()
+            .map(|part| part.with_base(PartBase::new(session_id, info.id.as_str())))
+            .collect();
+        Message { info, parts }
     }
 }
 
-fn user_message_to_prompt(message: &MessageWithParts) -> Vec<LlmMessage> {
+fn user_message_to_prompt(message: &Message) -> Vec<LlmMessage> {
     let parts: Vec<UserContentPart> = message
         .parts
         .iter()
@@ -186,7 +120,7 @@ fn user_message_to_prompt(message: &MessageWithParts) -> Vec<LlmMessage> {
     vec![LlmMessage::User(UserMessage::with_parts(parts))]
 }
 
-fn assistant_message_to_prompt(message: &MessageWithParts) -> Vec<LlmMessage> {
+fn assistant_message_to_prompt(message: &Message) -> Vec<LlmMessage> {
     let assistant_parts: Vec<AssistantContentPart> = message
         .parts
         .iter()
@@ -247,7 +181,7 @@ fn assistant_message_to_prompt(message: &MessageWithParts) -> Vec<LlmMessage> {
     messages
 }
 
-fn tool_message_to_prompt(message: &MessageWithParts) -> Vec<LlmMessage> {
+fn tool_message_to_prompt(message: &Message) -> Vec<LlmMessage> {
     let parts: Vec<ToolContentPart> = message
         .parts
         .iter()
@@ -317,7 +251,13 @@ fn format_source(source: &crate::message::parts::SourcePart) -> String {
         (Some(title), None, None) => format!("Source: {}", title),
         (None, Some(url), _) => format!("Source: {}", url),
         (None, None, Some(filename)) => format!("Source: {}", filename),
-        (None, None, None) => format!("Source: {}", source.id),
+        (None, None, None) => format!(
+            "Source: {}",
+            source
+                .source_id
+                .as_deref()
+                .unwrap_or(source.base.id.as_str())
+        ),
     }
 }
 
@@ -346,6 +286,7 @@ async fn save_message_info(storage: &SharedStorage, info: &MessageInfo) -> CoreR
 
 async fn load_message_parts(
     storage: &SharedStorage,
+    session_id: &str,
     message_id: &str,
 ) -> CoreResult<Vec<MessagePart>> {
     let mut part_ids = storage.list(&["part", message_id]).await?;
@@ -353,6 +294,7 @@ async fn load_message_parts(
     let mut parts = Vec::new();
     for part_id in part_ids {
         if let Some(value) = storage.read(&["part", message_id, &part_id]).await? {
+            let value = normalize_part_payload(value, session_id, message_id, &part_id);
             let part: MessagePart = serde_json::from_value(value).map_err(|error| {
                 CoreError::Internal(format!("failed to parse message part: {error}"))
             })?;
@@ -372,4 +314,48 @@ async fn save_message_part(
         CoreError::Internal(format!("failed to serialize message part: {error}"))
     })?;
     storage.write(&["part", message_id, part_id], &value).await
+}
+
+fn normalize_part_payload(
+    mut value: Value,
+    session_id: &str,
+    message_id: &str,
+    part_id: &str,
+) -> Value {
+    let Some(object) = value.as_object_mut() else {
+        return value;
+    };
+
+    let has_session_id = object.contains_key("sessionID")
+        || object.contains_key("sessionId")
+        || object.contains_key("session_id");
+    let has_message_id = object.contains_key("messageID")
+        || object.contains_key("messageId")
+        || object.contains_key("message_id");
+    let is_legacy = !has_session_id || !has_message_id;
+
+    if is_legacy && matches!(object.get("type").and_then(Value::as_str), Some("source")) {
+        if object.get("sourceId").is_none() {
+            if let Some(source_id) = object.get("id").cloned() {
+                object.insert("sourceId".to_string(), source_id);
+            }
+        }
+    }
+
+    object.insert("id".to_string(), Value::String(part_id.to_string()));
+
+    if !has_session_id {
+        object.insert(
+            "sessionID".to_string(),
+            Value::String(session_id.to_string()),
+        );
+    }
+    if !has_message_id {
+        object.insert(
+            "messageID".to_string(),
+            Value::String(message_id.to_string()),
+        );
+    }
+
+    value
 }

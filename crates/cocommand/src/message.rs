@@ -1,12 +1,10 @@
-pub mod convert;
+pub mod info;
 pub mod message;
 pub mod parts;
 
-pub use convert::{outputs_to_parts, stream_result_to_parts};
-pub use message::{
-    AssistantMessageInfo, Message, MessageInfo, MessageRole, MessageWithParts, UserMessageInfo,
-};
+pub use info::{AssistantMessageInfo, MessageInfo, UserMessageInfo};
+pub use message::Message;
 pub use parts::{
-    FilePart, MessagePart, ReasoningPart, SourcePart, TextPart, ToolCallPart, ToolErrorPart,
-    ToolResultPart,
+    FilePart, MessagePart, PartBase, ReasoningPart, SourcePart, TextPart, ToolCallPart,
+    ToolErrorPart, ToolResultPart,
 };
