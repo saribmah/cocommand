@@ -5,9 +5,9 @@ use uuid::Uuid;
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct PartBase {
     pub id: String,
-    #[serde(rename = "sessionID", alias = "sessionId", alias = "session_id")]
+    #[serde(rename = "sessionId")]
     pub session_id: String,
-    #[serde(rename = "messageID", alias = "messageId", alias = "message_id")]
+    #[serde(rename = "messageId")]
     pub message_id: String,
 }
 
@@ -135,7 +135,7 @@ pub struct ToolStateTimeCompleted {
 pub struct ToolPart {
     #[serde(flatten)]
     pub base: PartBase,
-    #[serde(rename = "callID", alias = "call_id")]
+    #[serde(rename = "callId")]
     pub call_id: String,
     pub tool: String,
     pub state: ToolState,
@@ -149,9 +149,11 @@ pub struct SourcePart {
     pub base: PartBase,
     #[serde(rename = "sourceId", skip_serializing_if = "Option::is_none")]
     pub source_id: Option<String>,
+    #[serde(rename = "sourceType")]
     pub source_type: String,
     pub url: Option<String>,
     pub title: Option<String>,
+    #[serde(rename = "mediaType")]
     pub media_type: Option<String>,
     pub filename: Option<String>,
 }
@@ -161,6 +163,7 @@ pub struct FilePart {
     #[serde(flatten)]
     pub base: PartBase,
     pub base64: String,
+    #[serde(rename = "mediaType")]
     pub media_type: String,
     pub name: Option<String>,
 }
