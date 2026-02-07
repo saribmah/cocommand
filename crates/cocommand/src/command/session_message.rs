@@ -1,21 +1,14 @@
 use std::sync::Arc;
 
 use crate::bus::Bus;
-use crate::error::{CoreError, CoreResult};
+use crate::command::processor::{StorePartContext, StreamProcessor};
+use crate::error::CoreResult;
 use crate::llm::LlmService;
-use crate::message::parts::{
-    FilePart, MessagePart, PartBase, ReasoningPart, SourcePart, TextPart, ToolCallPart,
-    ToolErrorPart, ToolResultPart,
-};
-use crate::message::{Message, MessageInfo};
+use crate::message::{Message, MessageInfo, MessagePart};
 use crate::session::{SessionContext, SessionManager};
-use crate::storage::SharedStorage;
 use crate::tool::ToolRegistry;
 use crate::workspace::WorkspaceInstance;
-use llm_kit_core::stream_text::TextStreamPart;
-use llm_kit_provider::language_model::content::source::LanguageModelSource;
 use serde::Serialize;
-use tokio_stream::StreamExt;
 
 #[derive(Debug, Clone)]
 pub struct SessionMessageCommandInput {
@@ -54,231 +47,6 @@ struct PreparedSessionMessage {
     prompt_messages: Vec<llm_kit_provider_utils::message::Message>,
 }
 
-#[derive(Debug, Default, Clone)]
-pub struct StreamProcessor {
-    current_text_id: Option<String>,
-    current_text: String,
-    current_reasoning_id: Option<String>,
-    current_reasoning: String,
-    mapped_parts: Vec<MessagePart>,
-}
-
-struct StorePartContext<'a> {
-    storage: &'a SharedStorage,
-    bus: &'a Bus,
-    request_id: &'a str,
-    session_id: &'a str,
-    message_id: &'a str,
-}
-
-impl StreamProcessor {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    async fn on_part(
-        &mut self,
-        part: TextStreamPart,
-        context: &StorePartContext<'_>,
-    ) -> CoreResult<()> {
-        match part {
-            TextStreamPart::TextStart { id, .. } => {
-                self.flush_text(context).await?;
-                self.current_text_id = Some(id);
-            }
-            TextStreamPart::TextDelta { id, text, .. } => {
-                self.switch_text_segment_if_needed(id, context).await?;
-                self.current_text.push_str(&text);
-            }
-            TextStreamPart::TextEnd { id, .. } => {
-                self.switch_text_segment_if_needed(id, context).await?;
-                self.flush_text(context).await?;
-            }
-            TextStreamPart::ReasoningStart { id, .. } => {
-                self.flush_reasoning(context).await?;
-                self.current_reasoning_id = Some(id);
-            }
-            TextStreamPart::ReasoningDelta { id, text, .. } => {
-                self.switch_reasoning_segment_if_needed(id, context).await?;
-                self.current_reasoning.push_str(&text);
-            }
-            TextStreamPart::ReasoningEnd { id, .. } => {
-                self.switch_reasoning_segment_if_needed(id, context).await?;
-                self.flush_reasoning(context).await?;
-            }
-            TextStreamPart::ToolInputStart { .. } => {}
-            TextStreamPart::ToolInputDelta { .. } => {}
-            TextStreamPart::ToolInputEnd { .. } => {}
-            TextStreamPart::Source { source } => {
-                self.store_part(
-                    MessagePart::Source(map_source_to_part(
-                        &source,
-                        context.session_id,
-                        context.message_id,
-                    )),
-                    context,
-                )
-                .await?;
-            }
-            TextStreamPart::File { file } => {
-                self.store_part(
-                    MessagePart::File(FilePart {
-                        base: PartBase::new(context.session_id, context.message_id),
-                        base64: file.base64,
-                        media_type: file.media_type,
-                        name: file.name,
-                    }),
-                    context,
-                )
-                .await?;
-            }
-            TextStreamPart::ToolCall { tool_call } => {
-                self.store_part(
-                    MessagePart::ToolCall(ToolCallPart {
-                        base: PartBase::new(context.session_id, context.message_id),
-                        call_id: tool_call.tool_call_id,
-                        tool_name: tool_call.tool_name,
-                        input: tool_call.input,
-                    }),
-                    context,
-                )
-                .await?;
-            }
-            TextStreamPart::ToolResult { tool_result } => {
-                self.store_part(
-                    MessagePart::ToolResult(ToolResultPart {
-                        base: PartBase::new(context.session_id, context.message_id),
-                        call_id: tool_result.tool_call_id,
-                        tool_name: tool_result.tool_name,
-                        output: tool_result.output,
-                        is_error: false,
-                    }),
-                    context,
-                )
-                .await?;
-            }
-            TextStreamPart::ToolError { tool_error } => {
-                self.store_part(
-                    MessagePart::ToolError(ToolErrorPart {
-                        base: PartBase::new(context.session_id, context.message_id),
-                        call_id: tool_error.tool_call_id,
-                        tool_name: tool_error.tool_name,
-                        error: tool_error.error,
-                    }),
-                    context,
-                )
-                .await?;
-            }
-            TextStreamPart::ToolOutputDenied { .. } => {}
-            TextStreamPart::ToolApprovalRequest { .. } => {}
-            TextStreamPart::StartStep { .. } => {}
-            TextStreamPart::FinishStep { .. } => {}
-            TextStreamPart::Start => {}
-            TextStreamPart::Finish { .. } => {}
-            TextStreamPart::Abort => {}
-            TextStreamPart::Error { error } => {
-                return Err(CoreError::Internal(format!("llm stream error: {error}")));
-            }
-            TextStreamPart::Raw { .. } => {}
-        }
-
-        Ok(())
-    }
-
-    async fn process<S>(&mut self, mut stream: S, context: &StorePartContext<'_>) -> CoreResult<()>
-    where
-        S: tokio_stream::Stream<Item = TextStreamPart> + Unpin,
-    {
-        while let Some(part) = stream.next().await {
-            self.on_part(part, context).await?;
-        }
-        self.flush_text(context).await?;
-        self.flush_reasoning(context).await?;
-        Ok(())
-    }
-
-    pub fn mapped_parts(&self) -> &[MessagePart] {
-        &self.mapped_parts
-    }
-
-    async fn flush_text(&mut self, context: &StorePartContext<'_>) -> CoreResult<()> {
-        self.current_text_id = None;
-        if self.current_text.is_empty() {
-            return Ok(());
-        }
-        let text = std::mem::take(&mut self.current_text);
-        self.store_part(
-            MessagePart::Text(TextPart {
-                base: PartBase::new(context.session_id, context.message_id),
-                text,
-            }),
-            context,
-        )
-        .await
-    }
-
-    async fn flush_reasoning(&mut self, context: &StorePartContext<'_>) -> CoreResult<()> {
-        self.current_reasoning_id = None;
-        if self.current_reasoning.is_empty() {
-            return Ok(());
-        }
-        let text = std::mem::take(&mut self.current_reasoning);
-        self.store_part(
-            MessagePart::Reasoning(ReasoningPart {
-                base: PartBase::new(context.session_id, context.message_id),
-                text,
-            }),
-            context,
-        )
-        .await
-    }
-
-    async fn store_part(
-        &mut self,
-        part: MessagePart,
-        context: &StorePartContext<'_>,
-    ) -> CoreResult<()> {
-        let part_id = part.base().id.clone();
-        Message::store_part(context.storage, &part).await?;
-        let _ = context.bus.publish(SessionMessagePartUpdatedEvent {
-            event: "part.updated".to_string(),
-            request_id: context.request_id.to_string(),
-            session_id: context.session_id.to_string(),
-            message_id: context.message_id.to_string(),
-            part_id,
-            part: part.clone(),
-        });
-        self.mapped_parts.push(part);
-        Ok(())
-    }
-
-    async fn switch_text_segment_if_needed(
-        &mut self,
-        id: String,
-        context: &StorePartContext<'_>,
-    ) -> CoreResult<()> {
-        if self.current_text_id.as_deref() == Some(id.as_str()) {
-            return Ok(());
-        }
-        self.flush_text(context).await?;
-        self.current_text_id = Some(id);
-        Ok(())
-    }
-
-    async fn switch_reasoning_segment_if_needed(
-        &mut self,
-        id: String,
-        context: &StorePartContext<'_>,
-    ) -> CoreResult<()> {
-        if self.current_reasoning_id.as_deref() == Some(id.as_str()) {
-            return Ok(());
-        }
-        self.flush_reasoning(context).await?;
-        self.current_reasoning_id = Some(id);
-        Ok(())
-    }
-}
-
 pub async fn run_session_message_command(
     sessions: Arc<SessionManager>,
     workspace: WorkspaceInstance,
@@ -313,13 +81,13 @@ pub async fn run_session_message_command(
     };
 
     let mut stream_state = StreamProcessor::new();
-    let store_context = StorePartContext {
-        storage: &storage,
+    let store_context = StorePartContext::new(
+        &storage,
         bus,
-        request_id: &request_id,
-        session_id: &session_id,
-        message_id: &assistant_message.info.id,
-    };
+        &request_id,
+        &session_id,
+        &assistant_message.info.id,
+    );
     if let Err(error) = stream_state
         .process(reply.full_stream(), &store_context)
         .await
@@ -373,49 +141,17 @@ async fn prepare_session_message(
     })
 }
 
-fn map_source_to_part(
-    source: &llm_kit_core::output::SourceOutput,
-    session_id: &str,
-    message_id: &str,
-) -> SourcePart {
-    match &source.source {
-        LanguageModelSource::Url { id, url, title, .. } => SourcePart {
-            base: PartBase::new(session_id, message_id),
-            source_id: Some(id.clone()),
-            source_type: "url".to_string(),
-            url: Some(url.clone()),
-            title: title.clone(),
-            media_type: None,
-            filename: None,
-        },
-        LanguageModelSource::Document {
-            id,
-            media_type,
-            title,
-            filename,
-            ..
-        } => SourcePart {
-            base: PartBase::new(session_id, message_id),
-            source_id: Some(id.clone()),
-            source_type: "document".to_string(),
-            url: None,
-            title: Some(title.clone()),
-            media_type: Some(media_type.clone()),
-            filename: filename.clone(),
-        },
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use tempfile::tempdir;
 
     use crate::bus::Bus;
-    use crate::message::MessagePart;
+    use crate::message::{MessagePart, ReasoningPart, TextPart};
     use crate::session::SessionContext;
     use crate::session::SessionManager;
     use crate::workspace::WorkspaceInstance;
+    use llm_kit_core::stream_text::TextStreamPart;
     use llm_kit_provider_utils::tool::ToolError;
 
     #[tokio::test]
@@ -501,13 +237,13 @@ mod tests {
             .await
             .expect("store info");
 
-        let context = StorePartContext {
-            storage: &workspace.storage,
-            bus: &bus,
-            request_id: &request_id,
-            session_id: &session_id,
-            message_id: &assistant.info.id,
-        };
+        let context = StorePartContext::new(
+            &workspace.storage,
+            &bus,
+            &request_id,
+            &session_id,
+            &assistant.info.id,
+        );
         let mut state = StreamProcessor::new();
 
         state
@@ -565,13 +301,13 @@ mod tests {
             .await
             .expect("store info");
 
-        let context = StorePartContext {
-            storage: &workspace.storage,
-            bus: &bus,
-            request_id: &request_id,
-            session_id: &session_id,
-            message_id: &assistant.info.id,
-        };
+        let context = StorePartContext::new(
+            &workspace.storage,
+            &bus,
+            &request_id,
+            &session_id,
+            &assistant.info.id,
+        );
         let mut state = StreamProcessor::new();
 
         state
@@ -661,13 +397,13 @@ mod tests {
             .await
             .expect("store info");
 
-        let context = StorePartContext {
-            storage: &workspace.storage,
-            bus: &bus,
-            request_id: &request_id,
-            session_id: &session_id,
-            message_id: &assistant.info.id,
-        };
+        let context = StorePartContext::new(
+            &workspace.storage,
+            &bus,
+            &request_id,
+            &session_id,
+            &assistant.info.id,
+        );
         let mut state = StreamProcessor::new();
 
         state
@@ -706,13 +442,13 @@ mod tests {
             .await
             .expect("store info");
 
-        let context = StorePartContext {
-            storage: &workspace.storage,
-            bus: &bus,
-            request_id: &request_id,
-            session_id: &session_id,
-            message_id: &assistant.info.id,
-        };
+        let context = StorePartContext::new(
+            &workspace.storage,
+            &bus,
+            &request_id,
+            &session_id,
+            &assistant.info.id,
+        );
         let mut state = StreamProcessor::new();
         let stream = tokio_stream::iter(vec![
             TextStreamPart::TextDelta {
@@ -751,13 +487,13 @@ mod tests {
             .await
             .expect("store info");
 
-        let context = StorePartContext {
-            storage: &workspace.storage,
-            bus: &bus,
-            request_id: &request_id,
-            session_id: &session_id,
-            message_id: &assistant.info.id,
-        };
+        let context = StorePartContext::new(
+            &workspace.storage,
+            &bus,
+            &request_id,
+            &session_id,
+            &assistant.info.id,
+        );
         let mut state = StreamProcessor::new();
         let error = state
             .on_part(
@@ -784,13 +520,13 @@ mod tests {
             .await
             .expect("store info");
 
-        let context = StorePartContext {
-            storage: &workspace.storage,
-            bus: &bus,
-            request_id: &request_id,
-            session_id: &session_id,
-            message_id: &assistant.info.id,
-        };
+        let context = StorePartContext::new(
+            &workspace.storage,
+            &bus,
+            &request_id,
+            &session_id,
+            &assistant.info.id,
+        );
         let mut state = StreamProcessor::new();
         state
             .on_part(TextStreamPart::Start, &context)
