@@ -9,7 +9,11 @@ pub struct ExtensionCache {
 
 impl ExtensionCache {
     pub fn new(max_extensions: u32, ttl_seconds: u64) -> Self {
-        let max_capacity = if max_extensions == 0 { 1 } else { max_extensions as u64 };
+        let max_capacity = if max_extensions == 0 {
+            1
+        } else {
+            max_extensions as u64
+        };
         let cache = Cache::builder()
             .max_capacity(max_capacity)
             .time_to_live(Duration::from_secs(ttl_seconds))
@@ -26,10 +30,7 @@ impl ExtensionCache {
     }
 
     pub fn list_extensions(&self) -> Vec<String> {
-        self.cache
-            .iter()
-            .map(|(key, _)| (*key).clone())
-            .collect()
+        self.cache.iter().map(|(key, _)| (*key).clone()).collect()
     }
 }
 

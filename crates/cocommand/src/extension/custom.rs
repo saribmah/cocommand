@@ -1,12 +1,12 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use crate::extension::{
-    boxed_tool_future, Extension, ExtensionContext, ExtensionKind, ExtensionTool,
-};
 use crate::error::CoreResult;
 use crate::extension::host::ExtensionHost;
 use crate::extension::manifest::{ExtensionManifest, ExtensionTool as ManifestTool};
+use crate::extension::{
+    boxed_tool_future, Extension, ExtensionContext, ExtensionKind, ExtensionTool,
+};
 use tokio::sync::Mutex;
 use tokio::time::{timeout, Duration};
 

@@ -70,9 +70,10 @@ impl LlmSettings {
 }
 
 pub fn build_model(settings: &LlmSettings) -> CoreResult<Arc<dyn LanguageModel>> {
-    let api_key = settings.api_key.clone().ok_or_else(|| {
-        CoreError::InvalidInput("missing LLM API key".to_string())
-    })?;
+    let api_key = settings
+        .api_key
+        .clone()
+        .ok_or_else(|| CoreError::InvalidInput("missing LLM API key".to_string()))?;
     let provider = OpenAICompatibleClient::new()
         .base_url(&settings.base_url)
         .api_key(&api_key)

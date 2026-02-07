@@ -62,7 +62,9 @@ pub async fn load_history_entry(
     storage: &SharedStorage,
     id: &str,
 ) -> CoreResult<Option<ClipboardHistoryEntry>> {
-    let value = storage.read(&[HISTORY_KEYS[0], HISTORY_KEYS[1], id]).await?;
+    let value = storage
+        .read(&[HISTORY_KEYS[0], HISTORY_KEYS[1], id])
+        .await?;
     match value {
         Some(value) => serde_json::from_value(value).map(Some).map_err(|error| {
             CoreError::Internal(format!("failed to parse clipboard entry: {error}"))
@@ -328,19 +330,11 @@ async fn prune_old_entries(workspace: &WorkspaceInstance) -> CoreResult<()> {
     Ok(())
 }
 
-async fn write_image_payload(
-    workspace_dir: &Path,
-    id: &str,
-    bytes: &[u8],
-) -> CoreResult<PathBuf> {
+async fn write_image_payload(workspace_dir: &Path, id: &str, bytes: &[u8]) -> CoreResult<PathBuf> {
     write_image_to_dir(workspace_dir, IMAGE_DIR, id, bytes).await
 }
 
-async fn write_current_image(
-    workspace_dir: &Path,
-    id: &str,
-    bytes: &[u8],
-) -> CoreResult<PathBuf> {
+async fn write_current_image(workspace_dir: &Path, id: &str, bytes: &[u8]) -> CoreResult<PathBuf> {
     write_image_to_dir(workspace_dir, CURRENT_IMAGE_DIR, id, bytes).await
 }
 
@@ -352,22 +346,18 @@ async fn write_image_to_dir(
 ) -> CoreResult<PathBuf> {
     let mut path = workspace_dir.to_path_buf();
     path.push(dir);
-    tokio::fs::create_dir_all(&path)
-        .await
-        .map_err(|error| {
-            CoreError::Internal(format!(
-                "failed to create clipboard directory {}: {error}",
-                path.display()
-            ))
-        })?;
+    tokio::fs::create_dir_all(&path).await.map_err(|error| {
+        CoreError::Internal(format!(
+            "failed to create clipboard directory {}: {error}",
+            path.display()
+        ))
+    })?;
     path.push(format!("{id}.{IMAGE_FORMAT}"));
-    tokio::fs::write(&path, bytes)
-        .await
-        .map_err(|error| {
-            CoreError::Internal(format!(
-                "failed to write clipboard image {}: {error}",
-                path.display()
-            ))
-        })?;
+    tokio::fs::write(&path, bytes).await.map_err(|error| {
+        CoreError::Internal(format!(
+            "failed to write clipboard image {}: {error}",
+            path.display()
+        ))
+    })?;
     Ok(path)
 }

@@ -87,16 +87,16 @@ impl WorkspaceConfig {
             name: "Default Workspace".to_string(),
             created_at: now,
             last_modified: now,
-            extensions: WorkspaceExtensions { installed: Vec::new() },
+            extensions: WorkspaceExtensions {
+                installed: Vec::new(),
+            },
             preferences: WorkspacePreferences {
                 language: "en".to_string(),
                 session: SessionPreferences {
                     rollover_mode: "rolling".to_string(),
                     duration_seconds: 86_400,
                 },
-                extension_cache: ExtensionCachePreferences {
-                    max_extensions: 8,
-                },
+                extension_cache: ExtensionCachePreferences { max_extensions: 8 },
             },
             llm: WorkspaceLLMPreferences {
                 provider: "openai-compatible".to_string(),
@@ -215,7 +215,6 @@ fn write_workspace_config(path: &Path, config: &WorkspaceConfig) -> CoreResult<(
     })?;
     Ok(())
 }
-
 
 #[cfg(test)]
 mod tests {

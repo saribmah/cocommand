@@ -87,7 +87,11 @@ fn match_score(query: &str, name: &str, id: &str, kind: &str) -> i64 {
     let id_score = subsequence_score(&compact_query, &id_lower.replace(' ', ""));
     let kind_score = subsequence_score(&compact_query, &kind_lower.replace(' ', ""));
     let best = name_score.max(id_score).max(kind_score);
-    if best > 0 { best } else { -1 }
+    if best > 0 {
+        best
+    } else {
+        -1
+    }
 }
 
 fn subsequence_score(query: &str, target: &str) -> i64 {

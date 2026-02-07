@@ -112,8 +112,7 @@ pub(crate) async fn open_permission(
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     #[cfg(target_os = "macos")]
     {
-        open_permission_settings(&payload.id)
-            .map_err(|error| (StatusCode::BAD_REQUEST, error))?;
+        open_permission_settings(&payload.id).map_err(|error| (StatusCode::BAD_REQUEST, error))?;
         Ok(Json(serde_json::json!({ "status": "ok" })))
     }
     #[cfg(not(target_os = "macos"))]
@@ -122,9 +121,7 @@ pub(crate) async fn open_permission(
     }
 }
 
-async fn persist_workspace_config(
-    state: Arc<ServerState>,
-) -> Result<(), (StatusCode, String)> {
+async fn persist_workspace_config(state: Arc<ServerState>) -> Result<(), (StatusCode, String)> {
     let value = serde_json::to_value({
         let config = state.workspace.config.read().await;
         config.clone()

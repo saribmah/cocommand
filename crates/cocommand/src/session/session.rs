@@ -101,8 +101,7 @@ impl Session {
     }
 
     pub fn activate_extension(&mut self, app_id: &str) {
-        self.extension_cache
-            .add(app_id, now_secs());
+        self.extension_cache.add(app_id, now_secs());
     }
 
     pub fn active_extension_ids(&self) -> Vec<String> {

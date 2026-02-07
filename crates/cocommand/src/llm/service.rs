@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
-use llm_kit_core::{StreamText, prompt::Prompt, step_count_is, stream_text::StreamTextResult};
+use llm_kit_core::{prompt::Prompt, step_count_is, stream_text::StreamTextResult, StreamText};
 use llm_kit_provider::LanguageModel;
 
 use crate::error::{CoreError, CoreResult};
@@ -32,13 +32,11 @@ impl LlmService {
         tools: llm_kit_core::tool::ToolSet,
     ) -> CoreResult<StreamTextResult> {
         let guard = self.state.read().await;
-        let model = guard.model.as_ref().ok_or_else(|| {
-            CoreError::InvalidInput("missing LLM API key".to_string())
-        })?;
-        log::info!(
-            "llm prompt messages count={}",
-            messages.len(),
-        );
+        let model = guard
+            .model
+            .as_ref()
+            .ok_or_else(|| CoreError::InvalidInput("missing LLM API key".to_string()))?;
+        log::info!("llm prompt messages count={}", messages.len(),);
         let prompt =
             Prompt::messages(messages.to_vec()).with_system(guard.settings.system_prompt.clone());
         let result = StreamText::new(model.clone(), prompt)

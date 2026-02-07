@@ -3,7 +3,8 @@ use llm_kit_core::stream_text::StreamTextResult;
 
 use crate::error::{CoreError, CoreResult};
 use crate::message::parts::{
-    FilePart, MessagePart, ReasoningPart, SourcePart, TextPart, ToolCallPart, ToolResultPart,
+    FilePart, MessagePart, ReasoningPart, SourcePart, TextPart, ToolCallPart, ToolErrorPart,
+    ToolResultPart,
 };
 use llm_kit_provider::language_model::content::source::LanguageModelSource;
 
@@ -28,11 +29,10 @@ pub fn outputs_to_parts(outputs: &[Output]) -> Vec<MessagePart> {
                 output: result.output.clone(),
                 is_error: false,
             })),
-            Output::ToolError(error) => Some(MessagePart::ToolResult(ToolResultPart {
+            Output::ToolError(error) => Some(MessagePart::ToolError(ToolErrorPart {
                 call_id: error.tool_call_id.clone(),
                 tool_name: error.tool_name.clone(),
-                output: error.error.clone(),
-                is_error: true,
+                error: error.error.clone(),
             })),
             Output::Source(source) => Some(MessagePart::Source(map_source(source))),
             Output::File(file) => Some(MessagePart::File(FilePart {
@@ -76,5 +76,31 @@ fn map_source(source: &llm_kit_core::output::SourceOutput) -> SourcePart {
             media_type: Some(media_type.clone()),
             filename: filename.clone(),
         },
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use llm_kit_provider_utils::tool::ToolError;
+    use serde_json::json;
+
+    #[test]
+    fn outputs_to_parts_maps_tool_error_to_tool_error_part() {
+        let outputs = vec![Output::ToolError(ToolError::new(
+            "call_1",
+            "test_tool",
+            json!({"input": true}),
+            json!({"message": "failed"}),
+        ))];
+
+        let parts = outputs_to_parts(&outputs);
+        assert!(matches!(
+            parts.first(),
+            Some(MessagePart::ToolError(part))
+            if part.call_id == "call_1"
+                && part.tool_name == "test_tool"
+                && part.error == json!({"message": "failed"})
+        ));
     }
 }

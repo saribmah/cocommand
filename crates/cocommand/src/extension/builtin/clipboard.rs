@@ -41,15 +41,18 @@ impl Extension for ClipboardExtension {
     }
 
     fn tools(&self) -> Vec<ExtensionTool> {
-        let get_execute =
-            Arc::new(|_input: serde_json::Value, context: crate::extension::ExtensionContext| {
-            boxed_tool_future(async move {
-                let snapshot = get_clipboard_snapshot(&context.workspace).await?;
-                Ok(serde_json::to_value(snapshot).map_err(|error| {
-                    CoreError::Internal(format!("failed to serialize clipboard snapshot: {error}"))
-                })?)
-            })
-        });
+        let get_execute = Arc::new(
+            |_input: serde_json::Value, context: crate::extension::ExtensionContext| {
+                boxed_tool_future(async move {
+                    let snapshot = get_clipboard_snapshot(&context.workspace).await?;
+                    Ok(serde_json::to_value(snapshot).map_err(|error| {
+                        CoreError::Internal(format!(
+                            "failed to serialize clipboard snapshot: {error}"
+                        ))
+                    })?)
+                })
+            },
+        );
         let set_execute = Arc::new(|input: serde_json::Value, _context| {
             boxed_tool_future(async move {
                 let kind = input
@@ -94,35 +97,38 @@ impl Extension for ClipboardExtension {
                 }
             })
         });
-        let record_execute =
-            Arc::new(|_input: serde_json::Value, context: crate::extension::ExtensionContext| {
-            boxed_tool_future(async move {
-                let entry = record_clipboard(&context.workspace).await?;
-                Ok(serde_json::to_value(entry).map_err(|error| {
-                    CoreError::Internal(format!("failed to serialize clipboard entry: {error}"))
-                })?)
-            })
-        });
-        let list_execute =
-            Arc::new(|input: serde_json::Value, context: crate::extension::ExtensionContext| {
-            boxed_tool_future(async move {
-                let limit = input.get("limit").and_then(|value| value.as_u64());
-                let items = list_history(&context.workspace.storage, limit.map(|v| v as usize))
-                    .await?;
-                Ok(serde_json::to_value(items).map_err(|error| {
-                    CoreError::Internal(format!(
-                        "failed to serialize clipboard history: {error}"
-                    ))
-                })?)
-            })
-        });
-        let clear_execute =
-            Arc::new(|_input: serde_json::Value, context: crate::extension::ExtensionContext| {
-            boxed_tool_future(async move {
-                clear_history(&context.workspace.storage).await?;
-                Ok(json!({ "status": "ok" }))
-            })
-        });
+        let record_execute = Arc::new(
+            |_input: serde_json::Value, context: crate::extension::ExtensionContext| {
+                boxed_tool_future(async move {
+                    let entry = record_clipboard(&context.workspace).await?;
+                    Ok(serde_json::to_value(entry).map_err(|error| {
+                        CoreError::Internal(format!("failed to serialize clipboard entry: {error}"))
+                    })?)
+                })
+            },
+        );
+        let list_execute = Arc::new(
+            |input: serde_json::Value, context: crate::extension::ExtensionContext| {
+                boxed_tool_future(async move {
+                    let limit = input.get("limit").and_then(|value| value.as_u64());
+                    let items =
+                        list_history(&context.workspace.storage, limit.map(|v| v as usize)).await?;
+                    Ok(serde_json::to_value(items).map_err(|error| {
+                        CoreError::Internal(format!(
+                            "failed to serialize clipboard history: {error}"
+                        ))
+                    })?)
+                })
+            },
+        );
+        let clear_execute = Arc::new(
+            |_input: serde_json::Value, context: crate::extension::ExtensionContext| {
+                boxed_tool_future(async move {
+                    clear_history(&context.workspace.storage).await?;
+                    Ok(json!({ "status": "ok" }))
+                })
+            },
+        );
 
         vec![
             ExtensionTool {

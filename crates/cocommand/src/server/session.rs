@@ -6,21 +6,20 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use std::sync::Arc;
+use std::any::Any;
 use std::convert::Infallible;
+use std::sync::Arc;
 use std::time::Duration;
-use tokio_stream::StreamExt;
 use tokio_stream::wrappers::UnboundedReceiverStream;
+use uuid::Uuid;
 
-use crate::message::Message;
-use crate::message::convert::outputs_to_parts;
+use crate::command::session_message::{
+    run_session_message_command, SessionMessageCommandInput, SessionMessageContextEvent,
+    SessionMessagePartUpdatedEvent,
+};
 use crate::message::parts::MessagePart;
 use crate::server::ServerState;
 use crate::session::SessionContext;
-use crate::tool::ToolRegistry;
-use llm_kit_core::output::{Output, ReasoningOutput, TextOutput};
-use llm_kit_core::stream_text::TextStreamPart;
-use llm_kit_core::generate_text::GeneratedFile;
 
 #[derive(Debug, Deserialize)]
 pub struct RecordMessageRequest {
@@ -51,159 +50,72 @@ pub(crate) async fn session_message(
     State(state): State<Arc<ServerState>>,
     Json(payload): Json<RecordMessageRequest>,
 ) -> Sse<impl tokio_stream::Stream<Item = Result<Event, Infallible>>> {
-    let state = state.clone();
+    let request_id = Uuid::now_v7().to_string();
     let text = payload.text;
+
+    let mut bus_rx = state.bus.subscribe();
+    let (command_result_tx, mut command_result_rx) =
+        tokio::sync::mpsc::unbounded_channel::<Option<RecordMessageResponse>>();
     let (tx, rx) = tokio::sync::mpsc::unbounded_channel::<Result<Event, Infallible>>();
-    tokio::spawn(async move {
-        let send = |event: Event| {
-            let _ = tx.send(Ok(event));
-        };
-        let storage = state.workspace.storage.clone();
-        let (session_id, active_apps, ctx) = match state
-            .sessions
-            .with_session_mut(|session| {
-                Box::pin(async move {
-                    let active_apps = session.active_extension_ids();
-                    let ctx = session.context(None).await?;
-                    Ok((session.session_id.clone(), active_apps, ctx))
-                })
-            })
-            .await
-        {
-            Ok(values) => values,
-            Err(error) => {
-                send(Event::default().event("error").data(json!({
-                    "error": error.to_string()
-                }).to_string()));
-                return;
-            }
-        };
 
-        let api_context = to_api_context(ctx);
-        send(Event::default().event("context").data(json!({
-            "context": api_context
-        }).to_string()));
-
-        if let Err(error) = Message::store(&storage, &Message::from_text(&session_id, "user", &text)).await {
-            send(Event::default().event("error").data(json!({
-                "error": error.to_string()
-            }).to_string()));
-            return;
+    tokio::spawn({
+        let state = state.clone();
+        let request_id = request_id.clone();
+        async move {
+            let result = run_session_message_command(
+                state.sessions.clone(),
+                state.workspace.clone(),
+                &state.llm,
+                &state.bus,
+                SessionMessageCommandInput { request_id, text },
+            )
+            .await;
+            let payload = result.ok().map(|output| RecordMessageResponse {
+                context: to_api_context(output.context),
+                reply_parts: output.reply_parts,
+            });
+            let _ = command_result_tx.send(payload);
         }
+    });
 
-        let message_history = match Message::load(&storage, &session_id).await {
-            Ok(history) => history,
-            Err(error) => {
-                send(Event::default().event("error").data(json!({
-                    "error": error.to_string()
-                }).to_string()));
-                return;
-            }
-        };
-        let prompt_messages: Vec<llm_kit_provider_utils::message::Message> = message_history
-            .iter()
-            .flat_map(Message::to_prompt_messages)
-            .collect();
-        let tools = ToolRegistry::tools(
-            Arc::new(state.workspace.clone()),
-            state.sessions.clone(),
-            &session_id,
-            &active_apps,
-        )
-        .await;
-        let reply = match state
-            .llm
-            .stream_text(&prompt_messages, tools)
-            .await
-        {
-            Ok(result) => result,
-            Err(error) => {
-                send(Event::default().event("error").data(json!({
-                    "error": error.to_string()
-                }).to_string()));
-                return;
-            }
-        };
+    tokio::spawn({
+        let request_id = request_id.clone();
+        async move {
+            loop {
+                tokio::select! {
+                    command_result = command_result_rx.recv() => {
+                        match command_result {
+                            Some(Some(result)) => {
+                                let sse_event = Event::default().event("done").data(json!({
+                                    "context": result.context,
+                                    "reply_parts": result.reply_parts,
+                                }).to_string());
+                                let _ = tx.send(Ok(sse_event));
+                                break;
+                            }
+                            Some(None) | None => break,
+                        }
+                    }
+                    bus_event = bus_rx.recv() => {
+                        let bus_event = match bus_event {
+                            Ok(event) => event,
+                            Err(_) => break,
+                        };
+                        let mapped = match map_bus_event_to_sse_payload(bus_event.as_ref(), &request_id) {
+                            Some(mapped) => mapped,
+                            None => continue,
+                        };
 
-        let mut outputs: Vec<Output> = Vec::new();
-        let mut current_text = String::new();
-        let mut current_reasoning = String::new();
-
-        let mut full_stream = reply.full_stream();
-        while let Some(part) = full_stream.next().await {
-            send(Event::default().event("part").data(json!({
-                "part": &part
-            }).to_string()));
-
-            match part {
-                TextStreamPart::TextDelta { text, .. } => {
-                    current_text.push_str(&text);
-                }
-                TextStreamPart::TextEnd { .. } => {
-                    if !current_text.is_empty() {
-                        outputs.push(Output::Text(TextOutput::new(current_text.clone())));
-                        current_text.clear();
+                        let sse_event = Event::default()
+                            .event(mapped.event)
+                            .data(mapped.payload.to_string());
+                        if tx.send(Ok(sse_event)).is_err() {
+                            break;
+                        }
                     }
                 }
-                TextStreamPart::ReasoningDelta { text, .. } => {
-                    current_reasoning.push_str(&text);
-                }
-                TextStreamPart::ReasoningEnd { .. } => {
-                    if !current_reasoning.is_empty() {
-                        outputs.push(Output::Reasoning(ReasoningOutput::new(
-                            current_reasoning.clone(),
-                        )));
-                        current_reasoning.clear();
-                    }
-                }
-                TextStreamPart::Source { source } => {
-                    outputs.push(Output::Source(source));
-                }
-                TextStreamPart::File { file } => {
-                    outputs.push(Output::File(GeneratedFile::from_base64(
-                        &file.base64,
-                        &file.media_type,
-                    )));
-                }
-                TextStreamPart::ToolCall { tool_call } => {
-                    outputs.push(Output::ToolCall(tool_call));
-                }
-                TextStreamPart::ToolResult { tool_result } => {
-                    outputs.push(Output::ToolResult(tool_result));
-                }
-                TextStreamPart::ToolError { tool_error } => {
-                    outputs.push(Output::ToolError(tool_error));
-                }
-                TextStreamPart::Error { error } => {
-                    send(Event::default().event("error").data(json!({
-                        "error": error
-                    }).to_string()));
-                    return;
-                }
-                _ => {}
             }
         }
-
-        if !current_text.is_empty() {
-            outputs.push(Output::Text(TextOutput::new(current_text)));
-        }
-        if !current_reasoning.is_empty() {
-            outputs.push(Output::Reasoning(ReasoningOutput::new(current_reasoning)));
-        }
-
-        let reply_parts = outputs_to_parts(&outputs);
-        let assistant_message = Message::from_parts(&session_id, "assistant", reply_parts.clone());
-        if let Err(error) = Message::store(&storage, &assistant_message).await {
-            send(Event::default().event("error").data(json!({
-                "error": error.to_string()
-            }).to_string()));
-            return;
-        }
-
-        send(Event::default().event("done").data(json!({
-            "context": api_context,
-            "reply_parts": reply_parts
-        }).to_string()));
     });
 
     Sse::new(UnboundedReceiverStream::new(rx)).keep_alive(
@@ -229,6 +141,43 @@ pub(crate) async fn session_context(
         .await
         .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
     Ok(Json(to_api_context(ctx)))
+}
+
+struct BusSseEvent {
+    event: &'static str,
+    payload: serde_json::Value,
+}
+
+fn map_bus_event_to_sse_payload(
+    event: &(dyn Any + Send + Sync),
+    request_id: &str,
+) -> Option<BusSseEvent> {
+    if let Some(event) = event.downcast_ref::<SessionMessagePartUpdatedEvent>() {
+        if event.request_id != request_id {
+            return None;
+        }
+        return Some(BusSseEvent {
+            event: "part.updated",
+            payload: json!({
+                "part_id": &event.part_id,
+                "part": &event.part,
+            }),
+        });
+    }
+
+    if let Some(event) = event.downcast_ref::<SessionMessageContextEvent>() {
+        if event.request_id != request_id {
+            return None;
+        }
+        return Some(BusSseEvent {
+            event: "context",
+            payload: json!({
+                "context": to_api_context(event.context.clone()),
+            }),
+        });
+    }
+
+    None
 }
 
 fn to_api_context(ctx: SessionContext) -> ApiSessionContext {

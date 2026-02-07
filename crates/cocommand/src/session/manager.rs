@@ -23,12 +23,10 @@ impl SessionManager {
 
     pub async fn with_session_mut<F, R>(&self, handler: F) -> CoreResult<R>
     where
-        for<'a> F: FnOnce(&'a mut Session) -> Pin<Box<dyn Future<Output = CoreResult<R>> + Send + 'a>>,
+        for<'a> F:
+            FnOnce(&'a mut Session) -> Pin<Box<dyn Future<Output = CoreResult<R>> + Send + 'a>>,
     {
-        let mut guard = self
-            .active
-            .lock()
-            .await;
+        let mut guard = self.active.lock().await;
         let now = now_secs();
         let duration = {
             let config = self.workspace.config.read().await;
@@ -57,11 +55,7 @@ impl SessionManager {
         handler(session).await
     }
 
-    async fn load_latest_session(
-        &self,
-        now: u64,
-        duration: u64,
-    ) -> CoreResult<Option<Session>> {
+    async fn load_latest_session(&self, now: u64, duration: u64) -> CoreResult<Option<Session>> {
         let storage = self.workspace.storage.clone();
         let workspace_id = {
             let config = self.workspace.config.read().await;
@@ -96,7 +90,9 @@ impl SessionManager {
                 .await?;
             return Ok(None);
         }
-        Ok(Some(Session::from_info(self.workspace.clone(), info).await?))
+        Ok(Some(
+            Session::from_info(self.workspace.clone(), info).await?,
+        ))
     }
 }
 

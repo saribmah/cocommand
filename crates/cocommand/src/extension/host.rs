@@ -1,11 +1,14 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, atomic::{AtomicU64, Ordering}};
+use std::sync::{
+    atomic::{AtomicU64, Ordering},
+    Arc,
+};
 
 use serde::{Deserialize, Serialize};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::process::{Child, ChildStdin};
-use tokio::sync::{Mutex, oneshot};
+use tokio::sync::{oneshot, Mutex};
 use tokio::time::{timeout, Duration};
 
 use crate::error::{CoreError, CoreResult};
@@ -84,15 +87,18 @@ impl ExtensionHost {
             CoreError::Internal(format!("failed to spawn extension host: {error}"))
         })?;
 
-        let stdin = child.stdin.take().ok_or_else(|| {
-            CoreError::Internal("extension host stdin unavailable".to_string())
-        })?;
-        let stdout = child.stdout.take().ok_or_else(|| {
-            CoreError::Internal("extension host stdout unavailable".to_string())
-        })?;
-        let stderr = child.stderr.take().ok_or_else(|| {
-            CoreError::Internal("extension host stderr unavailable".to_string())
-        })?;
+        let stdin = child
+            .stdin
+            .take()
+            .ok_or_else(|| CoreError::Internal("extension host stdin unavailable".to_string()))?;
+        let stdout = child
+            .stdout
+            .take()
+            .ok_or_else(|| CoreError::Internal("extension host stdout unavailable".to_string()))?;
+        let stderr = child
+            .stderr
+            .take()
+            .ok_or_else(|| CoreError::Internal("extension host stderr unavailable".to_string()))?;
 
         let pending: Arc<Mutex<HashMap<u64, oneshot::Sender<RpcResponse>>>> =
             Arc::new(Mutex::new(HashMap::new()));
@@ -152,13 +158,15 @@ impl ExtensionHost {
             extension_id,
         };
         let result = self
-            .send_request("initialize", serde_json::to_value(params).map_err(|error| {
-                CoreError::Internal(format!("failed to serialize init params: {error}"))
-            })?)
+            .send_request(
+                "initialize",
+                serde_json::to_value(params).map_err(|error| {
+                    CoreError::Internal(format!("failed to serialize init params: {error}"))
+                })?,
+            )
             .await?;
-        serde_json::from_value(result).map_err(|error| {
-            CoreError::Internal(format!("failed to parse init response: {error}"))
-        })
+        serde_json::from_value(result)
+            .map_err(|error| CoreError::Internal(format!("failed to parse init response: {error}")))
     }
 
     pub async fn invoke_tool(
@@ -168,14 +176,21 @@ impl ExtensionHost {
     ) -> CoreResult<serde_json::Value> {
         let params = InvokeToolParams { tool_id, args };
         let result = self
-            .send_request("invoke_tool", serde_json::to_value(params).map_err(|error| {
-                CoreError::Internal(format!("failed to serialize invoke params: {error}"))
-            })?)
+            .send_request(
+                "invoke_tool",
+                serde_json::to_value(params).map_err(|error| {
+                    CoreError::Internal(format!("failed to serialize invoke params: {error}"))
+                })?,
+            )
             .await?;
         Ok(result)
     }
 
-    async fn send_request(&self, method: &str, params: serde_json::Value) -> CoreResult<serde_json::Value> {
+    async fn send_request(
+        &self,
+        method: &str,
+        params: serde_json::Value,
+    ) -> CoreResult<serde_json::Value> {
         let id = self.next_id.fetch_add(1, Ordering::SeqCst);
         let request = RpcRequest {
             jsonrpc: "2.0",
@@ -192,27 +207,22 @@ impl ExtensionHost {
         self.pending.lock().await.insert(id, tx);
 
         let mut stdin = self.stdin.lock().await;
-        stdin
-            .write_all(payload.as_bytes())
-            .await
-            .map_err(|error| CoreError::Internal(format!("failed to write rpc request: {error}")))?;
-        stdin
-            .write_all(b"\n")
-            .await
-            .map_err(|error| CoreError::Internal(format!("failed to write rpc request: {error}")))?;
-        stdin
-            .flush()
-            .await
-            .map_err(|error| CoreError::Internal(format!("failed to flush rpc request: {error}")))?;
+        stdin.write_all(payload.as_bytes()).await.map_err(|error| {
+            CoreError::Internal(format!("failed to write rpc request: {error}"))
+        })?;
+        stdin.write_all(b"\n").await.map_err(|error| {
+            CoreError::Internal(format!("failed to write rpc request: {error}"))
+        })?;
+        stdin.flush().await.map_err(|error| {
+            CoreError::Internal(format!("failed to flush rpc request: {error}"))
+        })?;
 
         let response = timeout(Duration::from_secs(10), rx)
             .await
             .map_err(|_| CoreError::Internal(format!("rpc timeout for method {}", method)))?
             .map_err(|_| CoreError::Internal("rpc response dropped".to_string()))?;
         match response {
-            RpcResponse::Success { result, .. } => {
-                Ok(result)
-            }
+            RpcResponse::Success { result, .. } => Ok(result),
             RpcResponse::Error { error, .. } => Err(CoreError::Internal(format!(
                 "extension host error {}: {}",
                 error.code, error.message

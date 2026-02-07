@@ -6,13 +6,13 @@ use crate::storage::SharedStorage;
 use crate::utils::time::now_rfc3339;
 
 use crate::message::parts::{MessagePart, TextPart};
-use llm_kit_provider_utils::message::{
-    AssistantContentPart, AssistantMessage, DataContent, FilePart as LlmFilePart, Message as LlmMessage,
-    ReasoningPart as LlmReasoningPart, TextPart as LlmTextPart, ToolCallPart as LlmToolCallPart,
-    ToolContentPart, ToolMessage, ToolResultOutput, ToolResultPart as LlmToolResultPart,
-    UserContentPart, UserMessage,
-};
 use llm_kit_core::stream_text::StreamTextResult;
+use llm_kit_provider_utils::message::{
+    AssistantContentPart, AssistantMessage, DataContent, FilePart as LlmFilePart,
+    Message as LlmMessage, ReasoningPart as LlmReasoningPart, TextPart as LlmTextPart,
+    ToolCallPart as LlmToolCallPart, ToolContentPart, ToolMessage, ToolResultOutput,
+    ToolResultPart as LlmToolResultPart, UserContentPart, UserMessage,
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
@@ -115,6 +115,24 @@ impl Message {
         Ok(())
     }
 
+    pub async fn store_info(storage: &SharedStorage, info: &MessageInfo) -> CoreResult<()> {
+        save_message_info(storage, info).await
+    }
+
+    pub async fn store_part(
+        storage: &SharedStorage,
+        message_id: &str,
+        part_id: &str,
+        part: &MessagePart,
+    ) -> CoreResult<()> {
+        save_message_part(storage, message_id, part_id, part).await
+    }
+
+    pub async fn touch_info(storage: &SharedStorage, info: &mut MessageInfo) -> CoreResult<()> {
+        info.updated_at = now_rfc3339();
+        save_message_info(storage, info).await
+    }
+
     pub async fn from_stream(
         session_id: &str,
         role: &str,
@@ -134,11 +152,7 @@ impl Message {
         })
     }
 
-    pub fn from_parts(
-        session_id: &str,
-        role: &str,
-        parts: Vec<MessagePart>,
-    ) -> MessageWithParts {
+    pub fn from_parts(session_id: &str, role: &str, parts: Vec<MessagePart>) -> MessageWithParts {
         let timestamp = now_rfc3339();
         MessageWithParts {
             info: MessageInfo {
@@ -160,9 +174,9 @@ fn user_message_to_prompt(message: &MessageWithParts) -> Vec<LlmMessage> {
         .filter_map(|part| match part {
             MessagePart::Text(text) => Some(UserContentPart::Text(LlmTextPart::new(&text.text))),
             MessagePart::File(file) => Some(UserContentPart::File(map_file_part(file))),
-            MessagePart::Source(source) => {
-                Some(UserContentPart::Text(LlmTextPart::new(format_source(source))))
-            }
+            MessagePart::Source(source) => Some(UserContentPart::Text(LlmTextPart::new(
+                format_source(source),
+            ))),
             _ => None,
         })
         .collect();
@@ -177,20 +191,25 @@ fn assistant_message_to_prompt(message: &MessageWithParts) -> Vec<LlmMessage> {
         .parts
         .iter()
         .filter_map(|part| match part {
-            MessagePart::Text(text) => Some(AssistantContentPart::Text(LlmTextPart::new(
-                &text.text,
-            ))),
+            MessagePart::Text(text) => {
+                Some(AssistantContentPart::Text(LlmTextPart::new(&text.text)))
+            }
             MessagePart::Reasoning(reasoning) => Some(AssistantContentPart::Reasoning(
                 LlmReasoningPart::new(&reasoning.text),
             )),
-            MessagePart::ToolCall(call) => Some(AssistantContentPart::ToolCall(
-                LlmToolCallPart::new(call.call_id.clone(), call.tool_name.clone(), call.input.clone()),
-            )),
+            MessagePart::ToolCall(call) => {
+                Some(AssistantContentPart::ToolCall(LlmToolCallPart::new(
+                    call.call_id.clone(),
+                    call.tool_name.clone(),
+                    call.input.clone(),
+                )))
+            }
             MessagePart::File(file) => Some(AssistantContentPart::File(map_file_part(file))),
             MessagePart::Source(source) => Some(AssistantContentPart::Text(LlmTextPart::new(
                 format_source(source),
             ))),
             MessagePart::ToolResult(_) => None,
+            MessagePart::ToolError(_) => None,
         })
         .collect();
     let tool_parts: Vec<ToolContentPart> = message
@@ -202,6 +221,14 @@ fn assistant_message_to_prompt(message: &MessageWithParts) -> Vec<LlmMessage> {
                 Some(ToolContentPart::ToolResult(LlmToolResultPart::new(
                     result.call_id.clone(),
                     result.tool_name.clone(),
+                    output,
+                )))
+            }
+            MessagePart::ToolError(error) => {
+                let output = map_tool_error_output(error);
+                Some(ToolContentPart::ToolResult(LlmToolResultPart::new(
+                    error.call_id.clone(),
+                    error.tool_name.clone(),
                     output,
                 )))
             }
@@ -233,6 +260,14 @@ fn tool_message_to_prompt(message: &MessageWithParts) -> Vec<LlmMessage> {
                     output,
                 )))
             }
+            MessagePart::ToolError(error) => {
+                let output = map_tool_error_output(error);
+                Some(ToolContentPart::ToolResult(LlmToolResultPart::new(
+                    error.call_id.clone(),
+                    error.tool_name.clone(),
+                    output,
+                )))
+            }
             _ => None,
         })
         .collect();
@@ -253,6 +288,14 @@ fn map_tool_result_output(result: &crate::message::parts::ToolResultPart) -> Too
         ToolResultOutput::text(text)
     } else {
         ToolResultOutput::json(result.output.clone())
+    }
+}
+
+fn map_tool_error_output(error: &crate::message::parts::ToolErrorPart) -> ToolResultOutput {
+    if let Some(text) = error.error.as_str() {
+        ToolResultOutput::error_text(text)
+    } else {
+        ToolResultOutput::error_json(error.error.clone())
     }
 }
 
@@ -278,19 +321,16 @@ fn format_source(source: &crate::message::parts::SourcePart) -> String {
     }
 }
 
-
 async fn load_message_info(
     storage: &SharedStorage,
     session_id: &str,
     message_id: &str,
 ) -> CoreResult<Option<MessageInfo>> {
-    let value = storage
-        .read(&["messages", session_id, message_id])
-        .await?;
+    let value = storage.read(&["messages", session_id, message_id]).await?;
     match value {
-        Some(value) => serde_json::from_value(value).map(Some).map_err(|error| {
-            CoreError::Internal(format!("failed to parse message info: {error}"))
-        }),
+        Some(value) => serde_json::from_value(value)
+            .map(Some)
+            .map_err(|error| CoreError::Internal(format!("failed to parse message info: {error}"))),
         None => Ok(None),
     }
 }

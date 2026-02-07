@@ -1,19 +1,19 @@
 use axum::routing::{get, post};
 use axum::Router;
-use tower_http::cors::{Any, CorsLayer};
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::net::TcpListener;
 use tokio::sync::{oneshot, watch};
+use tower_http::cors::{Any, CorsLayer};
 
 use crate::bus::Bus;
 use crate::clipboard::spawn_clipboard_watcher;
 use crate::llm::{LlmService, LlmSettings};
 use crate::session::SessionManager;
 use crate::workspace::WorkspaceInstance;
-pub mod extension;
 pub mod events;
+pub mod extension;
 pub mod session;
 pub mod workspace;
 
@@ -26,8 +26,9 @@ pub struct Server {
 
 impl Server {
     pub async fn new(workspace_dir: PathBuf) -> Result<Self, String> {
-        let workspace =
-            WorkspaceInstance::new(&workspace_dir).await.map_err(|error| error.to_string())?;
+        let workspace = WorkspaceInstance::new(&workspace_dir)
+            .await
+            .map_err(|error| error.to_string())?;
         let workspace_arc = Arc::new(workspace.clone());
         let sessions = Arc::new(SessionManager::new(workspace_arc.clone()));
         let bus = Bus::new(512);
@@ -52,9 +53,15 @@ impl Server {
             .route("/sessions/message", post(session::session_message))
             .route("/sessions/context", get(session::session_context))
             .route("/workspace/applications", get(extension::list_applications))
-            .route("/workspace/applications/open", post(extension::open_application))
+            .route(
+                "/workspace/applications/open",
+                post(extension::open_application),
+            )
             .route("/workspace/config", get(workspace::get_workspace_config))
-            .route("/workspace/config", post(workspace::update_workspace_config))
+            .route(
+                "/workspace/config",
+                post(workspace::update_workspace_config),
+            )
             .route(
                 "/workspace/settings/permissions",
                 get(workspace::get_permissions_status),
@@ -68,9 +75,7 @@ impl Server {
         let listener = TcpListener::bind("127.0.0.1:0")
             .await
             .map_err(|error| error.to_string())?;
-        let addr = listener
-            .local_addr()
-            .map_err(|error| error.to_string())?;
+        let addr = listener.local_addr().map_err(|error| error.to_string())?;
         let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
         let (clipboard_shutdown_tx, clipboard_shutdown_rx) = watch::channel(false);
 

@@ -1,9 +1,9 @@
-pub mod host;
-pub mod manifest;
-pub mod loader;
-pub mod custom;
-pub mod registry;
 pub mod builtin;
+pub mod custom;
+pub mod host;
+pub mod loader;
+pub mod manifest;
+pub mod registry;
 
 use std::future::Future;
 use std::pin::Pin;
@@ -19,12 +19,17 @@ pub enum ExtensionKind {
 }
 
 pub type ExtensionToolExecute = Arc<
-    dyn Fn(serde_json::Value, ExtensionContext) -> Pin<Box<dyn Future<Output = CoreResult<serde_json::Value>> + Send>>
+    dyn Fn(
+            serde_json::Value,
+            ExtensionContext,
+        ) -> Pin<Box<dyn Future<Output = CoreResult<serde_json::Value>> + Send>>
         + Send
         + Sync,
 >;
 
-pub fn boxed_tool_future<F>(future: F) -> Pin<Box<dyn Future<Output = CoreResult<serde_json::Value>> + Send>>
+pub fn boxed_tool_future<F>(
+    future: F,
+) -> Pin<Box<dyn Future<Output = CoreResult<serde_json::Value>> + Send>>
 where
     F: Future<Output = CoreResult<serde_json::Value>> + Send + 'static,
 {

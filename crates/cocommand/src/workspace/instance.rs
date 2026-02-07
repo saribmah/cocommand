@@ -3,19 +3,17 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
+use crate::error::{CoreError, CoreResult};
 use crate::extension::builtin::clipboard::ClipboardExtension;
 use crate::extension::builtin::note::NoteExtension;
-use crate::extension::registry::ExtensionRegistry;
-use crate::extension::Extension;
 use crate::extension::builtin::screenshot::ScreenshotExtension;
 use crate::extension::builtin::system::SystemExtension;
-use crate::error::{CoreError, CoreResult};
 use crate::extension::loader::load_custom_extensions;
+use crate::extension::registry::ExtensionRegistry;
+use crate::extension::Extension;
 use crate::storage::file::FileStorage;
 use crate::storage::SharedStorage;
-use crate::workspace::config::{
-    load_or_create_workspace_storage, WorkspaceConfig,
-};
+use crate::workspace::config::{load_or_create_workspace_storage, WorkspaceConfig};
 
 #[derive(Clone)]
 pub struct WorkspaceInstance {

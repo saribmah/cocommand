@@ -53,10 +53,7 @@ mod tests {
             .await
             .expect("timeout")
             .expect("recv");
-        let event = received
-            .as_ref()
-            .downcast_ref::<TestEvent>()
-            .expect("type");
+        let event = received.as_ref().downcast_ref::<TestEvent>().expect("type");
         assert_eq!(event.value, 42);
     }
 
@@ -71,14 +68,8 @@ mod tests {
         let event1 = rx1.recv().await.expect("recv1");
         let event2 = rx2.recv().await.expect("recv2");
 
-        let event1 = event1
-            .as_ref()
-            .downcast_ref::<TestEvent>()
-            .expect("type1");
-        let event2 = event2
-            .as_ref()
-            .downcast_ref::<TestEvent>()
-            .expect("type2");
+        let event1 = event1.as_ref().downcast_ref::<TestEvent>().expect("type1");
+        let event2 = event2.as_ref().downcast_ref::<TestEvent>().expect("type2");
         assert_eq!(event1.value, 7);
         assert_eq!(event2.value, 7);
     }

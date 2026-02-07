@@ -1,15 +1,13 @@
 use std::path::Path;
 use std::sync::Arc;
 
-use crate::extension::Extension;
 use crate::error::{CoreError, CoreResult};
 use crate::extension::custom::CustomExtension;
 use crate::extension::host::{extension_host_entrypoint, ExtensionHost};
 use crate::extension::manifest::ExtensionManifest;
+use crate::extension::Extension;
 
-pub async fn load_custom_extensions(
-    workspace_dir: &Path,
-) -> CoreResult<Vec<Arc<dyn Extension>>> {
+pub async fn load_custom_extensions(workspace_dir: &Path) -> CoreResult<Vec<Arc<dyn Extension>>> {
     let extensions_dir = workspace_dir.join("extensions");
     if !extensions_dir.exists() {
         return Ok(Vec::new());

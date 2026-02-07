@@ -8,6 +8,7 @@ pub enum MessagePart {
     Reasoning(ReasoningPart),
     ToolCall(ToolCallPart),
     ToolResult(ToolResultPart),
+    ToolError(ToolErrorPart),
     Source(SourcePart),
     File(FilePart),
 }
@@ -35,6 +36,13 @@ pub struct ToolResultPart {
     pub tool_name: String,
     pub output: Value,
     pub is_error: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ToolErrorPart {
+    pub call_id: String,
+    pub tool_name: String,
+    pub error: Value,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

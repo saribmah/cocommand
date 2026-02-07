@@ -1,8 +1,8 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use crate::extension::{boxed_tool_future, Extension, ExtensionKind, ExtensionTool};
 use crate::error::{CoreError, CoreResult};
+use crate::extension::{boxed_tool_future, Extension, ExtensionKind, ExtensionTool};
 use crate::utils::time::now_secs;
 
 #[cfg(target_os = "macos")]
@@ -64,7 +64,11 @@ impl Extension for ScreenshotExtension {
     }
 
     fn tags(&self) -> Vec<String> {
-        vec!["screenshot".to_string(), "screen".to_string(), "system".to_string()]
+        vec![
+            "screenshot".to_string(),
+            "screen".to_string(),
+            "system".to_string(),
+        ]
     }
 
     fn tools(&self) -> Vec<ExtensionTool> {
@@ -72,70 +76,81 @@ impl Extension for ScreenshotExtension {
         {
             let capture_execute = Arc::new(
                 |input: serde_json::Value, context: crate::extension::ExtensionContext| {
-                boxed_tool_future(async move {
-                    let mode = Self::parse_mode(input.get("mode").and_then(|v| v.as_str()))?;
-                    let display = input.get("display").and_then(|v| v.as_u64()).map(|v| v as u32);
-                    let window_id = input.get("windowId").and_then(|v| v.as_u64()).map(|v| v as u32);
-                    let rect = input.get("rect").and_then(|v| v.as_str()).map(|v| v.to_string());
-                    let format = Self::normalize_format(
-                        input.get("format").and_then(|v| v.as_str()),
-                    )?;
-                    let delay_seconds = input.get("delaySeconds").and_then(|v| v.as_u64());
-                    let to_clipboard = input
-                        .get("toClipboard")
-                        .and_then(|v| v.as_bool())
-                        .unwrap_or(false);
-                    let include_cursor = input
-                        .get("includeCursor")
-                        .and_then(|v| v.as_bool())
-                        .unwrap_or(false);
+                    boxed_tool_future(async move {
+                        let mode = Self::parse_mode(input.get("mode").and_then(|v| v.as_str()))?;
+                        let display = input
+                            .get("display")
+                            .and_then(|v| v.as_u64())
+                            .map(|v| v as u32);
+                        let window_id = input
+                            .get("windowId")
+                            .and_then(|v| v.as_u64())
+                            .map(|v| v as u32);
+                        let rect = input
+                            .get("rect")
+                            .and_then(|v| v.as_str())
+                            .map(|v| v.to_string());
+                        let format =
+                            Self::normalize_format(input.get("format").and_then(|v| v.as_str()))?;
+                        let delay_seconds = input.get("delaySeconds").and_then(|v| v.as_u64());
+                        let to_clipboard = input
+                            .get("toClipboard")
+                            .and_then(|v| v.as_bool())
+                            .unwrap_or(false);
+                        let include_cursor = input
+                            .get("includeCursor")
+                            .and_then(|v| v.as_bool())
+                            .unwrap_or(false);
 
-                    let output_path = if to_clipboard {
-                        None
-                    } else {
-                        let path = Self::build_output_path(
-                            &context.workspace.workspace_dir,
-                            &context.session_id,
-                            &format,
-                        );
-                        if let Some(parent) = path.parent() {
-                            std::fs::create_dir_all(parent).map_err(|error| {
-                                CoreError::Internal(format!(
-                                    "failed to create screenshots directory: {error}"
-                                ))
-                            })?;
-                        }
-                        Some(path)
-                    };
+                        let output_path = if to_clipboard {
+                            None
+                        } else {
+                            let path = Self::build_output_path(
+                                &context.workspace.workspace_dir,
+                                &context.session_id,
+                                &format,
+                            );
+                            if let Some(parent) = path.parent() {
+                                std::fs::create_dir_all(parent).map_err(|error| {
+                                    CoreError::Internal(format!(
+                                        "failed to create screenshots directory: {error}"
+                                    ))
+                                })?;
+                            }
+                            Some(path)
+                        };
 
-                    let result = capture_screenshot(
-                        ScreenshotOptions {
-                            mode,
-                            display,
-                            window_id,
-                            rect,
-                            format: Some(format.clone()),
-                            delay_seconds,
-                            to_clipboard,
-                            include_cursor,
-                        },
-                        output_path.as_deref(),
-                    )
-                    .map_err(CoreError::Internal)?;
+                        let result = capture_screenshot(
+                            ScreenshotOptions {
+                                mode,
+                                display,
+                                window_id,
+                                rect,
+                                format: Some(format.clone()),
+                                delay_seconds,
+                                to_clipboard,
+                                include_cursor,
+                            },
+                            output_path.as_deref(),
+                        )
+                        .map_err(CoreError::Internal)?;
 
-                    Ok(serde_json::json!({
-                        "path": result.path,
-                        "filename": result.filename,
-                        "format": result.format,
-                        "clipboard": result.clipboard
-                    }))
-                })
-            });
+                        Ok(serde_json::json!({
+                            "path": result.path,
+                            "filename": result.filename,
+                            "format": result.format,
+                            "clipboard": result.clipboard
+                        }))
+                    })
+                },
+            );
 
             vec![ExtensionTool {
                 id: "capture_screenshot".to_string(),
                 name: "Capture Screenshot".to_string(),
-                description: Some("Capture a screenshot using the macOS screencapture tool".to_string()),
+                description: Some(
+                    "Capture a screenshot using the macOS screencapture tool".to_string(),
+                ),
                 input_schema: serde_json::json!({
                     "type": "object",
                     "properties": {
@@ -175,7 +190,9 @@ impl Extension for ScreenshotExtension {
             vec![ExtensionTool {
                 id: "capture_screenshot".to_string(),
                 name: "Capture Screenshot".to_string(),
-                description: Some("Capture a screenshot using the macOS screencapture tool".to_string()),
+                description: Some(
+                    "Capture a screenshot using the macOS screencapture tool".to_string(),
+                ),
                 input_schema: serde_json::json!({
                     "type": "object",
                     "properties": {

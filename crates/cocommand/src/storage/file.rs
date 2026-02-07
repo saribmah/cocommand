@@ -44,14 +44,12 @@ impl FileStorage {
 
     async fn ensure_parent_dir(path: &Path) -> CoreResult<()> {
         if let Some(parent) = path.parent() {
-            tokio::fs::create_dir_all(parent)
-                .await
-                .map_err(|error| {
-                    CoreError::Internal(format!(
-                        "failed to create storage directory {}: {error}",
-                        parent.display()
-                    ))
-                })?;
+            tokio::fs::create_dir_all(parent).await.map_err(|error| {
+                CoreError::Internal(format!(
+                    "failed to create storage directory {}: {error}",
+                    parent.display()
+                ))
+            })?;
         }
         Ok(())
     }
@@ -64,14 +62,12 @@ impl Storage for FileStorage {
         Self::ensure_parent_dir(&path).await?;
         let serialized = serde_json::to_vec_pretty(data)
             .map_err(|error| CoreError::Internal(format!("storage serialize error: {error}")))?;
-        tokio::fs::write(&path, serialized)
-            .await
-            .map_err(|error| {
-                CoreError::Internal(format!(
-                    "failed to write storage file {}: {error}",
-                    path.display()
-                ))
-            })?;
+        tokio::fs::write(&path, serialized).await.map_err(|error| {
+            CoreError::Internal(format!(
+                "failed to write storage file {}: {error}",
+                path.display()
+            ))
+        })?;
         Ok(())
     }
 
@@ -106,16 +102,12 @@ impl Storage for FileStorage {
         };
 
         let mut names = Vec::new();
-        while let Some(entry) = entries
-            .next_entry()
-            .await
-            .map_err(|error| {
-                CoreError::Internal(format!(
-                    "failed to read storage directory {}: {error}",
-                    path.display()
-                ))
-            })?
-        {
+        while let Some(entry) = entries.next_entry().await.map_err(|error| {
+            CoreError::Internal(format!(
+                "failed to read storage directory {}: {error}",
+                path.display()
+            ))
+        })? {
             let file_type = entry.file_type().await.map_err(|error| {
                 CoreError::Internal(format!(
                     "failed to read storage entry {}: {error}",
@@ -190,10 +182,7 @@ mod tests {
     async fn missing_file_returns_none() {
         let dir = tempdir().expect("tempdir");
         let storage = FileStorage::new(dir.path().to_path_buf());
-        let loaded = storage
-            .read(&["missing", "value"])
-            .await
-            .expect("read");
+        let loaded = storage.read(&["missing", "value"]).await.expect("read");
         assert!(loaded.is_none());
     }
 
@@ -210,10 +199,7 @@ mod tests {
             .write(&["messages", "session", "two"], &value)
             .await
             .expect("write");
-        let mut entries = storage
-            .list(&["messages", "session"])
-            .await
-            .expect("list");
+        let mut entries = storage.list(&["messages", "session"]).await.expect("list");
         entries.sort();
         assert_eq!(entries, vec!["one".to_string(), "two".to_string()]);
     }
