@@ -15,72 +15,93 @@ export interface StreamEvent<T = unknown> {
   data: T;
 }
 
-export type StreamPart = {
-  type: string;
-  text?: string;
-  toolName?: string;
-  toolCallId?: string;
-  tool_name?: string;
-  tool_call_id?: string;
-  input?: unknown;
-  output?: unknown;
-  error?: unknown;
-  reason?: string;
-  mediaType?: string;
-  media_type?: string;
-  name?: string | null;
-  url?: string | null;
-  title?: string | null;
-  sourceType?: string;
-  source_type?: string;
-};
+export interface MessagePartBase {
+  id: string;
+  sessionId: string;
+  messageId: string;
+}
 
 export type MessagePart =
   | TextPart
   | ReasoningPart
-  | ToolCallPart
-  | ToolResultPart
+  | ToolPart
   | SourcePart
   | FilePart;
 
-export interface TextPart {
+export interface TextPart extends MessagePartBase {
   type: "text";
   text: string;
 }
 
-export interface ReasoningPart {
+export interface ReasoningPart extends MessagePartBase {
   type: "reasoning";
   text: string;
 }
 
-export interface ToolCallPart {
-  type: "tool-call";
-  call_id: string;
-  tool_name: string;
-  input: unknown;
+export type ToolState = ToolStatePending | ToolStateRunning | ToolStateCompleted | ToolStateError;
+
+export interface ToolStatePending {
+  status: "pending";
+  input: Record<string, unknown>;
+  raw: string;
 }
 
-export interface ToolResultPart {
-  type: "tool-result";
-  call_id: string;
-  tool_name: string;
-  output: unknown;
-  is_error: boolean;
+export interface ToolStateRunning {
+  status: "running";
+  input: Record<string, unknown>;
+  title?: string | null;
+  metadata?: Record<string, unknown> | null;
+  time: {
+    start: number;
+  };
 }
 
-export interface SourcePart {
+export interface ToolStateCompleted {
+  status: "completed";
+  input: Record<string, unknown>;
+  output: string;
+  title: string;
+  metadata: Record<string, unknown>;
+  time: {
+    start: number;
+    end: number;
+    compacted?: number | null;
+  };
+  attachments?: FilePart[] | null;
+}
+
+export interface ToolStateError {
+  status: "error";
+  input: Record<string, unknown>;
+  error: string;
+  metadata?: Record<string, unknown> | null;
+  time: {
+    start: number;
+    end: number;
+  };
+}
+
+export interface ToolPart extends MessagePartBase {
+  type: "tool";
+  callId: string;
+  tool: string;
+  state: ToolState;
+  metadata?: Record<string, unknown> | null;
+}
+
+export interface SourcePart extends MessagePartBase {
   type: "source";
-  id: string;
-  source_type: string;
+  sourceId?: string | null;
+  sourceType: string;
   url?: string | null;
   title?: string | null;
-  media_type?: string | null;
+  mediaType?: string | null;
   filename?: string | null;
 }
 
-export interface FilePart {
+export interface FilePart extends MessagePartBase {
   type: "file";
   base64: string;
-  media_type: string;
+  mediaType: string;
   name?: string | null;
 }

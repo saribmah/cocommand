@@ -9,11 +9,8 @@ import {
 } from "react";
 import {
   ActionHint,
-  ActionRow,
   ArrowIcon,
   Badge,
-  ButtonPrimary,
-  ButtonSecondary,
   Chip,
   ChipGroup,
   CloseButton,
@@ -36,8 +33,6 @@ import {
   ListSection,
   MarkdownResponseCard,
   ReasoningCard,
-  ResponseBlock,
-  ResponseHeader,
   ResponseStack,
   SearchIcon,
   SearchField,
@@ -49,7 +44,7 @@ import { useExtensionContext } from "../extension/extension.context";
 import { useSessionContext } from "../session/session.context";
 import { useServerContext } from "../server/server.context";
 import { useCommandBar } from "./commandbar";
-import type { MessagePart, SourcePart } from "../session/session.types";
+import type { SourcePart, ToolPart } from "../session/session.types";
 import styles from "./command.module.css";
 
 function getMentionState(text: string): { query: string; start: number } | null {
@@ -148,22 +143,7 @@ function matchScore(query: string, name: string, id: string, kind: string): numb
   return best > 0 ? best : -1;
 }
 
-type ToolState = "pending" | "running" | "success" | "error";
-
-type DisplayItem =
-  | { kind: "text"; text: string }
-  | { kind: "reasoning"; text: string }
-  | {
-      kind: "tool";
-      toolName: string;
-      toolId: string;
-      state: ToolState;
-      params?: string;
-      result?: string;
-      errorMessage?: string;
-    }
-  | { kind: "file"; name: string; mediaType?: string | null }
-  | { kind: "source"; label: string; body: string };
+type ToolCardState = "pending" | "running" | "success" | "error";
 
 function formatPayload(value: unknown): string | undefined {
   if (value === undefined) return undefined;
@@ -178,103 +158,36 @@ function formatPayload(value: unknown): string | undefined {
 
 function formatSourceBody(part: SourcePart): string {
   const lines = [part.title, part.url, part.filename].filter(Boolean) as string[];
-  return lines.length > 0 ? lines.join("\n") : part.source_type;
+  return lines.length > 0 ? lines.join("\n") : part.sourceType;
 }
 
-function toDisplayItems(parts: MessagePart[]): DisplayItem[] {
-  const items: DisplayItem[] = [];
-  const toolIndex = new Map<string, number>();
-
-  const appendText = (text: string) => {
-    if (!text) return;
-    const last = items[items.length - 1];
-    if (last && last.kind === "text") {
-      last.text += text;
-    } else {
-      items.push({ kind: "text", text });
-    }
-  };
-
-  const appendReasoning = (text: string) => {
-    if (!text) return;
-    const last = items[items.length - 1];
-    if (last && last.kind === "reasoning") {
-      last.text += text;
-    } else {
-      items.push({ kind: "reasoning", text });
-    }
-  };
-
-  for (const part of parts) {
-    switch (part.type) {
-      case "text":
-        appendText(part.text);
-        break;
-      case "reasoning":
-        appendReasoning(part.text);
-        break;
-      case "tool-call": {
-        const toolId = part.call_id || `tool_${items.length}`;
-        const entry: DisplayItem = {
-          kind: "tool",
-          toolName: part.tool_name,
-          toolId,
-          state: "running",
-          params: formatPayload(part.input),
-        };
-        toolIndex.set(toolId, items.length);
-        items.push(entry);
-        break;
-      }
-      case "tool-result": {
-        const toolId = part.call_id || `tool_${items.length}`;
-        const index = toolIndex.get(toolId);
-        const state: ToolState = part.is_error ? "error" : "success";
-        const payload = formatPayload(part.output);
-        if (index !== undefined) {
-          const existing = items[index];
-          if (existing.kind === "tool") {
-            existing.state = state;
-            if (state === "error") {
-              existing.errorMessage = payload;
-            } else {
-              existing.result = payload;
-            }
-          }
-        } else {
-          items.push({
-            kind: "tool",
-            toolName: part.tool_name,
-            toolId,
-            state,
-            result: state === "success" ? payload : undefined,
-            errorMessage: state === "error" ? payload : undefined,
-          });
-        }
-        break;
-      }
-      case "file": {
-        items.push({
-          kind: "file",
-          name: part.name ?? "Untitled file",
-          mediaType: part.media_type,
-        });
-        break;
-      }
-      case "source": {
-        items.push({
-          kind: "source",
-          label: "Source",
-          body: formatSourceBody(part),
-        });
-        break;
-      }
-      default:
-        break;
-    }
+function mapToolStateToCard(state: ToolPart["state"]): ToolCardState {
+  switch (state.status) {
+    case "pending":
+      return "pending";
+    case "running":
+      return "running";
+    case "completed":
+      return "success";
+    case "error":
+      return "error";
+    default:
+      return "pending";
   }
+}
 
-  return items;
+function getToolParams(state: ToolPart["state"]): string | undefined {
+  return formatPayload(state.input);
+}
+
+function getToolResult(state: ToolPart["state"]): string | undefined {
+  if (state.status !== "completed") return undefined;
+  return state.output;
+}
+
+function getToolError(state: ToolPart["state"]): string | undefined {
+  if (state.status !== "error") return undefined;
+  return state.error;
 }
 
 function formatFileType(mediaType?: string | null): string | undefined {
@@ -294,15 +207,11 @@ export function CommandView() {
     input,
     isSubmitting,
     parts,
-    pendingConfirmation,
-    followUpActive,
     error,
     setInput,
     setError,
     submit,
     dismiss,
-    confirmPending,
-    cancelPending,
     reset,
   } = useCommandBar(sendMessage);
   const serverInfo = useServerContext((state) => state.info);
@@ -342,7 +251,7 @@ export function CommandView() {
     requestAnimationFrame(() => {
       node.scrollTop = node.scrollHeight;
     });
-  }, [parts, pendingConfirmation]);
+  }, [parts]);
 
   const filteredExtensions = useMemo(() => {
     if (!mentionState) return [];
@@ -459,10 +368,9 @@ export function CommandView() {
     }
   };
 
-  const displayItems = useMemo(() => toDisplayItems(parts), [parts]);
   const showMentionList = mentionState && filteredExtensions.length > 0;
   const showSlashList = !mentionState && slashState && filteredSlashCommands.length > 0;
-  const showResponses = displayItems.length > 0 || pendingConfirmation || !!error;
+  const showResponses = parts.length > 0 || !!error;
 
   return (
     <main className="app-shell">
@@ -472,13 +380,13 @@ export function CommandView() {
           <SearchField
             className={styles.searchField}
             icon={<Icon>{SearchIcon}</Icon>}
-            placeholder={followUpActive ? "Refine the previous result..." : "How can I help..."}
+            placeholder="How can I help..."
             inputProps={{
               id: inputId,
               value: input,
               onChange: (e) => setInput(e.target.value),
               onKeyDown: handleKeyDown,
-              disabled: isSubmitting || !!pendingConfirmation,
+              disabled: isSubmitting,
               spellCheck: false,
               autoComplete: "off",
             }}
@@ -498,7 +406,6 @@ export function CommandView() {
             <Chip label="Extensions" active={!!mentionState} />
             <Chip label="Commands" active={!!slashState && !mentionState} />
           </ChipGroup>
-          {followUpActive ? <Badge tone="warn">Follow-up</Badge> : null}
           {isSubmitting ? <Badge>Working...</Badge> : null}
         </div>
       </FilterArea>
@@ -557,63 +464,38 @@ export function CommandView() {
           {showResponses ? (
             <ResponseStack>
               {error ? <ErrorCard message={error} /> : null}
-
-              {pendingConfirmation ? (
-                <ResponseBlock className={styles.responseBlock}>
-                  <ResponseHeader label={pendingConfirmation.title} />
-                  <Text size="sm" tone="secondary">
-                    {pendingConfirmation.body}
-                  </Text>
-                  <ActionRow>
-                    <ButtonSecondary onClick={() => cancelPending()}>
-                      Cancel
-                    </ButtonSecondary>
-                    <ButtonPrimary onClick={() => confirmPending()}>
-                      Confirm
-                    </ButtonPrimary>
-                  </ActionRow>
-                </ResponseBlock>
-              ) : null}
-
-              {displayItems.map((item, index) => {
-                switch (item.kind) {
+              {parts.map((part) => {
+                switch (part.type) {
                   case "text":
-                    return (
-                      <MarkdownResponseCard key={`text-${index}`} body={item.text} />
-                    );
+                    return <MarkdownResponseCard key={part.id} body={part.text} />;
                   case "reasoning":
-                    return (
-                      <ReasoningCard
-                        key={`reasoning-${index}`}
-                        reasoning={item.text}
-                      />
-                    );
+                    return <ReasoningCard key={part.id} reasoning={part.text} />;
                   case "tool":
                     return (
                       <ToolCallCard
-                        key={`tool-${item.toolId}-${index}`}
-                        toolName={item.toolName}
-                        toolId={item.toolId}
-                        state={item.state}
-                        params={item.params}
-                        result={item.result}
-                        errorMessage={item.errorMessage}
+                        key={part.id}
+                        toolName={part.tool}
+                        toolId={part.callId}
+                        state={mapToolStateToCard(part.state)}
+                        params={getToolParams(part.state)}
+                        result={getToolResult(part.state)}
+                        errorMessage={getToolError(part.state)}
                       />
                     );
                   case "file":
                     return (
                       <FileCard
-                        key={`file-${index}`}
-                        fileName={item.name}
-                        fileType={formatFileType(item.mediaType)}
+                        key={part.id}
+                        fileName={part.name ?? "Untitled file"}
+                        fileType={formatFileType(part.mediaType)}
                       />
                     );
                   case "source":
                     return (
                       <MarkdownResponseCard
-                        key={`source-${index}`}
-                        label={item.label}
-                        body={item.body}
+                        key={part.id}
+                        label="Source"
+                        body={formatSourceBody(part)}
                       />
                     );
                   default:

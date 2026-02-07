@@ -1,20 +1,11 @@
 import { useCallback, useState } from "react";
 import { hideWindow, openSettingsWindow } from "../../lib/ipc";
-import type { MessagePart, StreamEvent, StreamPart } from "../session/session.types";
-
-interface PendingConfirmation {
-  title: string;
-  body: string;
-  confirmation_id?: string;
-}
+import type { MessagePart, StreamEvent } from "../session/session.types";
 
 export interface CommandBarState {
   input: string;
-  selectedIndex: number;
   isSubmitting: boolean;
   parts: MessagePart[];
-  pendingConfirmation: PendingConfirmation | null;
-  followUpActive: boolean;
   error: string | null;
 }
 
@@ -26,11 +17,8 @@ type SendMessageFn = (
 export function useCommandBar(sendMessage: SendMessageFn) {
   const [state, setState] = useState<CommandBarState>({
     input: "",
-    selectedIndex: -1,
     isSubmitting: false,
     parts: [],
-    pendingConfirmation: null,
-    followUpActive: false,
     error: null,
   });
 
@@ -45,11 +33,8 @@ export function useCommandBar(sendMessage: SendMessageFn) {
   const reset = useCallback(() => {
     setState({
       input: "",
-      selectedIndex: -1,
       isSubmitting: false,
       parts: [],
-      pendingConfirmation: null,
-      followUpActive: false,
       error: null,
     });
   }, []);
@@ -71,12 +56,11 @@ export function useCommandBar(sendMessage: SendMessageFn) {
       const streamParts: MessagePart[] = [];
 
       const response = await sendMessage(text, (event: StreamEvent) => {
-        if (event.event === "part") {
-          const part = (event.data as { part?: StreamPart })?.part;
-          if (!part) return;
-          applyStreamPart(part, streamParts);
-          setState((s) => ({ ...s, parts: [...streamParts] }));
-        }
+        if (event.event !== "part.updated") return;
+        const part = getPartFromEventData(event.data);
+        if (!part) return;
+        streamParts.push(part);
+        setState((s) => ({ ...s, parts: [...streamParts] }));
       });
 
       setState((s) => ({
@@ -84,8 +68,6 @@ export function useCommandBar(sendMessage: SendMessageFn) {
         input: "",
         isSubmitting: false,
         parts: response.reply_parts ?? [],
-        pendingConfirmation: null,
-        followUpActive: false,
         error: null,
       }));
     } catch (err) {
@@ -99,18 +81,13 @@ export function useCommandBar(sendMessage: SendMessageFn) {
     }
   }, [state.input, sendMessage]);
 
-  const confirmPending = useCallback(async () => {}, []);
-  const cancelPending = useCallback(async () => {}, []);
-
   const dismiss = useCallback(() => {
-    if (state.pendingConfirmation) {
-      cancelPending();
-    } else if (state.parts.length > 0 || state.error) {
+    if (state.parts.length > 0 || state.error) {
       setState((s) => ({ ...s, parts: [], error: null }));
     } else {
       hideWindow();
     }
-  }, [state.pendingConfirmation, state.parts.length, state.error, cancelPending]);
+  }, [state.parts.length, state.error]);
 
   return {
     ...state,
@@ -118,8 +95,6 @@ export function useCommandBar(sendMessage: SendMessageFn) {
     setError,
     submit,
     dismiss,
-    confirmPending,
-    cancelPending,
     reset,
   };
 }
@@ -134,84 +109,10 @@ function normalizeErrorMessage(error: unknown): string {
   }
 }
 
-function applyStreamPart(part: StreamPart, parts: MessagePart[]): void {
-  switch (part.type) {
-    case "text-delta": {
-      const last = parts[parts.length - 1];
-      if (!last || last.type !== "text") {
-        parts.push({ type: "text", text: part.text ?? "" });
-      } else {
-        last.text += part.text ?? "";
-      }
-      return;
-    }
-    case "reasoning-delta": {
-      const last = parts[parts.length - 1];
-      if (!last || last.type !== "reasoning") {
-        parts.push({ type: "reasoning", text: part.text ?? "" });
-      } else {
-        last.text += part.text ?? "";
-      }
-      return;
-    }
-    case "tool-call": {
-      const toolName = part.toolName ?? part.tool_name ?? "tool";
-      const callId = part.toolCallId ?? part.tool_call_id ?? `tool_${parts.length}`;
-      parts.push({
-        type: "tool-call",
-        call_id: callId,
-        tool_name: toolName,
-        input: part.input ?? {},
-      });
-      return;
-    }
-    case "tool-result": {
-      const toolName = part.toolName ?? part.tool_name ?? "tool";
-      const callId = part.toolCallId ?? part.tool_call_id ?? `tool_${parts.length}`;
-      parts.push({
-        type: "tool-result",
-        call_id: callId,
-        tool_name: toolName,
-        output: part.output ?? {},
-        is_error: false,
-      });
-      return;
-    }
-    case "tool-error": {
-      const toolName = part.toolName ?? part.tool_name ?? "tool";
-      const callId = part.toolCallId ?? part.tool_call_id ?? `tool_${parts.length}`;
-      parts.push({
-        type: "tool-result",
-        call_id: callId,
-        tool_name: toolName,
-        output: part.error ?? part.output ?? {},
-        is_error: true,
-      });
-      return;
-    }
-    case "source": {
-      const id = part.title ?? part.url ?? `source_${parts.length}`;
-      parts.push({
-        type: "source",
-        id,
-        source_type: part.sourceType ?? part.source_type ?? "source",
-        url: part.url ?? null,
-        title: part.title ?? null,
-        media_type: part.mediaType ?? part.media_type ?? null,
-        filename: part.name ?? null,
-      });
-      return;
-    }
-    case "file": {
-      parts.push({
-        type: "file",
-        base64: "",
-        media_type: part.mediaType ?? part.media_type ?? "",
-        name: part.name ?? null,
-      });
-      return;
-    }
-    default:
-      return;
-  }
+function getPartFromEventData(value: unknown): MessagePart | null {
+  if (!value || typeof value !== "object") return null;
+  const part = (value as { part?: unknown }).part;
+  if (!part || typeof part !== "object") return null;
+  if (!("type" in part)) return null;
+  return part as MessagePart;
 }
