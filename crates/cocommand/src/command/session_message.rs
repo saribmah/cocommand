@@ -55,7 +55,7 @@ struct PreparedSessionMessage {
 }
 
 #[derive(Debug, Default, Clone)]
-pub struct SessionMessageStreamState {
+pub struct StreamProcessor {
     current_text_id: Option<String>,
     current_text: String,
     current_reasoning_id: Option<String>,
@@ -71,7 +71,7 @@ struct StorePartContext<'a> {
     message_id: &'a str,
 }
 
-impl SessionMessageStreamState {
+impl StreamProcessor {
     pub fn new() -> Self {
         Self::default()
     }
@@ -295,8 +295,6 @@ pub async fn run_session_message_command(
     let storage = workspace.storage.clone();
     let session_id = prepared.context.session_id.clone();
 
-    publish_context(bus, &request_id, &prepared.context);
-
     let mut assistant_message = Message::from_parts(&session_id, "assistant", Vec::new());
     if let Err(error) = Message::store_info(&storage, &assistant_message.info).await {
         return Err(error);
@@ -314,7 +312,7 @@ pub async fn run_session_message_command(
         Err(error) => return Err(error),
     };
 
-    let mut stream_state = SessionMessageStreamState::new();
+    let mut stream_state = StreamProcessor::new();
     let store_context = StorePartContext {
         storage: &storage,
         bus,
@@ -373,14 +371,6 @@ async fn prepare_session_message(
         user_message: user_message.info,
         prompt_messages,
     })
-}
-
-fn publish_context(bus: &Bus, request_id: &str, context: &SessionContext) {
-    let _ = bus.publish(SessionMessageContextEvent {
-        event: "context".to_string(),
-        request_id: request_id.to_string(),
-        context: context.clone(),
-    });
 }
 
 fn map_source_to_part(
@@ -518,7 +508,7 @@ mod tests {
             session_id: &session_id,
             message_id: &assistant.info.id,
         };
-        let mut state = SessionMessageStreamState::new();
+        let mut state = StreamProcessor::new();
 
         state
             .on_part(
@@ -582,7 +572,7 @@ mod tests {
             session_id: &session_id,
             message_id: &assistant.info.id,
         };
-        let mut state = SessionMessageStreamState::new();
+        let mut state = StreamProcessor::new();
 
         state
             .on_part(
@@ -678,7 +668,7 @@ mod tests {
             session_id: &session_id,
             message_id: &assistant.info.id,
         };
-        let mut state = SessionMessageStreamState::new();
+        let mut state = StreamProcessor::new();
 
         state
             .on_part(
@@ -723,7 +713,7 @@ mod tests {
             session_id: &session_id,
             message_id: &assistant.info.id,
         };
-        let mut state = SessionMessageStreamState::new();
+        let mut state = StreamProcessor::new();
         let stream = tokio_stream::iter(vec![
             TextStreamPart::TextDelta {
                 id: "text_1".to_string(),
@@ -768,7 +758,7 @@ mod tests {
             session_id: &session_id,
             message_id: &assistant.info.id,
         };
-        let mut state = SessionMessageStreamState::new();
+        let mut state = StreamProcessor::new();
         let error = state
             .on_part(
                 TextStreamPart::Error {
@@ -801,7 +791,7 @@ mod tests {
             session_id: &session_id,
             message_id: &assistant.info.id,
         };
-        let mut state = SessionMessageStreamState::new();
+        let mut state = StreamProcessor::new();
         state
             .on_part(TextStreamPart::Start, &context)
             .await
