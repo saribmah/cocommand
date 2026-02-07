@@ -11,12 +11,12 @@ use crate::workspace::WorkspaceInstance;
 use serde::Serialize;
 
 #[derive(Debug, Clone)]
-pub struct SessionMessageCommandInput {
+pub struct SessionCommandInput {
     pub request_id: String,
     pub text: String,
 }
 
-pub struct SessionMessageCommandOutput {
+pub struct SessionCommandOutput {
     pub context: SessionContext,
     pub user_message: MessageInfo,
     pub assistant_message: MessageInfo,
@@ -24,7 +24,7 @@ pub struct SessionMessageCommandOutput {
 }
 
 #[derive(Debug, Clone, Serialize)]
-pub struct SessionMessagePartUpdatedEvent {
+pub struct SessionCommandPartUpdatedEvent {
     pub event: String,
     pub request_id: String,
     pub session_id: String,
@@ -34,26 +34,26 @@ pub struct SessionMessagePartUpdatedEvent {
 }
 
 #[derive(Debug, Clone, Serialize)]
-pub struct SessionMessageContextEvent {
+pub struct SessionCommandContextEvent {
     pub event: String,
     pub request_id: String,
     pub context: SessionContext,
 }
 
-struct PreparedSessionMessage {
+struct PreparedSessionCommand {
     context: SessionContext,
     active_extension_ids: Vec<String>,
     user_message: MessageInfo,
     prompt_messages: Vec<llm_kit_provider_utils::message::Message>,
 }
 
-pub async fn run_session_message_command(
+pub async fn run_session_command(
     sessions: Arc<SessionManager>,
     workspace: WorkspaceInstance,
     llm: &LlmService,
     bus: &Bus,
-    input: SessionMessageCommandInput,
-) -> CoreResult<SessionMessageCommandOutput> {
+    input: SessionCommandInput,
+) -> CoreResult<SessionCommandOutput> {
     let request_id = input.request_id.clone();
     let prepared =
         match prepare_session_message(sessions.clone(), workspace.clone(), input.text).await {
@@ -100,7 +100,7 @@ pub async fn run_session_message_command(
     }
 
     let reply_parts = stream_state.mapped_parts().to_vec();
-    Ok(SessionMessageCommandOutput {
+    Ok(SessionCommandOutput {
         context: prepared.context,
         user_message: prepared.user_message,
         assistant_message: assistant_message.info,
@@ -112,7 +112,7 @@ async fn prepare_session_message(
     sessions: Arc<SessionManager>,
     workspace: WorkspaceInstance,
     text: String,
-) -> CoreResult<PreparedSessionMessage> {
+) -> CoreResult<PreparedSessionCommand> {
     let storage = workspace.storage.clone();
     let (active_extension_ids, context) = sessions
         .with_session_mut(|session| {
@@ -133,7 +133,7 @@ async fn prepare_session_message(
         .flat_map(Message::to_prompt_messages)
         .collect();
 
-    Ok(PreparedSessionMessage {
+    Ok(PreparedSessionCommand {
         context,
         active_extension_ids,
         user_message: user_message.info,
@@ -193,12 +193,12 @@ mod tests {
         let bus = Bus::new(32);
 
         let session_id = current_session_context(sessions.clone()).await.session_id;
-        let result = run_session_message_command(
+        let result = run_session_command(
             sessions,
             workspace.as_ref().clone(),
             &llm,
             &bus,
-            SessionMessageCommandInput {
+            SessionCommandInput {
                 request_id: "request-1".to_string(),
                 text: "hello".to_string(),
             },

@@ -81,7 +81,7 @@ export const createSessionStore = (getServer: () => ServerInfo | null) => {
         throw new Error("Server unavailable");
       }
 
-      const url = buildServerUrl(server.addr, "/sessions/message");
+      const url = buildServerUrl(server.addr, "/sessions/command");
       const response = await fetch(url, {
         method: "POST",
         headers: {

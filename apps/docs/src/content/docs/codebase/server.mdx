@@ -21,7 +21,7 @@ The server is the runtime entrypoint for the backend. It owns the HTTP API, syst
 
 - `GET /health` -> server health check.
 - `GET /events` -> SSE stream of bus events.
-- `POST /sessions/message` -> store user message, run LLM, store assistant response.
+- `POST /sessions/command` -> store user message, run LLM, store assistant response.
 - `GET /sessions/context` -> current session metadata.
 - `GET /workspace/applications` -> list all applications.
 - `POST /workspace/applications/open` -> open app and mark it active in the session.

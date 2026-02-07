@@ -19,7 +19,7 @@ It is meant to be a practical map for contributors working across the desktop UI
 1. Tauri starts (`apps/desktop/src-tauri`) and resolves the workspace directory.
 2. Tauri boots the Rust backend server (`crates/cocommand`) and exposes `get_server_status_cmd` to the UI.
 3. The React UI loads and fetches server status/info, then uses HTTP to talk to the backend.
-4. User messages go to `/sessions/message`, which stores the message and calls the LLM.
+4. User messages go to `/sessions/command`, which stores the message and calls the LLM.
 5. The LLM can call tools; only tools for active applications are injected.
 6. Assistant output is stored and returned to the UI.
 

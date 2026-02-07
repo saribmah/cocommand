@@ -14,8 +14,8 @@ use tokio_stream::wrappers::UnboundedReceiverStream;
 use uuid::Uuid;
 
 use crate::command::session_message::{
-    run_session_message_command, SessionMessageCommandInput, SessionMessageContextEvent,
-    SessionMessagePartUpdatedEvent,
+    run_session_command, SessionCommandInput, SessionCommandContextEvent,
+    SessionCommandPartUpdatedEvent,
 };
 use crate::message::parts::MessagePart;
 use crate::server::ServerState;
@@ -46,7 +46,7 @@ pub struct RecordMessageResponse {
     pub reply_parts: Vec<MessagePart>,
 }
 
-pub(crate) async fn session_message(
+pub(crate) async fn session_command(
     State(state): State<Arc<ServerState>>,
     Json(payload): Json<RecordMessageRequest>,
 ) -> Sse<impl tokio_stream::Stream<Item = Result<Event, Infallible>>> {
@@ -62,12 +62,12 @@ pub(crate) async fn session_message(
         let state = state.clone();
         let request_id = request_id.clone();
         async move {
-            let result = run_session_message_command(
+            let result = run_session_command(
                 state.sessions.clone(),
                 state.workspace.clone(),
                 &state.llm,
                 &state.bus,
-                SessionMessageCommandInput { request_id, text },
+                SessionCommandInput { request_id, text },
             )
             .await;
             let payload = result.ok().map(|output| RecordMessageResponse {
@@ -152,7 +152,7 @@ fn map_bus_event_to_sse_payload(
     event: &(dyn Any + Send + Sync),
     request_id: &str,
 ) -> Option<BusSseEvent> {
-    if let Some(event) = event.downcast_ref::<SessionMessagePartUpdatedEvent>() {
+    if let Some(event) = event.downcast_ref::<SessionCommandPartUpdatedEvent>() {
         if event.request_id != request_id {
             return None;
         }
@@ -165,7 +165,7 @@ fn map_bus_event_to_sse_payload(
         });
     }
 
-    if let Some(event) = event.downcast_ref::<SessionMessageContextEvent>() {
+    if let Some(event) = event.downcast_ref::<SessionCommandContextEvent>() {
         if event.request_id != request_id {
             return None;
         }

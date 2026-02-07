@@ -66,7 +66,7 @@ bun tauri build
 ### Backend (Rust - `crates/cocommand`)
 
 **HTTP Server** (`server.rs`) - Axum-based REST API on port 4840:
-- `POST /sessions/message` - Process user commands
+- `POST /sessions/command` - Process user commands
 - `GET /sessions/context` - Session context
 - `GET /workspace/applications` - List applications
 - `POST /workspace/applications/open` - Open application
