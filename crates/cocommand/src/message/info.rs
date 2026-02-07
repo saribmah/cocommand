@@ -8,8 +8,8 @@ pub struct MessageInfo {
     pub role: String,
     #[serde(rename = "createdAt")]
     pub created_at: String,
-    #[serde(rename = "updatedAt")]
-    pub updated_at: String,
+    #[serde(rename = "completedAt", skip_serializing_if = "Option::is_none")]
+    pub completed_at: Option<String>,
 }
 
 pub type UserMessageInfo = MessageInfo;

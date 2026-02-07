@@ -29,7 +29,7 @@ impl Message {
             session_id: session_id.to_string(),
             role: role.to_string(),
             created_at: timestamp.clone(),
-            updated_at: timestamp,
+            completed_at: None,
         };
         Message {
             info: info.clone(),
@@ -80,7 +80,7 @@ impl Message {
     }
 
     pub async fn touch_info(storage: &SharedStorage, info: &mut MessageInfo) -> CoreResult<()> {
-        info.updated_at = now_rfc3339();
+        info.completed_at = Some(now_rfc3339());
         save_message_info(storage, info).await
     }
 
@@ -91,7 +91,7 @@ impl Message {
             session_id: session_id.to_string(),
             role: role.to_string(),
             created_at: timestamp.clone(),
-            updated_at: timestamp,
+            completed_at: None,
         };
         let parts = parts
             .into_iter()
