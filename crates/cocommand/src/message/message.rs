@@ -7,7 +7,7 @@ use crate::storage::SharedStorage;
 use crate::utils::time::now_rfc3339;
 
 use crate::message::info::MessageInfo;
-use crate::message::parts::{MessagePart, PartBase, TextPart};
+use crate::message::parts::{MessagePart, PartBase, TextPart, ToolPart, ToolState};
 use llm_kit_provider_utils::message::{
     AssistantContentPart, AssistantMessage, DataContent, FilePart as LlmFilePart,
     Message as LlmMessage, ReasoningPart as LlmReasoningPart, TextPart as LlmTextPart,
@@ -40,6 +40,22 @@ impl Message {
         }
     }
 
+    pub fn from_parts(session_id: &str, role: &str, parts: Vec<MessagePart>) -> Message {
+        let timestamp = now_rfc3339();
+        let info = MessageInfo {
+            id: Uuid::now_v7().to_string(),
+            session_id: session_id.to_string(),
+            role: role.to_string(),
+            created_at: timestamp.clone(),
+            completed_at: None,
+        };
+        let parts = parts
+            .into_iter()
+            .map(|part| part.with_base(PartBase::new(session_id, info.id.as_str())))
+            .collect();
+        Message { info, parts }
+    }
+
     pub fn to_prompt_messages(message: &Message) -> Vec<LlmMessage> {
         match message.info.role.as_str() {
             "user" => user_message_to_prompt(message),
@@ -55,7 +71,7 @@ impl Message {
         let mut items = Vec::new();
         for message_id in message_ids {
             if let Some(info) = load_message_info(storage, session_id, &message_id).await? {
-                let parts = load_message_parts(storage, session_id, &message_id).await?;
+                let parts = load_message_parts(storage, &message_id).await?;
                 items.push(Message { info, parts });
             }
         }
@@ -83,22 +99,6 @@ impl Message {
         info.completed_at = Some(now_rfc3339());
         save_message_info(storage, info).await
     }
-
-    pub fn from_parts(session_id: &str, role: &str, parts: Vec<MessagePart>) -> Message {
-        let timestamp = now_rfc3339();
-        let info = MessageInfo {
-            id: Uuid::now_v7().to_string(),
-            session_id: session_id.to_string(),
-            role: role.to_string(),
-            created_at: timestamp.clone(),
-            completed_at: None,
-        };
-        let parts = parts
-            .into_iter()
-            .map(|part| part.with_base(PartBase::new(session_id, info.id.as_str())))
-            .collect();
-        Message { info, parts }
-    }
 }
 
 fn user_message_to_prompt(message: &Message) -> Vec<LlmMessage> {
@@ -121,62 +121,37 @@ fn user_message_to_prompt(message: &Message) -> Vec<LlmMessage> {
 }
 
 fn assistant_message_to_prompt(message: &Message) -> Vec<LlmMessage> {
-    let assistant_parts: Vec<AssistantContentPart> = message
-        .parts
-        .iter()
-        .filter_map(|part| match part {
+    let mut assistant_parts = Vec::new();
+    for part in &message.parts {
+        match part {
             MessagePart::Text(text) => {
-                Some(AssistantContentPart::Text(LlmTextPart::new(&text.text)))
+                assistant_parts.push(AssistantContentPart::Text(LlmTextPart::new(&text.text)));
             }
-            MessagePart::Reasoning(reasoning) => Some(AssistantContentPart::Reasoning(
-                LlmReasoningPart::new(&reasoning.text),
-            )),
-            MessagePart::ToolCall(call) => {
-                Some(AssistantContentPart::ToolCall(LlmToolCallPart::new(
-                    call.call_id.clone(),
-                    call.tool_name.clone(),
-                    call.input.clone(),
-                )))
+            MessagePart::Reasoning(reasoning) => {
+                assistant_parts.push(AssistantContentPart::Reasoning(LlmReasoningPart::new(
+                    &reasoning.text,
+                )));
             }
-            MessagePart::File(file) => Some(AssistantContentPart::File(map_file_part(file))),
-            MessagePart::Source(source) => Some(AssistantContentPart::Text(LlmTextPart::new(
-                format_source(source),
-            ))),
-            MessagePart::ToolResult(_) => None,
-            MessagePart::ToolError(_) => None,
-        })
-        .collect();
-    let tool_parts: Vec<ToolContentPart> = message
-        .parts
-        .iter()
-        .filter_map(|part| match part {
-            MessagePart::ToolResult(result) => {
-                let output = map_tool_result_output(result);
-                Some(ToolContentPart::ToolResult(LlmToolResultPart::new(
-                    result.call_id.clone(),
-                    result.tool_name.clone(),
-                    output,
-                )))
+            MessagePart::Tool(tool) => {
+                if let Some(assistant_part) = map_tool_to_assistant_content(tool) {
+                    assistant_parts.push(assistant_part);
+                }
             }
-            MessagePart::ToolError(error) => {
-                let output = map_tool_error_output(error);
-                Some(ToolContentPart::ToolResult(LlmToolResultPart::new(
-                    error.call_id.clone(),
-                    error.tool_name.clone(),
-                    output,
-                )))
+            MessagePart::File(file) => {
+                assistant_parts.push(AssistantContentPart::File(map_file_part(file)));
             }
-            _ => None,
-        })
-        .collect();
+            MessagePart::Source(source) => {
+                assistant_parts.push(AssistantContentPart::Text(LlmTextPart::new(format_source(
+                    source,
+                ))));
+            }
+        }
+    }
     let mut messages = Vec::new();
     if !assistant_parts.is_empty() {
         messages.push(LlmMessage::Assistant(AssistantMessage::with_parts(
             assistant_parts,
         )));
-    }
-    if !tool_parts.is_empty() {
-        messages.push(LlmMessage::Tool(ToolMessage::new(tool_parts)));
     }
     messages
 }
@@ -186,22 +161,7 @@ fn tool_message_to_prompt(message: &Message) -> Vec<LlmMessage> {
         .parts
         .iter()
         .filter_map(|part| match part {
-            MessagePart::ToolResult(result) => {
-                let output = map_tool_result_output(result);
-                Some(ToolContentPart::ToolResult(LlmToolResultPart::new(
-                    result.call_id.clone(),
-                    result.tool_name.clone(),
-                    output,
-                )))
-            }
-            MessagePart::ToolError(error) => {
-                let output = map_tool_error_output(error);
-                Some(ToolContentPart::ToolResult(LlmToolResultPart::new(
-                    error.call_id.clone(),
-                    error.tool_name.clone(),
-                    output,
-                )))
-            }
+            MessagePart::Tool(tool) => map_tool_to_tool_content(tool),
             _ => None,
         })
         .collect();
@@ -211,26 +171,34 @@ fn tool_message_to_prompt(message: &Message) -> Vec<LlmMessage> {
     vec![LlmMessage::Tool(ToolMessage::new(parts))]
 }
 
-fn map_tool_result_output(result: &crate::message::parts::ToolResultPart) -> ToolResultOutput {
-    if result.is_error {
-        if let Some(text) = result.output.as_str() {
-            ToolResultOutput::error_text(text)
-        } else {
-            ToolResultOutput::error_json(result.output.clone())
-        }
-    } else if let Some(text) = result.output.as_str() {
-        ToolResultOutput::text(text)
-    } else {
-        ToolResultOutput::json(result.output.clone())
+fn map_tool_to_assistant_content(tool: &ToolPart) -> Option<AssistantContentPart> {
+    match &tool.state {
+        ToolState::Pending(state) => Some(AssistantContentPart::ToolCall(LlmToolCallPart::new(
+            tool.call_id.clone(),
+            tool.tool.clone(),
+            Value::Object(state.input.clone()),
+        ))),
+        ToolState::Running(state) => Some(AssistantContentPart::ToolCall(LlmToolCallPart::new(
+            tool.call_id.clone(),
+            tool.tool.clone(),
+            Value::Object(state.input.clone()),
+        ))),
+        ToolState::Completed(_) => None,
+        ToolState::Error(_) => None,
     }
 }
 
-fn map_tool_error_output(error: &crate::message::parts::ToolErrorPart) -> ToolResultOutput {
-    if let Some(text) = error.error.as_str() {
-        ToolResultOutput::error_text(text)
-    } else {
-        ToolResultOutput::error_json(error.error.clone())
-    }
+fn map_tool_to_tool_content(tool: &ToolPart) -> Option<ToolContentPart> {
+    let output = match &tool.state {
+        ToolState::Completed(state) => ToolResultOutput::text(&state.output),
+        ToolState::Error(state) => ToolResultOutput::error_text(&state.error),
+        ToolState::Pending(_) | ToolState::Running(_) => return None,
+    };
+    Some(ToolContentPart::ToolResult(LlmToolResultPart::new(
+        tool.call_id.clone(),
+        tool.tool.clone(),
+        output,
+    )))
 }
 
 fn map_file_part(file: &crate::message::parts::FilePart) -> LlmFilePart {
@@ -286,7 +254,6 @@ async fn save_message_info(storage: &SharedStorage, info: &MessageInfo) -> CoreR
 
 async fn load_message_parts(
     storage: &SharedStorage,
-    session_id: &str,
     message_id: &str,
 ) -> CoreResult<Vec<MessagePart>> {
     let mut part_ids = storage.list(&["part", message_id]).await?;
@@ -294,7 +261,6 @@ async fn load_message_parts(
     let mut parts = Vec::new();
     for part_id in part_ids {
         if let Some(value) = storage.read(&["part", message_id, &part_id]).await? {
-            let value = normalize_part_payload(value, session_id, message_id, &part_id);
             let part: MessagePart = serde_json::from_value(value).map_err(|error| {
                 CoreError::Internal(format!("failed to parse message part: {error}"))
             })?;
@@ -314,48 +280,4 @@ async fn save_message_part(
         CoreError::Internal(format!("failed to serialize message part: {error}"))
     })?;
     storage.write(&["part", message_id, part_id], &value).await
-}
-
-fn normalize_part_payload(
-    mut value: Value,
-    session_id: &str,
-    message_id: &str,
-    part_id: &str,
-) -> Value {
-    let Some(object) = value.as_object_mut() else {
-        return value;
-    };
-
-    let has_session_id = object.contains_key("sessionID")
-        || object.contains_key("sessionId")
-        || object.contains_key("session_id");
-    let has_message_id = object.contains_key("messageID")
-        || object.contains_key("messageId")
-        || object.contains_key("message_id");
-    let is_legacy = !has_session_id || !has_message_id;
-
-    if is_legacy && matches!(object.get("type").and_then(Value::as_str), Some("source")) {
-        if object.get("sourceId").is_none() {
-            if let Some(source_id) = object.get("id").cloned() {
-                object.insert("sourceId".to_string(), source_id);
-            }
-        }
-    }
-
-    object.insert("id".to_string(), Value::String(part_id.to_string()));
-
-    if !has_session_id {
-        object.insert(
-            "sessionID".to_string(),
-            Value::String(session_id.to_string()),
-        );
-    }
-    if !has_message_id {
-        object.insert(
-            "messageID".to_string(),
-            Value::String(message_id.to_string()),
-        );
-    }
-
-    value
 }

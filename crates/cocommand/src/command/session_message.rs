@@ -147,7 +147,7 @@ mod tests {
     use tempfile::tempdir;
 
     use crate::bus::Bus;
-    use crate::message::{MessagePart, ReasoningPart, TextPart};
+    use crate::message::{MessagePart, ReasoningPart, TextPart, ToolState};
     use crate::session::SessionContext;
     use crate::session::SessionManager;
     use crate::workspace::WorkspaceInstance;
@@ -423,10 +423,13 @@ mod tests {
 
         assert!(matches!(
             state.mapped_parts().first(),
-            Some(MessagePart::ToolError(part))
+            Some(MessagePart::Tool(part))
             if part.call_id == "call_1"
-                && part.tool_name == "test_tool"
-                && part.error == serde_json::json!({"message": "failed"})
+                && part.tool == "test_tool"
+                && matches!(
+                    &part.state,
+                    ToolState::Error(state) if state.error == "{\"message\":\"failed\"}"
+                )
         ));
     }
 

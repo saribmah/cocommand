@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
+use serde_json::{Map, Value};
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -26,9 +26,7 @@ impl PartBase {
 pub enum MessagePart {
     Text(TextPart),
     Reasoning(ReasoningPart),
-    ToolCall(ToolCallPart),
-    ToolResult(ToolResultPart),
-    ToolError(ToolErrorPart),
+    Tool(ToolPart),
     Source(SourcePart),
     File(FilePart),
 }
@@ -38,9 +36,7 @@ impl MessagePart {
         match self {
             MessagePart::Text(part) => &part.base,
             MessagePart::Reasoning(part) => &part.base,
-            MessagePart::ToolCall(part) => &part.base,
-            MessagePart::ToolResult(part) => &part.base,
-            MessagePart::ToolError(part) => &part.base,
+            MessagePart::Tool(part) => &part.base,
             MessagePart::Source(part) => &part.base,
             MessagePart::File(part) => &part.base,
         }
@@ -50,9 +46,7 @@ impl MessagePart {
         match self {
             MessagePart::Text(part) => &mut part.base,
             MessagePart::Reasoning(part) => &mut part.base,
-            MessagePart::ToolCall(part) => &mut part.base,
-            MessagePart::ToolResult(part) => &mut part.base,
-            MessagePart::ToolError(part) => &mut part.base,
+            MessagePart::Tool(part) => &mut part.base,
             MessagePart::Source(part) => &mut part.base,
             MessagePart::File(part) => &mut part.base,
         }
@@ -79,31 +73,74 @@ pub struct ReasoningPart {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct ToolCallPart {
-    #[serde(flatten)]
-    pub base: PartBase,
-    pub call_id: String,
-    pub tool_name: String,
-    pub input: Value,
+#[serde(tag = "status", rename_all = "lowercase")]
+pub enum ToolState {
+    Pending(ToolStatePending),
+    Running(ToolStateRunning),
+    Completed(ToolStateCompleted),
+    Error(ToolStateError),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct ToolResultPart {
-    #[serde(flatten)]
-    pub base: PartBase,
-    pub call_id: String,
-    pub tool_name: String,
-    pub output: Value,
-    pub is_error: bool,
+pub struct ToolStatePending {
+    pub input: Map<String, Value>,
+    pub raw: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct ToolErrorPart {
+pub struct ToolStateRunning {
+    pub input: Map<String, Value>,
+    pub title: Option<String>,
+    pub metadata: Option<Map<String, Value>>,
+    pub time: ToolStateTimeStart,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ToolStateCompleted {
+    pub input: Map<String, Value>,
+    pub output: String,
+    pub title: String,
+    pub metadata: Map<String, Value>,
+    pub time: ToolStateTimeCompleted,
+    pub attachments: Option<Vec<FilePart>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ToolStateError {
+    pub input: Map<String, Value>,
+    pub error: String,
+    pub metadata: Option<Map<String, Value>>,
+    pub time: ToolStateTimeRange,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ToolStateTimeStart {
+    pub start: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ToolStateTimeRange {
+    pub start: u64,
+    pub end: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ToolStateTimeCompleted {
+    pub start: u64,
+    pub end: u64,
+    pub compacted: Option<u64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ToolPart {
     #[serde(flatten)]
     pub base: PartBase,
+    #[serde(rename = "callID", alias = "call_id")]
     pub call_id: String,
-    pub tool_name: String,
-    pub error: Value,
+    pub tool: String,
+    pub state: ToolState,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub metadata: Option<Map<String, Value>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

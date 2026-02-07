@@ -1,14 +1,19 @@
+use std::collections::HashMap;
+
 use crate::bus::Bus;
 use crate::command::session_message::SessionCommandPartUpdatedEvent;
 use crate::error::{CoreError, CoreResult};
 use crate::message::parts::{
-    FilePart, MessagePart, PartBase, ReasoningPart, SourcePart, TextPart, ToolCallPart,
-    ToolErrorPart, ToolResultPart,
+    FilePart, MessagePart, PartBase, ReasoningPart, SourcePart, TextPart, ToolPart, ToolState,
+    ToolStateCompleted, ToolStateError, ToolStateRunning, ToolStateTimeCompleted,
+    ToolStateTimeRange, ToolStateTimeStart,
 };
 use crate::message::Message;
 use crate::storage::SharedStorage;
+use crate::utils::time::now_secs;
 use llm_kit_core::stream_text::TextStreamPart;
 use llm_kit_provider::language_model::content::source::LanguageModelSource;
+use serde_json::{Map, Value};
 use tokio_stream::StreamExt;
 
 #[derive(Debug, Default, Clone)]
@@ -17,7 +22,14 @@ pub(crate) struct StreamProcessor {
     current_text: String,
     current_reasoning_id: Option<String>,
     current_reasoning: String,
+    tool_calls: HashMap<String, ActiveToolCall>,
     mapped_parts: Vec<MessagePart>,
+}
+
+#[derive(Debug, Clone)]
+struct ActiveToolCall {
+    input: Map<String, Value>,
+    start: u64,
 }
 
 pub(crate) struct StorePartContext<'a> {
@@ -108,37 +120,87 @@ impl StreamProcessor {
                 .await?;
             }
             TextStreamPart::ToolCall { tool_call } => {
+                let start = now_secs();
+                let input = value_to_record(tool_call.input);
+                self.tool_calls.insert(
+                    tool_call.tool_call_id.clone(),
+                    ActiveToolCall {
+                        input: input.clone(),
+                        start,
+                    },
+                );
                 self.store_part(
-                    MessagePart::ToolCall(ToolCallPart {
+                    MessagePart::Tool(ToolPart {
                         base: PartBase::new(context.session_id, context.message_id),
                         call_id: tool_call.tool_call_id,
-                        tool_name: tool_call.tool_name,
-                        input: tool_call.input,
+                        tool: tool_call.tool_name,
+                        state: ToolState::Running(ToolStateRunning {
+                            input,
+                            title: None,
+                            metadata: None,
+                            time: ToolStateTimeStart { start },
+                        }),
+                        metadata: None,
                     }),
                     context,
                 )
                 .await?;
             }
             TextStreamPart::ToolResult { tool_result } => {
+                let end = now_secs();
+                let call_id = tool_result.tool_call_id;
+                let tool = tool_result.tool_name;
+                let output = value_to_string(&tool_result.output);
+                let (input, start) = self
+                    .tool_calls
+                    .remove(&call_id)
+                    .map(|active| (active.input, active.start))
+                    .unwrap_or_else(|| (Map::new(), end));
                 self.store_part(
-                    MessagePart::ToolResult(ToolResultPart {
+                    MessagePart::Tool(ToolPart {
                         base: PartBase::new(context.session_id, context.message_id),
-                        call_id: tool_result.tool_call_id,
-                        tool_name: tool_result.tool_name,
-                        output: tool_result.output,
-                        is_error: false,
+                        call_id,
+                        tool: tool.clone(),
+                        state: ToolState::Completed(ToolStateCompleted {
+                            input,
+                            output,
+                            title: tool,
+                            metadata: Map::new(),
+                            time: ToolStateTimeCompleted {
+                                start,
+                                end,
+                                compacted: None,
+                            },
+                            attachments: None,
+                        }),
+                        metadata: None,
                     }),
                     context,
                 )
                 .await?;
             }
             TextStreamPart::ToolError { tool_error } => {
+                let end = now_secs();
+                let call_id = tool_error.tool_call_id;
+                let tool = tool_error.tool_name;
+                let error = value_to_string(&tool_error.error);
+                let (input, start) = self
+                    .tool_calls
+                    .remove(&call_id)
+                    .map(|active| (active.input, active.start))
+                    .unwrap_or_else(|| (Map::new(), end));
                 self.store_part(
-                    MessagePart::ToolError(ToolErrorPart {
+                    MessagePart::Tool(ToolPart {
                         base: PartBase::new(context.session_id, context.message_id),
-                        call_id: tool_error.tool_call_id,
-                        tool_name: tool_error.tool_name,
-                        error: tool_error.error,
+                        call_id,
+                        tool,
+                        state: ToolState::Error(ToolStateError {
+                            input,
+                            error,
+                            metadata: None,
+                            time: ToolStateTimeRange { start, end },
+                        }),
+                        metadata: None,
                     }),
                     context,
                 )
@@ -288,5 +350,23 @@ fn map_source_to_part(
             media_type: Some(media_type.clone()),
             filename: filename.clone(),
         },
+    }
+}
+
+fn value_to_record(value: Value) -> Map<String, Value> {
+    match value {
+        Value::Object(object) => object,
+        other => {
+            let mut wrapped = Map::new();
+            wrapped.insert("value".to_string(), other);
+            wrapped
+        }
+    }
+}
+
+fn value_to_string(value: &Value) -> String {
+    match value {
+        Value::String(text) => text.clone(),
+        other => serde_json::to_string(other).unwrap_or_else(|_| "null".to_string()),
     }
 }

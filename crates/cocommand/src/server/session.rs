@@ -14,7 +14,7 @@ use tokio_stream::wrappers::UnboundedReceiverStream;
 use uuid::Uuid;
 
 use crate::command::session_message::{
-    run_session_command, SessionCommandInput, SessionCommandContextEvent,
+    run_session_command, SessionCommandContextEvent, SessionCommandInput,
     SessionCommandPartUpdatedEvent,
 };
 use crate::message::parts::MessagePart;
