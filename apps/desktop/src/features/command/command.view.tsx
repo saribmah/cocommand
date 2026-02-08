@@ -566,7 +566,7 @@ export function CommandView() {
               <HintItem label="Command" keyHint={<KeyHint keys="/" />} />
             </>
           }
-          right={<CloseButton keyLabel="⎋" onClick={dismiss} />}
+          right={<CloseButton keyLabel="esc" onClick={dismiss} />}
         />
       </FooterArea>
       </CommandPaletteShell>

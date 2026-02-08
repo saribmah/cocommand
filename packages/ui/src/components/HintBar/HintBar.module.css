@@ -4,9 +4,8 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  min-height: 29px;
+  min-height: 45px;
   padding: 2px 8px;
-  margin-inline: -6px;
   margin-bottom: -6px;
   border-radius: 10px;
   border: 1px solid rgba(255, 255, 255, 0.033);
