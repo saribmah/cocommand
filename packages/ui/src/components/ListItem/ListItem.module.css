@@ -3,11 +3,11 @@
   grid-template-columns: auto 1fr auto;
   align-items: center;
   gap: var(--cc-space-3);
-  padding: 10px var(--cc-space-4);
+  padding: 9px var(--cc-space-4);
   border-radius: var(--cc-radius-card);
   background: transparent;
   border: 1px solid transparent;
-  transition: background 120ms ease, border-color 120ms ease;
+  transition: background 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
   cursor: pointer;
 }
 
@@ -19,16 +19,22 @@
 .selected {
   background: linear-gradient(
     180deg,
-    rgba(255, 255, 255, 0.08),
-    rgba(255, 255, 255, 0.04)
+    rgba(255, 255, 255, 0.055),
+    rgba(255, 255, 255, 0.022)
   );
-  border-color: var(--cc-border-strong);
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
 .icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  transition: transform 120ms ease;
+}
+
+.selected .icon > * {
+  transform: scale(0.9);
 }
 
 .content {
