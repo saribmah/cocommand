@@ -30,7 +30,7 @@ export const createExtensionStore = (getServer: () => ServerInfo | null) => {
         return;
       }
 
-      const url = buildServerUrl(server.addr, "/workspace/applications");
+      const url = buildServerUrl(server.addr, "/workspace/extensions");
       try {
         const response = await fetch(url);
         if (!response.ok) {

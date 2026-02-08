@@ -258,6 +258,12 @@ mod tests {
             .await
             .expect("text delta");
 
+        assert_eq!(state.mapped_parts().len(), 1);
+        assert!(matches!(
+            state.mapped_parts().first(),
+            Some(MessagePart::Text(TextPart { text, .. })) if text == "hello"
+        ));
+
         state
             .on_part(
                 TextStreamPart::TextEnd {

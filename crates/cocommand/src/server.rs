@@ -52,7 +52,7 @@ impl Server {
             .route("/events", get(events::stream_events))
             .route("/sessions/command", post(session::session_command))
             .route("/sessions/context", get(session::session_context))
-            .route("/workspace/applications", get(extension::list_applications))
+            .route("/workspace/extensions", get(extension::list_extensions))
             .route(
                 "/workspace/applications/open",
                 post(extension::open_application),

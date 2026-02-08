@@ -1,11 +1,7 @@
 import { create } from "zustand";
 import type { ServerInfo } from "../../lib/ipc";
-import type {
-  MessagePart,
-  RecordMessageResponse,
-  SessionContext,
-  StreamEvent,
-} from "./session.types";
+import type { MessagePart, RecordMessageResponse } from "../command/command.types";
+import type { SessionContext, StreamEvent } from "./session.types";
 
 export interface SessionState {
   context: SessionContext | null;

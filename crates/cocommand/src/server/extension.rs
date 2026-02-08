@@ -9,16 +9,16 @@ use crate::extension::{Extension, ExtensionContext, ExtensionKind, ExtensionTool
 use crate::server::ServerState;
 
 #[derive(Debug, Serialize)]
-pub struct ApplicationInfo {
+pub struct ExtensionInfo {
     pub id: String,
     pub name: String,
     pub kind: String,
     pub tags: Vec<String>,
-    pub tools: Vec<ApplicationToolInfo>,
+    pub tools: Vec<ExtensionToolInfo>,
 }
 
 #[derive(Debug, Serialize)]
-pub struct ApplicationToolInfo {
+pub struct ExtensionToolInfo {
     pub id: String,
     pub name: String,
     pub description: Option<String>,
@@ -30,14 +30,14 @@ pub struct OpenApplicationRequest {
     pub id: String,
 }
 
-pub(crate) async fn list_applications(
+pub(crate) async fn list_extensions(
     State(state): State<Arc<ServerState>>,
-) -> Json<Vec<ApplicationInfo>> {
+) -> Json<Vec<ExtensionInfo>> {
     let registry = state.workspace.extension_registry.read().await;
     let apps = registry
         .list()
         .into_iter()
-        .map(|app| map_application(app.as_ref()))
+        .map(|app| map_extension(app.as_ref()))
         .collect();
     Json(apps)
 }
@@ -94,8 +94,8 @@ pub(crate) async fn open_application(
     Ok(Json(output))
 }
 
-fn map_application(app: &dyn Extension) -> ApplicationInfo {
-    ApplicationInfo {
+fn map_extension(app: &dyn Extension) -> ExtensionInfo {
+    ExtensionInfo {
         id: app.id().to_string(),
         name: app.name().to_string(),
         kind: map_kind(app.kind()),
@@ -104,8 +104,8 @@ fn map_application(app: &dyn Extension) -> ApplicationInfo {
     }
 }
 
-fn map_tool(tool: ExtensionTool) -> ApplicationToolInfo {
-    ApplicationToolInfo {
+fn map_tool(tool: ExtensionTool) -> ExtensionToolInfo {
+    ExtensionToolInfo {
         id: tool.id,
         name: tool.name,
         description: tool.description,

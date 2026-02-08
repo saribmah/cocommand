@@ -1,6 +1,7 @@
 import { useCallback, useState } from "react";
 import { hideWindow, openSettingsWindow } from "../../lib/ipc";
-import type { MessagePart, StreamEvent } from "../session/session.types";
+import type { StreamEvent } from "../session/session.types";
+import type { MessagePart } from "./command.types";
 
 export interface CommandBarState {
   input: string;

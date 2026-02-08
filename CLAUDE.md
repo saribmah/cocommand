@@ -68,7 +68,7 @@ bun tauri build
 **HTTP Server** (`server.rs`) - Axum-based REST API on port 4840:
 - `POST /sessions/command` - Process user commands
 - `GET /sessions/context` - Session context
-- `GET /workspace/applications` - List applications
+- `GET /workspace/extensions` - List extensions 
 - `POST /workspace/applications/open` - Open application
 - `GET /events` - SSE event stream
 

@@ -19,18 +19,12 @@ use tokio_stream::StreamExt;
 #[derive(Debug, Default, Clone)]
 pub(crate) struct StreamProcessor {
     current_text_id: Option<String>,
+    current_text_part_id: Option<String>,
     current_text: String,
     current_reasoning_id: Option<String>,
     current_reasoning: String,
-    tool_calls: HashMap<String, ActiveToolCall>,
+    tool_calls: HashMap<String, ToolPart>,
     mapped_parts: Vec<MessagePart>,
-}
-
-#[derive(Debug, Clone)]
-struct ActiveToolCall {
-    input: Map<String, Value>,
-    start: u64,
-    part_id: String,
 }
 
 pub(crate) struct StorePartContext<'a> {
@@ -77,6 +71,7 @@ impl StreamProcessor {
             TextStreamPart::TextDelta { id, text, .. } => {
                 self.switch_text_segment_if_needed(id, context).await?;
                 self.current_text.push_str(&text);
+                self.upsert_text_part(context).await?;
             }
             TextStreamPart::TextEnd { id, .. } => {
                 self.switch_text_segment_if_needed(id, context).await?;
@@ -123,108 +118,100 @@ impl StreamProcessor {
             TextStreamPart::ToolCall { tool_call } => {
                 let start = now_secs();
                 let input = value_to_record(tool_call.input);
-                let base = PartBase::new(context.session_id, context.message_id);
-                let part_id = base.id.clone();
-                self.tool_calls.insert(
-                    tool_call.tool_call_id.clone(),
-                    ActiveToolCall {
-                        input: input.clone(),
-                        start,
-                        part_id,
-                    },
-                );
-                self.store_part(
-                    MessagePart::Tool(ToolPart {
-                        base,
-                        call_id: tool_call.tool_call_id,
-                        tool: tool_call.tool_name,
-                        state: ToolState::Running(ToolStateRunning {
-                            input,
-                            title: None,
-                            metadata: None,
-                            time: ToolStateTimeStart { start },
-                        }),
+                let tool_part = ToolPart {
+                    base: PartBase::new(context.session_id, context.message_id),
+                    call_id: tool_call.tool_call_id,
+                    tool: tool_call.tool_name,
+                    state: ToolState::Running(ToolStateRunning {
+                        input,
+                        title: None,
                         metadata: None,
+                        time: ToolStateTimeStart { start },
                     }),
-                    context,
-                )
-                .await?;
+                    metadata: None,
+                };
+                self.tool_calls
+                    .insert(tool_part.call_id.clone(), tool_part.clone());
+                self.store_part(MessagePart::Tool(tool_part), context)
+                    .await?;
             }
             TextStreamPart::ToolResult { tool_result } => {
                 let end = now_secs();
                 let call_id = tool_result.tool_call_id;
                 let tool = tool_result.tool_name;
+                let fallback_input = value_to_record(tool_result.input);
                 let output = value_to_string(&tool_result.output);
-                let (input, start, part_id) = self
+                let mut tool_part = self
                     .tool_calls
                     .remove(&call_id)
-                    .map(|active| (active.input, active.start, Some(active.part_id)))
-                    .unwrap_or_else(|| (Map::new(), end, None));
-                let base = part_id.map_or_else(
-                    || PartBase::new(context.session_id, context.message_id),
-                    |id| PartBase {
-                        id,
-                        session_id: context.session_id.to_string(),
-                        message_id: context.message_id.to_string(),
-                    },
-                );
-                self.store_part(
-                    MessagePart::Tool(ToolPart {
-                        base,
-                        call_id,
+                    .unwrap_or_else(|| ToolPart {
+                        base: PartBase::new(context.session_id, context.message_id),
+                        call_id: call_id.clone(),
                         tool: tool.clone(),
-                        state: ToolState::Completed(ToolStateCompleted {
-                            input,
-                            output,
-                            title: tool,
-                            metadata: Map::new(),
-                            time: ToolStateTimeCompleted {
-                                start,
-                                end,
-                                compacted: None,
-                            },
-                            attachments: None,
+                        state: ToolState::Running(ToolStateRunning {
+                            input: fallback_input.clone(),
+                            title: None,
+                            metadata: None,
+                            time: ToolStateTimeStart { start: end },
                         }),
                         metadata: None,
-                    }),
-                    context,
-                )
-                .await?;
+                    });
+                let (input, start) = tool_state_input_and_start(&tool_part.state, end);
+                tool_part.tool = tool.clone();
+                tool_part.state = ToolState::Completed(ToolStateCompleted {
+                    input: if input.is_empty() {
+                        fallback_input
+                    } else {
+                        input
+                    },
+                    output,
+                    title: tool,
+                    metadata: Map::new(),
+                    time: ToolStateTimeCompleted {
+                        start,
+                        end,
+                        compacted: None,
+                    },
+                    attachments: None,
+                });
+                self.store_part(MessagePart::Tool(tool_part), context)
+                    .await?;
             }
             TextStreamPart::ToolError { tool_error } => {
                 let end = now_secs();
                 let call_id = tool_error.tool_call_id;
                 let tool = tool_error.tool_name;
+                let fallback_input = value_to_record(tool_error.input);
                 let error = value_to_string(&tool_error.error);
-                let (input, start, part_id) = self
+                let mut tool_part = self
                     .tool_calls
                     .remove(&call_id)
-                    .map(|active| (active.input, active.start, Some(active.part_id)))
-                    .unwrap_or_else(|| (Map::new(), end, None));
-                let base = part_id.map_or_else(
-                    || PartBase::new(context.session_id, context.message_id),
-                    |id| PartBase {
-                        id,
-                        session_id: context.session_id.to_string(),
-                        message_id: context.message_id.to_string(),
-                    },
-                );
-                self.store_part(
-                    MessagePart::Tool(ToolPart {
-                        base,
-                        call_id,
-                        tool,
-                        state: ToolState::Error(ToolStateError {
-                            input,
-                            error,
+                    .unwrap_or_else(|| ToolPart {
+                        base: PartBase::new(context.session_id, context.message_id),
+                        call_id: call_id.clone(),
+                        tool: tool.clone(),
+                        state: ToolState::Running(ToolStateRunning {
+                            input: fallback_input.clone(),
+                            title: None,
                             metadata: None,
-                            time: ToolStateTimeRange { start, end },
+                            time: ToolStateTimeStart { start: end },
                         }),
                         metadata: None,
-                    }),
-                    context,
-                )
-                .await?;
+                    });
+                let (input, start) = tool_state_input_and_start(&tool_part.state, end);
+                tool_part.tool = tool;
+                tool_part.state = ToolState::Error(ToolStateError {
+                    input: if input.is_empty() {
+                        fallback_input
+                    } else {
+                        input
+                    },
+                    error,
+                    metadata: None,
+                    time: ToolStateTimeRange { start, end },
+                });
+                self.store_part(MessagePart::Tool(tool_part), context)
+                    .await?;
             }
             TextStreamPart::ToolOutputDenied { .. } => {}
             TextStreamPart::ToolApprovalRequest { .. } => {}
@@ -262,20 +249,11 @@ impl StreamProcessor {
         &self.mapped_parts
     }
 
-    async fn flush_text(&mut self, context: &StorePartContext<'_>) -> CoreResult<()> {
+    async fn flush_text(&mut self, _context: &StorePartContext<'_>) -> CoreResult<()> {
         self.current_text_id = None;
-        if self.current_text.is_empty() {
-            return Ok(());
-        }
-        let text = std::mem::take(&mut self.current_text);
-        self.store_part(
-            MessagePart::Text(TextPart {
-                base: PartBase::new(context.session_id, context.message_id),
-                text,
-            }),
-            context,
-        )
-        .await
+        self.current_text_part_id = None;
+        self.current_text.clear();
+        Ok(())
     }
 
     async fn flush_reasoning(&mut self, context: &StorePartContext<'_>) -> CoreResult<()> {
@@ -319,6 +297,32 @@ impl StreamProcessor {
             self.mapped_parts.push(part);
         }
         Ok(())
+    }
+
+    async fn upsert_text_part(&mut self, context: &StorePartContext<'_>) -> CoreResult<()> {
+        if self.current_text.is_empty() {
+            return Ok(());
+        }
+        let part_id = if let Some(id) = &self.current_text_part_id {
+            id.clone()
+        } else {
+            let base = PartBase::new(context.session_id, context.message_id);
+            let id = base.id;
+            self.current_text_part_id = Some(id.clone());
+            id
+        };
+        self.store_part(
+            MessagePart::Text(TextPart {
+                base: PartBase {
+                    id: part_id,
+                    session_id: context.session_id.to_string(),
+                    message_id: context.message_id.to_string(),
+                },
+                text: self.current_text.clone(),
+            }),
+            context,
+        )
+        .await
     }
 
     async fn switch_text_segment_if_needed(
@@ -396,5 +400,14 @@ fn value_to_string(value: &Value) -> String {
     match value {
         Value::String(text) => text.clone(),
         other => serde_json::to_string(other).unwrap_or_else(|_| "null".to_string()),
+    }
+}
+
+fn tool_state_input_and_start(state: &ToolState, fallback_start: u64) -> (Map<String, Value>, u64) {
+    match state {
+        ToolState::Pending(state) => (state.input.clone(), fallback_start),
+        ToolState::Running(state) => (state.input.clone(), state.time.start),
+        ToolState::Completed(state) => (state.input.clone(), state.time.start),
+        ToolState::Error(state) => (state.input.clone(), state.time.start),
     }
 }

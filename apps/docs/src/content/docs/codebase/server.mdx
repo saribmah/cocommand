@@ -23,7 +23,7 @@ The server is the runtime entrypoint for the backend. It owns the HTTP API, syst
 - `GET /events` -> SSE stream of bus events.
 - `POST /sessions/command` -> store user message, run LLM, store assistant response.
 - `GET /sessions/context` -> current session metadata.
-- `GET /workspace/applications` -> list all applications.
+- `GET /workspace/extensions` -> list all extensions.
 - `POST /workspace/applications/open` -> open app and mark it active in the session.
 
 ## Key types

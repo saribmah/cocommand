@@ -44,7 +44,7 @@ import { useExtensionContext } from "../extension/extension.context";
 import { useSessionContext } from "../session/session.context";
 import { useServerContext } from "../server/server.context";
 import { useCommandBar } from "./commandbar";
-import type { SourcePart, ToolPart } from "../session/session.types";
+import type { SourcePart, ToolPart } from "./command.types";
 import styles from "./command.module.css";
 
 function getMentionState(text: string): { query: string; start: number } | null {
@@ -144,6 +144,7 @@ function matchScore(query: string, name: string, id: string, kind: string): numb
 }
 
 type ToolCardState = "pending" | "running" | "success" | "error";
+type FilterTab = "recent" | "extensions" | "commands";
 
 function formatPayload(value: unknown): string | undefined {
   if (value === undefined) return undefined;
@@ -197,9 +198,20 @@ function formatFileType(mediaType?: string | null): string | undefined {
   return bits[1].toUpperCase();
 }
 
+function appendMention(text: string, name: string): string {
+  const separator = text.length === 0 || text.endsWith(" ") ? "" : " ";
+  return `${text}${separator}@${name} `;
+}
+
+function appendSlashCommand(text: string, id: string): string {
+  const separator = text.length === 0 || text.endsWith(" ") ? "" : " ";
+  return `${text}${separator}/${id} `;
+}
+
 export function CommandView() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputId = useId();
+  const [activeTab, setActiveTab] = useState<FilterTab>("recent");
   const [mentionIndex, setMentionIndex] = useState(0);
   const [slashIndex, setSlashIndex] = useState(0);
   const sendMessage = useSessionContext((state) => state.sendMessage);
@@ -254,8 +266,11 @@ export function CommandView() {
   }, [parts]);
 
   const filteredExtensions = useMemo(() => {
-    if (!mentionState) return [];
-    const query = normalizeQuery(mentionState.query);
+    const query = mentionState ? normalizeQuery(mentionState.query) : "";
+    if (!mentionState && activeTab !== "extensions") return [];
+    if (!mentionState) {
+      return [...extensions].sort((a, b) => a.name.localeCompare(b.name));
+    }
     const ranked = extensions
       .map((extension) => ({
         extension,
@@ -264,7 +279,7 @@ export function CommandView() {
       .filter((entry) => (query.length === 0 ? true : entry.score >= 0))
       .sort((a, b) => b.score - a.score);
     return ranked.slice(0, 8).map((entry) => entry.extension);
-  }, [extensions, mentionState]);
+  }, [activeTab, extensions, mentionState]);
 
   useEffect(() => {
     if (mentionState) {
@@ -279,7 +294,8 @@ export function CommandView() {
   }, [slashState?.query, slashState?.start]);
 
   const filteredSlashCommands = useMemo(() => {
-    if (!slashState) return [];
+    if (!slashState && activeTab !== "commands") return [];
+    if (!slashState) return slashCommands;
     const query = normalizeQuery(slashState.query);
     const ranked = slashCommands
       .map((command) => ({
@@ -289,10 +305,13 @@ export function CommandView() {
       .filter((entry) => (query.length === 0 ? true : entry.score >= 0))
       .sort((a, b) => b.score - a.score);
     return ranked.slice(0, 6).map((entry) => entry.command);
-  }, [slashCommands, slashState]);
+  }, [activeTab, slashCommands, slashState]);
+
+  const showExtensionsList = filteredExtensions.length > 0;
+  const showCommandsList = !showExtensionsList && filteredSlashCommands.length > 0;
 
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (mentionState && filteredExtensions.length > 0) {
+    if (showExtensionsList && filteredExtensions.length > 0) {
       if (e.key === "ArrowDown") {
         e.preventDefault();
         setMentionIndex((idx) => (idx + 1) % filteredExtensions.length);
@@ -309,14 +328,16 @@ export function CommandView() {
         e.preventDefault();
         const selected = filteredExtensions[mentionIndex];
         if (selected) {
-          const nextValue = applyMention(input, mentionState, selected.name);
+          const nextValue = mentionState
+            ? applyMention(input, mentionState, selected.name)
+            : appendMention(input, selected.name);
           setInput(nextValue);
         }
         return;
       }
     }
 
-    if (!mentionState && slashState && filteredSlashCommands.length > 0) {
+    if (showCommandsList && filteredSlashCommands.length > 0) {
       if (e.key === "ArrowDown") {
         e.preventDefault();
         setSlashIndex((idx) => (idx + 1) % filteredSlashCommands.length);
@@ -331,10 +352,11 @@ export function CommandView() {
       }
       if (e.key === "Enter") {
         const selected = filteredSlashCommands[slashIndex];
-        const trimmed = input.trim();
-        if (selected && trimmed !== `/${selected.id}`) {
+        if (selected) {
           e.preventDefault();
-          const nextValue = applySlashCommand(input, slashState, selected.id);
+          const nextValue = slashState
+            ? applySlashCommand(input, slashState, selected.id)
+            : appendSlashCommand(input, selected.id);
           setInput(nextValue);
           return;
         }
@@ -368,8 +390,6 @@ export function CommandView() {
     }
   };
 
-  const showMentionList = mentionState && filteredExtensions.length > 0;
-  const showSlashList = !mentionState && slashState && filteredSlashCommands.length > 0;
   const showResponses = parts.length > 0 || !!error;
 
   return (
@@ -402,9 +422,24 @@ export function CommandView() {
       <FilterArea>
         <div className={styles.filterRow}>
           <ChipGroup>
-            <Chip label="Recent" active={!mentionState && !slashState} />
-            <Chip label="Extensions" active={!!mentionState} />
-            <Chip label="Commands" active={!!slashState && !mentionState} />
+            <Chip
+              label="Recent"
+              active={activeTab === "recent" && !mentionState && !slashState}
+              onClick={() => setActiveTab("recent")}
+            />
+            <Chip
+              label="Extensions"
+              active={activeTab === "extensions" || !!mentionState}
+              onClick={() => {
+                setActiveTab("extensions");
+                fetchExtensions();
+              }}
+            />
+            <Chip
+              label="Commands"
+              active={activeTab === "commands" || (!!slashState && !mentionState)}
+              onClick={() => setActiveTab("commands")}
+            />
           </ChipGroup>
           {isSubmitting ? <Badge>Working...</Badge> : null}
         </div>
@@ -412,7 +447,7 @@ export function CommandView() {
 
       <ContentArea className={styles.content}>
         <div className={styles.scrollArea} ref={scrollRef}>
-          {showMentionList ? (
+          {showExtensionsList ? (
             <ListSection label="Extensions">
               {filteredExtensions.map((extension, index) => (
                 <ListItem
@@ -427,7 +462,9 @@ export function CommandView() {
                   selected={index === mentionIndex}
                   onMouseDown={(event) => {
                     event.preventDefault();
-                    const nextValue = applyMention(input, mentionState, extension.name);
+                    const nextValue = mentionState
+                      ? applyMention(input, mentionState, extension.name)
+                      : appendMention(input, extension.name);
                     setInput(nextValue);
                   }}
                 />
@@ -435,7 +472,7 @@ export function CommandView() {
             </ListSection>
           ) : null}
 
-          {showSlashList ? (
+          {showCommandsList ? (
             <ListSection label="Commands">
               {filteredSlashCommands.map((command, index) => (
                 <ListItem
@@ -451,7 +488,9 @@ export function CommandView() {
                   selected={index === slashIndex}
                   onMouseDown={(event) => {
                     event.preventDefault();
-                    const nextValue = applySlashCommand(input, slashState, command.id);
+                    const nextValue = slashState
+                      ? applySlashCommand(input, slashState, command.id)
+                      : appendSlashCommand(input, command.id);
                     setInput(nextValue);
                   }}
                 />
@@ -459,7 +498,7 @@ export function CommandView() {
             </ListSection>
           ) : null}
 
-          {(showMentionList || showSlashList) && showResponses ? <Divider /> : null}
+          {(showExtensionsList || showCommandsList) && showResponses ? <Divider /> : null}
 
           {showResponses ? (
             <ResponseStack>
@@ -503,7 +542,7 @@ export function CommandView() {
                 }
               })}
             </ResponseStack>
-          ) : !showMentionList && !showSlashList ? (
+          ) : !showExtensionsList && !showCommandsList ? (
             <Text size="sm" tone="secondary">
               Type a command, use @ to target an extension, or / for shortcuts.
             </Text>
