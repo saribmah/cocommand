@@ -7,8 +7,8 @@
   --cc-surface-secondary: #343844;
   --cc-surface-elevated: #3d4150;
 
-  --cc-border-soft: rgba(255, 255, 255, 0.06);
-  --cc-border-strong: rgba(255, 255, 255, 0.12);
+  --cc-border-soft: rgba(255, 255, 255, 0.045);
+  --cc-border-strong: rgba(255, 255, 255, 0.095);
 
   --cc-text-primary: #f1f2f4;
   --cc-text-secondary: #c6c9cf;
@@ -21,11 +21,11 @@
 
   --cc-shadow-panel: 0 34px 80px rgba(6, 10, 18, 0.45), 0 14px 34px rgba(0, 0, 0, 0.24);
   --cc-shadow-soft: 0 14px 34px rgba(6, 10, 18, 0.3);
-  --cc-glow-inset: inset 0 1px 0 rgba(255, 255, 255, 0.05), inset 0 -1px 0 rgba(255, 255, 255, 0.02);
+  --cc-glow-inset: inset 0 1px 0 rgba(255, 255, 255, 0.038), inset 0 -1px 0 rgba(255, 255, 255, 0.015);
 
-  --cc-radius-panel: 18px;
-  --cc-radius-card: 12px;
-  --cc-radius-pill: 8px;
+  --cc-radius-panel: 16px;
+  --cc-radius-card: 10px;
+  --cc-radius-pill: 7px;
 
   --cc-space-1: 4px;
   --cc-space-2: 8px;
