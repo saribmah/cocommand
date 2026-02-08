@@ -59,7 +59,12 @@ export function useCommandBar(sendMessage: SendMessageFn) {
         if (event.event !== "part.updated") return;
         const part = getPartFromEventData(event.data);
         if (!part) return;
-        streamParts.push(part);
+        const existingIndex = findPartIndexToUpdate(streamParts, part);
+        if (existingIndex >= 0) {
+          streamParts[existingIndex] = part;
+        } else {
+          streamParts.push(part);
+        }
         setState((s) => ({ ...s, parts: [...streamParts] }));
       });
 
@@ -115,4 +120,13 @@ function getPartFromEventData(value: unknown): MessagePart | null {
   if (!part || typeof part !== "object") return null;
   if (!("type" in part)) return null;
   return part as MessagePart;
+}
+
+function findPartIndexToUpdate(parts: MessagePart[], nextPart: MessagePart): number {
+  const byId = parts.findIndex((part) => part.id === nextPart.id);
+  if (byId >= 0) return byId;
+  if (nextPart.type !== "tool") return -1;
+  return parts.findIndex(
+    (part) => part.type === "tool" && part.callId === nextPart.callId
+  );
 }
