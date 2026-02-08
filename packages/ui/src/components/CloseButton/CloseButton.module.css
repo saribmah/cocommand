@@ -1,13 +1,19 @@
 .button {
   display: inline-flex;
   align-items: center;
-  gap: var(--cc-space-2);
+  gap: 6px;
   border: 0;
   background: transparent;
   padding: 0;
   cursor: pointer;
+  opacity: 0.85;
 }
 
 .button:hover {
   opacity: 0.9;
+}
+
+.button > span:last-child {
+  font-size: 11px;
+  line-height: 1.1;
 }

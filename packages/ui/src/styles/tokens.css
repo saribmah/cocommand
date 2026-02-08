@@ -3,12 +3,12 @@
 
   --cc-bg-app: #b7b9be;
 
-  --cc-surface-primary: #2f3137;
-  --cc-surface-secondary: #3a3c42;
-  --cc-surface-elevated: #40434a;
+  --cc-surface-primary: #2c2f39;
+  --cc-surface-secondary: #343844;
+  --cc-surface-elevated: #3d4150;
 
-  --cc-border-soft: rgba(255, 255, 255, 0.08);
-  --cc-border-strong: rgba(255, 255, 255, 0.16);
+  --cc-border-soft: rgba(255, 255, 255, 0.06);
+  --cc-border-strong: rgba(255, 255, 255, 0.12);
 
   --cc-text-primary: #f1f2f4;
   --cc-text-secondary: #c6c9cf;
@@ -19,9 +19,9 @@
 
   --cc-accent: #d5d8de;
 
-  --cc-shadow-panel: 0 24px 60px rgba(0, 0, 0, 0.35);
-  --cc-shadow-soft: 0 10px 30px rgba(0, 0, 0, 0.28);
-  --cc-glow-inset: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  --cc-shadow-panel: 0 34px 80px rgba(6, 10, 18, 0.45), 0 14px 34px rgba(0, 0, 0, 0.24);
+  --cc-shadow-soft: 0 14px 34px rgba(6, 10, 18, 0.3);
+  --cc-glow-inset: inset 0 1px 0 rgba(255, 255, 255, 0.05), inset 0 -1px 0 rgba(255, 255, 255, 0.02);
 
   --cc-radius-panel: 18px;
   --cc-radius-card: 12px;
@@ -42,7 +42,7 @@
   --cc-line-tight: 1.2;
   --cc-line-normal: 1.4;
 
-  --cc-surface-gradient: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(0, 0, 0, 0.08));
+  --cc-surface-gradient: linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(0, 0, 0, 0.12));
 }
 
 .cc-theme-dark {

@@ -282,16 +282,16 @@ export function CommandView() {
   }, [activeTab, extensions, mentionState]);
 
   useEffect(() => {
-    if (mentionState) {
+    if (mentionState || activeTab === "extensions") {
       setMentionIndex(0);
     }
-  }, [mentionState?.query, mentionState?.start]);
+  }, [activeTab, mentionState?.query, mentionState?.start]);
 
   useEffect(() => {
-    if (slashState) {
+    if ((!mentionState && slashState) || activeTab === "commands") {
       setSlashIndex(0);
     }
-  }, [slashState?.query, slashState?.start]);
+  }, [activeTab, mentionState, slashState?.query, slashState?.start]);
 
   const filteredSlashCommands = useMemo(() => {
     if (!slashState && activeTab !== "commands") return [];
@@ -307,7 +307,7 @@ export function CommandView() {
     return ranked.slice(0, 6).map((entry) => entry.command);
   }, [activeTab, slashCommands, slashState]);
 
-  const showExtensionsList = filteredExtensions.length > 0;
+  const showExtensionsList = activeTab === "extensions" || !!mentionState;
   const showCommandsList = !showExtensionsList && filteredSlashCommands.length > 0;
 
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
@@ -449,26 +449,32 @@ export function CommandView() {
         <div className={styles.scrollArea} ref={scrollRef}>
           {showExtensionsList ? (
             <ListSection label="Extensions">
-              {filteredExtensions.map((extension, index) => (
-                <ListItem
-                  key={extension.id}
-                  title={extension.name}
-                  subtitle={`${extension.kind} / ${extension.id}`}
-                  icon={
-                    <IconContainer>
-                      <Icon>{ExtensionIcon}</Icon>
-                    </IconContainer>
-                  }
-                  selected={index === mentionIndex}
-                  onMouseDown={(event) => {
-                    event.preventDefault();
-                    const nextValue = mentionState
-                      ? applyMention(input, mentionState, extension.name)
-                      : appendMention(input, extension.name);
-                    setInput(nextValue);
-                  }}
-                />
-              ))}
+              {filteredExtensions.length > 0 ? (
+                filteredExtensions.map((extension, index) => (
+                  <ListItem
+                    key={extension.id}
+                    title={extension.name}
+                    subtitle={`${extension.kind} / ${extension.id}`}
+                    icon={
+                      <IconContainer>
+                        <Icon>{ExtensionIcon}</Icon>
+                      </IconContainer>
+                    }
+                    selected={index === mentionIndex}
+                    onMouseDown={(event) => {
+                      event.preventDefault();
+                      const nextValue = mentionState
+                        ? applyMention(input, mentionState, extension.name)
+                        : appendMention(input, extension.name);
+                      setInput(nextValue);
+                    }}
+                  />
+                ))
+              ) : (
+                <Text size="sm" tone="secondary">
+                  {extensionsLoaded ? "No extensions found." : "Loading extensions..."}
+                </Text>
+              )}
             </ListSection>
           ) : null}
 
@@ -554,13 +560,13 @@ export function CommandView() {
         <HintBar
           left={
             <>
-              <HintItem label="Navigate" keyHint={<KeyHint keys={["Up", "Down"]} />} />
-              <HintItem label="Enter" keyHint={<KeyHint keys="Enter" />} />
+              <HintItem label="Navigate" keyHint={<KeyHint keys={["↑", "↓"]} />} />
+              <HintItem label="Enter" keyHint={<KeyHint keys="↵" />} />
               <HintItem label="Extensions" keyHint={<KeyHint keys="@" />} />
               <HintItem label="Command" keyHint={<KeyHint keys="/" />} />
             </>
           }
-          right={<CloseButton onClick={dismiss} />}
+          right={<CloseButton keyLabel="⎋" onClick={dismiss} />}
         />
       </FooterArea>
       </CommandPaletteShell>

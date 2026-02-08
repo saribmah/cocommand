@@ -1,21 +1,32 @@
 .bar {
   display: flex;
+  width: 100%;
   align-items: center;
   justify-content: space-between;
-  gap: var(--cc-space-3);
-  padding: 6px var(--cc-space-3);
-  border-radius: var(--cc-radius-card);
-  border: 1px solid var(--cc-border-soft);
-  background: rgba(255, 255, 255, 0.025);
-  box-shadow: var(--cc-glow-inset);
+  gap: 10px;
+  min-height: 34px;
+  padding: 3px 9px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: linear-gradient(180deg, rgba(29, 34, 45, 0.54), rgba(22, 27, 37, 0.5));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.02);
+  backdrop-filter: blur(6px);
 }
 
 .group {
   display: inline-flex;
   align-items: center;
-  gap: var(--cc-space-2);
+  gap: 9px;
+  min-width: 0;
+}
+
+.bar > .group:first-child {
+  flex: 1 1 auto;
 }
 
 .right {
   margin-left: auto;
+  flex: 0 0 auto;
 }
