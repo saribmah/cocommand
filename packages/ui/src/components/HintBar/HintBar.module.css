@@ -3,22 +3,24 @@
   width: 100%;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  min-height: 34px;
-  padding: 3px 9px;
-  border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.055);
-  background: linear-gradient(180deg, rgba(29, 34, 45, 0.54), rgba(22, 27, 37, 0.5));
+  gap: 8px;
+  min-height: 29px;
+  padding: 2px 8px;
+  margin-inline: -6px;
+  margin-bottom: -6px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.033);
+  background: linear-gradient(180deg, rgba(27, 32, 42, 0.49), rgba(20, 25, 34, 0.46));
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.03),
-    inset 0 -1px 0 rgba(255, 255, 255, 0.012);
-  backdrop-filter: blur(6px);
+    inset 0 1px 0 rgba(255, 255, 255, 0.022),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.008);
+  backdrop-filter: blur(5px);
 }
 
 .group {
   display: inline-flex;
   align-items: center;
-  gap: 9px;
+  gap: 8px;
   min-width: 0;
 }
 

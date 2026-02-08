@@ -1,8 +1,8 @@
 .item {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  opacity: 0.85;
+  gap: 4px;
+  opacity: 0.82;
 }
 
 .key {
@@ -11,6 +11,6 @@
 }
 
 .item > span {
-  font-size: 11px;
-  line-height: 1.1;
+  font-size: 10px;
+  line-height: 1;
 }
