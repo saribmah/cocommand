@@ -30,6 +30,7 @@ pub(crate) struct StreamProcessor {
 struct ActiveToolCall {
     input: Map<String, Value>,
     start: u64,
+    part_id: String,
 }
 
 pub(crate) struct StorePartContext<'a> {
@@ -122,16 +123,19 @@ impl StreamProcessor {
             TextStreamPart::ToolCall { tool_call } => {
                 let start = now_secs();
                 let input = value_to_record(tool_call.input);
+                let base = PartBase::new(context.session_id, context.message_id);
+                let part_id = base.id.clone();
                 self.tool_calls.insert(
                     tool_call.tool_call_id.clone(),
                     ActiveToolCall {
                         input: input.clone(),
                         start,
+                        part_id,
                     },
                 );
                 self.store_part(
                     MessagePart::Tool(ToolPart {
-                        base: PartBase::new(context.session_id, context.message_id),
+                        base,
                         call_id: tool_call.tool_call_id,
                         tool: tool_call.tool_name,
                         state: ToolState::Running(ToolStateRunning {
@@ -151,14 +155,22 @@ impl StreamProcessor {
                 let call_id = tool_result.tool_call_id;
                 let tool = tool_result.tool_name;
                 let output = value_to_string(&tool_result.output);
-                let (input, start) = self
+                let (input, start, part_id) = self
                     .tool_calls
                     .remove(&call_id)
-                    .map(|active| (active.input, active.start))
-                    .unwrap_or_else(|| (Map::new(), end));
+                    .map(|active| (active.input, active.start, Some(active.part_id)))
+                    .unwrap_or_else(|| (Map::new(), end, None));
+                let base = part_id.map_or_else(
+                    || PartBase::new(context.session_id, context.message_id),
+                    |id| PartBase {
+                        id,
+                        session_id: context.session_id.to_string(),
+                        message_id: context.message_id.to_string(),
+                    },
+                );
                 self.store_part(
                     MessagePart::Tool(ToolPart {
-                        base: PartBase::new(context.session_id, context.message_id),
+                        base,
                         call_id,
                         tool: tool.clone(),
                         state: ToolState::Completed(ToolStateCompleted {
@@ -184,14 +196,22 @@ impl StreamProcessor {
                 let call_id = tool_error.tool_call_id;
                 let tool = tool_error.tool_name;
                 let error = value_to_string(&tool_error.error);
-                let (input, start) = self
+                let (input, start, part_id) = self
                     .tool_calls
                     .remove(&call_id)
-                    .map(|active| (active.input, active.start))
-                    .unwrap_or_else(|| (Map::new(), end));
+                    .map(|active| (active.input, active.start, Some(active.part_id)))
+                    .unwrap_or_else(|| (Map::new(), end, None));
+                let base = part_id.map_or_else(
+                    || PartBase::new(context.session_id, context.message_id),
+                    |id| PartBase {
+                        id,
+                        session_id: context.session_id.to_string(),
+                        message_id: context.message_id.to_string(),
+                    },
+                );
                 self.store_part(
                     MessagePart::Tool(ToolPart {
-                        base: PartBase::new(context.session_id, context.message_id),
+                        base,
                         call_id,
                         tool,
                         state: ToolState::Error(ToolStateError {
@@ -289,7 +309,15 @@ impl StreamProcessor {
             part_id,
             part: part.clone(),
         });
-        self.mapped_parts.push(part);
+        if let Some(index) = self
+            .mapped_parts
+            .iter()
+            .position(|existing| existing.base().id == part.base().id)
+        {
+            self.mapped_parts[index] = part;
+        } else {
+            self.mapped_parts.push(part);
+        }
         Ok(())
     }
 

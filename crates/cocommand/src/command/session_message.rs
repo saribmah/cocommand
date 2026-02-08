@@ -152,7 +152,7 @@ mod tests {
     use crate::session::SessionManager;
     use crate::workspace::WorkspaceInstance;
     use llm_kit_core::stream_text::TextStreamPart;
-    use llm_kit_provider_utils::tool::ToolError;
+    use llm_kit_provider_utils::tool::{ToolCall, ToolError, ToolResult};
 
     #[tokio::test]
     async fn prepare_session_message_stores_user_message() {
@@ -431,6 +431,83 @@ mod tests {
                     ToolState::Error(state) if state.error == "{\"message\":\"failed\"}"
                 )
         ));
+    }
+
+    #[tokio::test]
+    async fn stream_state_updates_tool_part_in_place_on_tool_result() {
+        let dir = tempdir().expect("tempdir");
+        let workspace = Arc::new(WorkspaceInstance::new(dir.path()).await.expect("workspace"));
+        let bus = Bus::new(16);
+        let request_id = "request_1".to_string();
+        let session_id = "session_1".to_string();
+        let assistant = Message::from_parts(&session_id, "assistant", Vec::new());
+        Message::store_info(&workspace.storage, &assistant.info)
+            .await
+            .expect("store info");
+
+        let context = StorePartContext::new(
+            &workspace.storage,
+            &bus,
+            &request_id,
+            &session_id,
+            &assistant.info.id,
+        );
+        let mut state = StreamProcessor::new();
+
+        state
+            .on_part(
+                TextStreamPart::ToolCall {
+                    tool_call: ToolCall::new(
+                        "call_1",
+                        "test_tool",
+                        serde_json::json!({"input": true}),
+                    ),
+                },
+                &context,
+            )
+            .await
+            .expect("tool call");
+
+        let first_part_id = match state.mapped_parts().first() {
+            Some(MessagePart::Tool(part)) => part.base.id.clone(),
+            _ => panic!("expected tool part"),
+        };
+
+        state
+            .on_part(
+                TextStreamPart::ToolResult {
+                    tool_result: ToolResult::new(
+                        "call_1",
+                        "test_tool",
+                        serde_json::json!({"input": true}),
+                        serde_json::json!({"ok": true}),
+                    ),
+                },
+                &context,
+            )
+            .await
+            .expect("tool result");
+
+        assert_eq!(state.mapped_parts().len(), 1);
+        assert!(matches!(
+            state.mapped_parts().first(),
+            Some(MessagePart::Tool(part))
+                if part.base.id == first_part_id
+                    && part.call_id == "call_1"
+                    && part.tool == "test_tool"
+                    && matches!(
+                        &part.state,
+                        ToolState::Completed(state) if state.output == "{\"ok\":true}"
+                    )
+        ));
+
+        let stored_part_ids = workspace
+            .storage
+            .list(&["part", &assistant.info.id])
+            .await
+            .expect("list parts");
+        assert_eq!(stored_part_ids.len(), 1);
+        assert_eq!(stored_part_ids[0], first_part_id);
     }
 
     #[tokio::test]
