@@ -1,10 +1,12 @@
 import { ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { AppPanel, ButtonPrimary, Text } from "@cocommand/ui";
+import { CommandProvider } from "../features/command/command.provider";
 import { ExtensionProvider } from "../features/extension/extension.provider";
 import { FileSystemProvider } from "../features/filesystem/filesystem.provider";
 import { OnboardingProvider } from "../features/onboarding/onboarding.provider";
 import { ServerProvider } from "../features/server/server.provider.tsx";
 import { SessionProvider } from "../features/session/session.provider";
+import { SettingsProvider } from "../features/settings/settings.provider";
 import { WorkspaceProvider } from "../features/workspace/workspace.provider";
 import { getServerInfo, ServerInfo } from "../lib/ipc.ts";
 
@@ -63,13 +65,17 @@ export function AppInit({ children }: AppInitProps) {
   return (
     <ServerProvider serverInfo={serverInfo}>
       <WorkspaceProvider>
-        <FileSystemProvider>
-          <OnboardingProvider>
+        <OnboardingProvider>
+          <FileSystemProvider>
             <SessionProvider>
-              <ExtensionProvider>{children}</ExtensionProvider>
+              <CommandProvider>
+                <SettingsProvider>
+                  <ExtensionProvider>{children}</ExtensionProvider>
+                </SettingsProvider>
+              </CommandProvider>
             </SessionProvider>
-          </OnboardingProvider>
-        </FileSystemProvider>
+          </FileSystemProvider>
+        </OnboardingProvider>
       </WorkspaceProvider>
     </ServerProvider>
   );

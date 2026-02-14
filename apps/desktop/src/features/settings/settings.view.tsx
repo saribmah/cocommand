@@ -1,7 +1,8 @@
 import "@cocommand/ui";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { hideSettingsWindow } from "../../lib/ipc";
 import { useServerContext } from "../server/server.context";
+import { useSettingsContext } from "./settings.context";
 import { useWorkspaceContext } from "../workspace/workspace.context";
 import styles from "./settings.module.css";
 import {
@@ -36,19 +37,18 @@ export function SettingsView() {
   const fetchWorkspaceConfig = useWorkspaceContext((state) => state.fetchConfig);
   const updateWorkspaceConfig = useWorkspaceContext((state) => state.updateConfig);
 
-  const [tab, setTab] = useState<"overview" | "workspace" | "llm">("overview");
-  const [llmForm, setLlmForm] = useState({
-    provider: "openai-compatible",
-    base_url: "",
-    model: "",
-    system_prompt: "",
-    temperature: "0.7",
-    max_output_tokens: "80000",
-    max_steps: "8",
-    api_key: "",
-  });
-  const [llmSaving, setLlmSaving] = useState(false);
-  const [llmToast, setLlmToast] = useState<null | "success" | "error">(null);
+  const tab = useSettingsContext((state) => state.tab);
+  const setTab = useSettingsContext((state) => state.setTab);
+  const llmForm = useSettingsContext((state) => state.llmForm);
+  const setLlmField = useSettingsContext((state) => state.setLlmField);
+  const syncLlmFormFromWorkspace = useSettingsContext(
+    (state) => state.syncLlmFormFromWorkspace
+  );
+  const clearLlmApiKeyInput = useSettingsContext((state) => state.clearLlmApiKeyInput);
+  const llmSaving = useSettingsContext((state) => state.llmSaving);
+  const setLlmSaving = useSettingsContext((state) => state.setLlmSaving);
+  const llmToast = useSettingsContext((state) => state.llmToast);
+  const setLlmToast = useSettingsContext((state) => state.setLlmToast);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -69,21 +69,8 @@ export function SettingsView() {
 
   useEffect(() => {
     if (!workspaceConfig) return;
-    setLlmForm({
-      provider: workspaceConfig.llm.provider,
-      base_url: workspaceConfig.llm.base_url,
-      model: workspaceConfig.llm.model,
-      system_prompt: workspaceConfig.llm.system_prompt,
-      temperature: String(workspaceConfig.llm.temperature ?? 0.7),
-      max_output_tokens: String(workspaceConfig.llm.max_output_tokens ?? 80000),
-      max_steps: String(workspaceConfig.llm.max_steps ?? 8),
-      api_key: "",
-    });
-  }, [workspaceConfig]);
-
-  const handleLlmChange = (field: keyof typeof llmForm, value: string) => {
-    setLlmForm((prev) => ({ ...prev, [field]: value }));
-  };
+    syncLlmFormFromWorkspace(workspaceConfig.llm);
+  }, [workspaceConfig, syncLlmFormFromWorkspace]);
 
   const saveLlmSettings = async () => {
     if (!workspaceConfig) {
@@ -109,7 +96,7 @@ export function SettingsView() {
           api_key: apiKeyInput.length > 0 ? apiKeyInput : workspaceConfig.llm.api_key,
         },
       });
-      setLlmForm((prev) => ({ ...prev, api_key: "" }));
+      clearLlmApiKeyInput();
       setLlmToast("success");
     } catch {
       setLlmToast("error");
@@ -218,28 +205,28 @@ export function SettingsView() {
               <Field label="Provider">
                 <TextInput
                   value={llmForm.provider}
-                  onChange={(event) => handleLlmChange("provider", event.target.value)}
+                  onChange={(event) => setLlmField("provider", event.target.value)}
                   placeholder="openai-compatible"
                 />
               </Field>
               <Field label="Base URL">
                 <TextInput
                   value={llmForm.base_url}
-                  onChange={(event) => handleLlmChange("base_url", event.target.value)}
+                  onChange={(event) => setLlmField("base_url", event.target.value)}
                   placeholder="https://api.openai.com/v1"
                 />
               </Field>
               <Field label="Model">
                 <TextInput
                   value={llmForm.model}
-                  onChange={(event) => handleLlmChange("model", event.target.value)}
+                  onChange={(event) => setLlmField("model", event.target.value)}
                   placeholder="gpt-4o-mini"
                 />
               </Field>
               <Field label="System prompt">
                 <TextArea
                   value={llmForm.system_prompt}
-                  onChange={(event) => handleLlmChange("system_prompt", event.target.value)}
+                  onChange={(event) => setLlmField("system_prompt", event.target.value)}
                   placeholder="You are Cocommand, a helpful command assistant."
                 />
               </Field>
@@ -247,7 +234,7 @@ export function SettingsView() {
                 <FieldRow>
                   <TextInput
                     value={llmForm.temperature}
-                    onChange={(event) => handleLlmChange("temperature", event.target.value)}
+                    onChange={(event) => setLlmField("temperature", event.target.value)}
                     type="number"
                     step="0.1"
                     min="0"
@@ -261,7 +248,7 @@ export function SettingsView() {
               <Field label="Max output tokens">
                 <TextInput
                   value={llmForm.max_output_tokens}
-                  onChange={(event) => handleLlmChange("max_output_tokens", event.target.value)}
+                  onChange={(event) => setLlmField("max_output_tokens", event.target.value)}
                   type="number"
                   min="256"
                 />
@@ -269,7 +256,7 @@ export function SettingsView() {
               <Field label="Max steps">
                 <TextInput
                   value={llmForm.max_steps}
-                  onChange={(event) => handleLlmChange("max_steps", event.target.value)}
+                  onChange={(event) => setLlmField("max_steps", event.target.value)}
                   type="number"
                   min="1"
                 />
@@ -284,7 +271,7 @@ export function SettingsView() {
               >
                 <TextInput
                   value={llmForm.api_key}
-                  onChange={(event) => handleLlmChange("api_key", event.target.value)}
+                  onChange={(event) => setLlmField("api_key", event.target.value)}
                   placeholder={
                     (workspaceConfig?.llm.api_key ?? "").trim().length > 0
                       ? "Configured"

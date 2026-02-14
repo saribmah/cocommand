@@ -44,7 +44,7 @@ import { useExtensionContext } from "../extension/extension.context";
 import { useFileSystemContext } from "../filesystem/filesystem.context";
 import { useSessionContext } from "../session/session.context";
 import { useServerContext } from "../server/server.context";
-import { useCommandBar } from "./commandbar";
+import { useCommandContext } from "./command.context";
 import type { SourcePart, ToolPart } from "./command.types";
 import styles from "./command.module.css";
 
@@ -274,18 +274,16 @@ export function CommandView() {
   const [fileIndex, setFileIndex] = useState(0);
   const [selectedExtensions, setSelectedExtensions] = useState<SelectedExtension[]>([]);
   const [selectedFiles, setSelectedFiles] = useState<SelectedFile[]>([]);
+  const input = useCommandContext((state) => state.input);
+  const setInput = useCommandContext((state) => state.setInput);
+  const isSubmitting = useCommandContext((state) => state.isSubmitting);
+  const parts = useCommandContext((state) => state.parts);
+  const error = useCommandContext((state) => state.error);
+  const setError = useCommandContext((state) => state.setError);
+  const submit = useCommandContext((state) => state.submit);
+  const dismiss = useCommandContext((state) => state.dismiss);
+  const reset = useCommandContext((state) => state.reset);
   const sendMessage = useSessionContext((state) => state.sendMessage);
-  const {
-    input,
-    isSubmitting,
-    parts,
-    error,
-    setInput,
-    setError,
-    submit,
-    dismiss,
-    reset,
-  } = useCommandBar(sendMessage);
   const serverInfo = useServerContext((state) => state.info);
   const extensions = useExtensionContext((state) => state.extensions);
   const extensionsLoaded = useExtensionContext((state) => state.isLoaded);
@@ -556,13 +554,13 @@ export function CommandView() {
     if (showExtensionsList && filteredExtensions.length > 0) {
       if (e.key === "ArrowDown") {
         e.preventDefault();
-        setMentionIndex((idx) => (idx + 1) % filteredExtensions.length);
+        setMentionIndex((mentionIndex + 1) % filteredExtensions.length);
         return;
       }
       if (e.key === "ArrowUp") {
         e.preventDefault();
-        setMentionIndex((idx) =>
-          idx <= 0 ? filteredExtensions.length - 1 : idx - 1
+        setMentionIndex(
+          mentionIndex <= 0 ? filteredExtensions.length - 1 : mentionIndex - 1
         );
         return;
       }
@@ -629,7 +627,7 @@ export function CommandView() {
               });
             return;
           }
-          submit(composedInput).then((success) => {
+          submit(sendMessage, composedInput).then((success) => {
             if (success) {
               clearSelectedTargets();
             }
