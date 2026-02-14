@@ -20,8 +20,7 @@ use super::data::RootIndexData;
 use super::file_nodes::FileNodes;
 use super::shared::SharedRootIndex;
 use crate::error::{FilesystemError, Result};
-use crate::namepool::NAME_POOL;
-use crate::slab::{SlabIndex, SlabNode, SortedSlabIndices, ThinSlab};
+use crate::storage::{SlabIndex, SlabNode, SortedSlabIndices, ThinSlab, NAME_POOL};
 
 /// Cache format version - increment when changing the format.
 /// Version 7: Cardinal-style direct slab persistence with postcard encoding.

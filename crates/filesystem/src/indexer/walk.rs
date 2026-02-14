@@ -15,7 +15,7 @@ use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use rayon::prelude::*;
 
 use super::build::IndexBuildProgress;
-use crate::slab::SlabNodeMetadata;
+use crate::storage::SlabNodeMetadata;
 
 /// A node in the filesystem tree built during walking.
 ///

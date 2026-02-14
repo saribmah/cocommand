@@ -4,15 +4,13 @@ use std::path::PathBuf;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
-use super::build::IndexBuildState;
-use super::data::RootIndexData;
-use super::shared::SharedRootIndex;
 use super::walker::{coalesce_event_paths, path_in_scope, path_is_ignored};
 use crate::error::Result;
-use crate::namepool::NAME_POOL;
+use crate::indexer::{IndexBuildState, RootIndexData, SharedRootIndex};
+use crate::storage::NAME_POOL;
 
 #[cfg(target_os = "macos")]
-use crate::fsevent::{FsEvent, FsEventScanType, FsEventStream};
+use super::fsevent::{FsEvent, FsEventScanType, FsEventStream};
 
 #[cfg(not(target_os = "macos"))]
 use notify::{recommended_watcher, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
@@ -270,7 +268,7 @@ fn remove_path_and_descendants(data: &mut RootIndexData, target: &std::path::Pat
 
 /// Builds a fresh snapshot for rescan.
 fn build_snapshot_for_rescan(shared: &SharedRootIndex) -> crate::error::Result<RootIndexData> {
-    use super::fswalk::WalkData as FsWalkData;
+    use crate::indexer::WalkData as FsWalkData;
 
     // Use the new Cardinal-style two-phase approach
     let walk_data = FsWalkData::new(&shared.root, &shared.ignored_roots);

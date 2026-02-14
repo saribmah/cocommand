@@ -278,7 +278,7 @@ impl<'de> Deserialize<'de> for NameAndParent {
         use serde::de::{Error as DeError, SeqAccess, Visitor};
         use std::fmt;
 
-        use crate::namepool::NAME_POOL;
+        use super::namepool::NAME_POOL;
 
         struct NameAndParentVisitor;
 

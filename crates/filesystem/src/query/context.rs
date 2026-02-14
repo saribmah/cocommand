@@ -2,7 +2,7 @@
 
 use std::borrow::Cow;
 
-use crate::slab::{NodeFileType, SlabNode};
+use crate::storage::{NodeFileType, SlabNode};
 
 use super::path::{extension_of_name, normalize_path_for_compare, split_path_segments};
 

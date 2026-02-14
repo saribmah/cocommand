@@ -5,23 +5,29 @@
 //! - Query parsing and search evaluation
 //! - Persistent cache with compression
 //! - Filesystem indexing with watch support
+//!
+//! ## Module Structure
+//!
+//! - `storage` - Low-level storage primitives (slab, namepool)
+//! - `indexer` - Index building and data structures
+//! - `search` - Search engine and manager API
+//! - `watcher` - Filesystem watching (FSEvents on macOS, notify on others)
+//! - `query` - Query parsing and evaluation
 
 pub mod cancel;
 pub mod error;
-pub mod file_tags;
-pub mod index;
-pub mod namepool;
+pub mod indexer;
 pub mod query;
-pub mod slab;
+pub mod search;
+pub mod storage;
 pub mod types;
-
-#[cfg(target_os = "macos")]
-pub mod fsevent;
+pub mod watcher;
 
 // Re-export main types
 pub use cancel::CancellationToken;
 pub use error::{FilesystemError, Result};
-pub use index::{FileSystemIndexManager, RootIndexKey};
-pub use namepool::{NamePool, NAME_POOL};
+pub use indexer::RootIndexKey;
 pub use query::{QueryExpression, QueryParser, SearchQueryMatcher};
+pub use search::FileSystemIndexManager;
+pub use storage::{NamePool, NAME_POOL};
 pub use types::{FileEntry, FileType, IndexStatus, KindFilter, SearchResult};

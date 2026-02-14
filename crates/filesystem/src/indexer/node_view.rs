@@ -4,7 +4,7 @@
 //! derived properties from the compact slab node storage without
 //! storing redundant data.
 
-use crate::slab::{SlabIndex, SlabNode, ThinSlab};
+use crate::storage::{SlabIndex, SlabNode, ThinSlab};
 
 /// A view into a node that can compute derived properties.
 ///
@@ -139,7 +139,7 @@ impl<'a> NodeView<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::slab::{NodeFileType, SlabNodeMetadata, StateTypeSize};
+    use crate::storage::{NodeFileType, SlabNodeMetadata, StateTypeSize};
 
     fn make_node(name: &'static str, parent: Option<SlabIndex>) -> SlabNode {
         let metadata = SlabNodeMetadata {

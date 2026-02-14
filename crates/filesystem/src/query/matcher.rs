@@ -3,7 +3,7 @@
 use std::collections::BTreeSet;
 
 use crate::error::Result;
-use crate::slab::SlabNode;
+use crate::storage::SlabNode;
 
 use super::context::NodeQueryContext;
 use super::evaluate::evaluate_node_query_term;

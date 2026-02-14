@@ -10,9 +10,8 @@
 
 use std::collections::BTreeMap;
 
-use super::fswalk::Node;
-use crate::namepool::NAME_POOL;
-use crate::slab::{SlabIndex, SlabNode, SortedSlabIndices, ThinSlab};
+use super::walk::Node;
+use crate::storage::{SlabIndex, SlabNode, SortedSlabIndices, ThinSlab, NAME_POOL};
 
 /// Name index mapping filenames to sorted slab indices.
 ///
@@ -133,7 +132,7 @@ pub fn remove_index(name_index: &mut NameIndex, name: &'static str, index: SlabI
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::slab::{NodeFileType, SlabNodeMetadata, StateTypeSize};
+    use crate::storage::{NodeFileType, SlabNodeMetadata, StateTypeSize};
 
     fn make_metadata(is_dir: bool) -> SlabNodeMetadata {
         let file_type = if is_dir {

@@ -7,15 +7,13 @@ use rayon::iter::{ParallelBridge, ParallelIterator};
 
 use crate::cancel::CancellationToken;
 use crate::error::Result;
+use crate::indexer::{NodeView, RootIndexData};
 use crate::query::{
     file_content_matches, QueryExpression, QueryFilter, QueryTerm, SearchQueryMatcher,
     TypeFilterTarget,
 };
-use crate::slab::{NodeFileType, SlabIndex};
+use crate::storage::{NodeFileType, SlabIndex};
 use crate::types::{FileEntry, FileType, KindFilter, SearchResult};
-
-use super::data::RootIndexData;
-use super::node_view::NodeView;
 
 /// Threshold for switching from iterating file metadata to using Spotlight (mdfind).
 /// When the candidate set exceeds this size, Spotlight's indexed search is faster than
@@ -538,7 +536,7 @@ fn evaluate_tag_filter_via_xattr(
     case_insensitive: bool,
     cancel_token: CancellationToken,
 ) -> Option<BTreeSet<SlabIndex>> {
-    use crate::file_tags::file_has_any_tag;
+    use crate::watcher::file_has_any_tag;
 
     let matched_indices: Vec<SlabIndex> = file_candidates
         .iter()
@@ -571,12 +569,12 @@ fn evaluate_tag_filter_via_mdfind(
     case_insensitive: bool,
     cancel_token: CancellationToken,
 ) -> Option<BTreeSet<SlabIndex>> {
-    use crate::file_tags::search_tags_using_mdfind;
+    use crate::watcher::search_tags_mdfind;
 
     cancel_token.is_cancelled()?;
 
     // Use mdfind to get all files with matching tags across the filesystem
-    let spotlight_paths = match search_tags_using_mdfind(tags.to_vec(), case_insensitive) {
+    let spotlight_paths = match search_tags_mdfind(tags.to_vec(), case_insensitive) {
         Ok(paths) => paths,
         Err(e) => {
             // If mdfind fails (e.g., forbidden characters, command not available),

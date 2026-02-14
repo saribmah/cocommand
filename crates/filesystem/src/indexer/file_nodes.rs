@@ -7,7 +7,7 @@ use std::ffi::OsStr;
 use std::ops::{Deref, DerefMut};
 use std::path::{Path, PathBuf};
 
-use crate::slab::{SlabIndex, SlabNode, ThinSlab};
+use crate::storage::{SlabIndex, SlabNode, ThinSlab};
 
 /// Hierarchical file node tree backed by slab storage.
 ///
@@ -155,7 +155,7 @@ impl DerefMut for FileNodes {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::slab::{NodeFileType, SlabNodeMetadata, StateTypeSize};
+    use crate::storage::{NodeFileType, SlabNodeMetadata, StateTypeSize};
 
     fn make_test_node(parent: Option<SlabIndex>, name: &'static str, is_dir: bool) -> SlabNode {
         let file_type = if is_dir {

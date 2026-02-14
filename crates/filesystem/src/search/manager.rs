@@ -7,28 +7,22 @@ use std::sync::atomic::{AtomicU64, AtomicU8, Ordering};
 use std::sync::{Arc, Mutex, RwLock};
 use std::thread;
 
-use super::build::{
-    unix_now_secs, FlushDecision, FlushSignal, FlushWorkerHandle, IndexBuildProgress,
-    IndexBuildState,
-};
-use super::data::RootIndexData;
-use super::fswalk::WalkData;
-use super::persistence::{load_index_snapshot, write_index_snapshot, RootIndexKey};
-use super::search::search_index_data;
-use super::shared::SharedRootIndex;
-use super::walker::coalesce_event_paths;
-use super::watcher::{apply_path_change, mark_index_dirty};
+use super::engine::search_index_data;
 use crate::cancel::CancellationToken;
 use crate::error::{canonicalize_existing_path, lock_poisoned_error, FilesystemError, Result};
+use crate::indexer::{
+    load_index_snapshot, unix_now_secs, write_index_snapshot, FlushDecision, FlushSignal,
+    FlushWorkerHandle, IndexBuildProgress, IndexBuildState, RootIndexData, RootIndexKey,
+    SharedRootIndex, WalkData,
+};
 use crate::types::{IndexStatus, KindFilter, SearchResult};
+use crate::watcher::{apply_path_change, coalesce_event_paths, mark_index_dirty};
 
 #[cfg(target_os = "macos")]
-use super::watcher::create_fsevent_watcher;
-#[cfg(target_os = "macos")]
-use crate::fsevent::FsEventStream;
+use crate::watcher::{create_fsevent_watcher, FsEventStream};
 
 #[cfg(not(target_os = "macos"))]
-use super::watcher::create_index_watcher;
+use crate::watcher::create_index_watcher;
 #[cfg(not(target_os = "macos"))]
 use notify::RecommendedWatcher;
 
@@ -609,7 +603,7 @@ fn ensure_build_started(shared: Arc<SharedRootIndex>, force: bool) {
     });
 }
 
-fn progress_snapshot(shared: &SharedRootIndex) -> (&'static str, super::build::ProgressSnapshot) {
+fn progress_snapshot(shared: &SharedRootIndex) -> (&'static str, crate::indexer::ProgressSnapshot) {
     let state = IndexBuildState::load(&shared.build_state).as_str();
     let progress = shared.build_progress.snapshot();
     (state, progress)

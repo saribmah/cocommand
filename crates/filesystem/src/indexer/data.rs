@@ -17,9 +17,8 @@ use std::path::{Path, PathBuf};
 
 use super::construct::{self, NameIndex};
 use super::file_nodes::FileNodes;
-use super::fswalk::{walk_it, WalkData};
-use crate::namepool::NamePool;
-use crate::slab::{SlabIndex, SlabNode, SlabNodeMetadata};
+use super::walk::{walk_it, WalkData};
+use crate::storage::{NamePool, SlabIndex, SlabNode, SlabNodeMetadata};
 
 /// Runtime index data with slab-based node storage.
 ///
@@ -178,7 +177,7 @@ impl RootIndexData {
     ///
     /// Returns `None` if no entries have this name.
     #[allow(dead_code)] // Used by tests
-    pub fn indices_for_name(&self, name: &str) -> Option<&crate::slab::SortedSlabIndices> {
+    pub fn indices_for_name(&self, name: &str) -> Option<&crate::storage::SortedSlabIndices> {
         self.name_index.get(name)
     }
 

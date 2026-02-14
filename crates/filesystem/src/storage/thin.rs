@@ -7,7 +7,7 @@ use serde::de::{Deserialize, Deserializer};
 use serde::ser::{Serialize, Serializer};
 
 use super::index_types::SlabIndex;
-use super::mmap::{Slab, SlabIter};
+use super::slab::{Slab, SlabIter};
 
 /// A wrapper around `Slab<T>` that uses `SlabIndex` for type safety.
 ///
