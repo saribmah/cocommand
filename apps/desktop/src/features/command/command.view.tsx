@@ -210,6 +210,7 @@ function appendSlashCommand(text: string, id: string): string {
 
 export function CommandView() {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
   const inputId = useId();
   const [activeTab, setActiveTab] = useState<FilterTab>("recent");
   const [mentionIndex, setMentionIndex] = useState(0);
@@ -266,10 +267,24 @@ export function CommandView() {
   }, [parts]);
 
   const filteredExtensions = useMemo(() => {
-    const query = mentionState ? normalizeQuery(mentionState.query) : "";
+    const query = mentionState
+      ? normalizeQuery(mentionState.query)
+      : activeTab === "extensions"
+      ? normalizeQuery(input)
+      : "";
     if (!mentionState && activeTab !== "extensions") return [];
     if (!mentionState) {
-      return [...extensions].sort((a, b) => a.name.localeCompare(b.name));
+      if (!query) {
+        return [...extensions].sort((a, b) => a.name.localeCompare(b.name));
+      }
+      const ranked = extensions
+        .map((extension) => ({
+          extension,
+          score: matchScore(query, extension.name, extension.id, extension.kind),
+        }))
+        .filter((entry) => entry.score >= 0)
+        .sort((a, b) => b.score - a.score);
+      return ranked.slice(0, 8).map((entry) => entry.extension);
     }
     const ranked = extensions
       .map((extension) => ({
@@ -279,7 +294,7 @@ export function CommandView() {
       .filter((entry) => (query.length === 0 ? true : entry.score >= 0))
       .sort((a, b) => b.score - a.score);
     return ranked.slice(0, 8).map((entry) => entry.extension);
-  }, [activeTab, extensions, mentionState]);
+  }, [activeTab, extensions, input, mentionState]);
 
   useEffect(() => {
     if (mentionState || activeTab === "extensions") {
@@ -295,8 +310,12 @@ export function CommandView() {
 
   const filteredSlashCommands = useMemo(() => {
     if (!slashState && activeTab !== "commands") return [];
-    if (!slashState) return slashCommands;
-    const query = normalizeQuery(slashState.query);
+    const query = slashState
+      ? normalizeQuery(slashState.query)
+      : activeTab === "commands"
+      ? normalizeQuery(input)
+      : "";
+    if (!query) return slashCommands;
     const ranked = slashCommands
       .map((command) => ({
         command,
@@ -305,12 +324,52 @@ export function CommandView() {
       .filter((entry) => (query.length === 0 ? true : entry.score >= 0))
       .sort((a, b) => b.score - a.score);
     return ranked.slice(0, 6).map((entry) => entry.command);
-  }, [activeTab, slashCommands, slashState]);
+  }, [activeTab, input, slashCommands, slashState]);
 
   const showExtensionsList = activeTab === "extensions" || !!mentionState;
   const showCommandsList = !showExtensionsList && filteredSlashCommands.length > 0;
 
+  const insertSigilAtCursor = (sigil: "@" | "/" | "#") => {
+    const node = inputRef.current;
+    const start = node?.selectionStart ?? input.length;
+    const end = node?.selectionEnd ?? input.length;
+    let replaceStart = start;
+    let replaceEnd = end;
+
+    if (start === end) {
+      const prevChar = start > 0 ? input[start - 1] : "";
+      const nextChar = start < input.length ? input[start] : "";
+      if (prevChar === "@" || prevChar === "/" || prevChar === "#") {
+        replaceStart = start - 1;
+        replaceEnd = start;
+      } else if (nextChar === "@" || nextChar === "/" || nextChar === "#") {
+        replaceStart = start;
+        replaceEnd = start + 1;
+      }
+    }
+
+    const nextValue = `${input.slice(0, replaceStart)}${sigil}${input.slice(replaceEnd)}`;
+    const caret = replaceStart + sigil.length;
+    setInput(nextValue);
+    requestAnimationFrame(() => {
+      const current = inputRef.current;
+      if (!current) return;
+      current.focus();
+      current.setSelectionRange(caret, caret);
+    });
+  };
+
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (
+      e.key === "Backspace" &&
+      input.length === 0 &&
+      (activeTab === "extensions" || activeTab === "commands")
+    ) {
+      e.preventDefault();
+      setActiveTab("recent");
+      return;
+    }
+
     if (showExtensionsList && filteredExtensions.length > 0) {
       if (e.key === "ArrowDown") {
         e.preventDefault();
@@ -332,6 +391,7 @@ export function CommandView() {
             ? applyMention(input, mentionState, selected.name)
             : appendMention(input, selected.name);
           setInput(nextValue);
+          setActiveTab("recent");
         }
         return;
       }
@@ -358,6 +418,7 @@ export function CommandView() {
             ? applySlashCommand(input, slashState, selected.id)
             : appendSlashCommand(input, selected.id);
           setInput(nextValue);
+          setActiveTab("recent");
           return;
         }
       }
@@ -401,6 +462,7 @@ export function CommandView() {
             className={styles.searchField}
             icon={<Icon>{SearchIcon}</Icon>}
             placeholder="How can I help..."
+            inputRef={inputRef}
             inputProps={{
               id: inputId,
               value: input,
@@ -433,12 +495,16 @@ export function CommandView() {
               onClick={() => {
                 setActiveTab("extensions");
                 fetchExtensions();
+                insertSigilAtCursor("@");
               }}
             />
             <Chip
               label="Commands"
               active={activeTab === "commands" || (!!slashState && !mentionState)}
-              onClick={() => setActiveTab("commands")}
+              onClick={() => {
+                setActiveTab("commands");
+                insertSigilAtCursor("/");
+              }}
             />
           </ChipGroup>
           {isSubmitting ? <Badge>Working...</Badge> : null}
@@ -467,6 +533,7 @@ export function CommandView() {
                         ? applyMention(input, mentionState, extension.name)
                         : appendMention(input, extension.name);
                       setInput(nextValue);
+                      setActiveTab("recent");
                     }}
                   />
                 ))
@@ -498,6 +565,7 @@ export function CommandView() {
                       ? applySlashCommand(input, slashState, command.id)
                       : appendSlashCommand(input, command.id);
                     setInput(nextValue);
+                    setActiveTab("recent");
                   }}
                 />
               ))}
