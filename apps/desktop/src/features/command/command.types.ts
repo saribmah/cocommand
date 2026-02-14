@@ -30,7 +30,15 @@ export interface ExtensionPartInput {
   source?: TextSource | null;
 }
 
-export type MessagePartInput = TextPartInput | ExtensionPartInput;
+export interface FilePartInput {
+  type: "file";
+  path: string;
+  name: string;
+  entryType?: "file" | "directory" | "symlink" | "other" | null;
+  source?: TextSource | null;
+}
+
+export type MessagePartInput = TextPartInput | ExtensionPartInput | FilePartInput;
 
 export type MessagePart =
   | TextPart

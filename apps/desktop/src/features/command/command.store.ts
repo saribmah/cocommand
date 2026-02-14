@@ -8,37 +8,66 @@ type SendMessageFn = (
   onEvent?: (event: StreamEvent) => void
 ) => Promise<{ reply_parts?: MessagePart[] }>;
 
+function emptyTextPart(): MessagePartInput {
+  return { type: "text", text: "" };
+}
+
+function isBlankTextPart(part: MessagePartInput): boolean {
+  return part.type === "text" && part.text.trim().length === 0;
+}
+
+function normalizeDraftParts(parts: MessagePartInput[]): MessagePartInput[] {
+  const normalized: MessagePartInput[] = [];
+  for (const part of parts) {
+    const previous = normalized[normalized.length - 1];
+    if (part.type === "text" && previous?.type === "text") {
+      previous.text += part.text;
+      continue;
+    }
+    normalized.push(part);
+  }
+  if (normalized.length === 0) {
+    return [emptyTextPart()];
+  }
+  return normalized;
+}
+
+function submitReadyParts(parts: MessagePartInput[]): MessagePartInput[] {
+  const normalized = normalizeDraftParts(parts);
+  const withoutBlankText = normalized.filter((part) =>
+    part.type === "text" ? part.text.trim().length > 0 : true
+  );
+  return withoutBlankText;
+}
+
 export interface CommandState {
-  input: string;
+  draftParts: MessagePartInput[];
   isSubmitting: boolean;
   parts: MessagePart[];
   error: string | null;
-  setInput: (value: string) => void;
-  clearInput: () => void;
+  setDraftParts: (parts: MessagePartInput[]) => void;
   setError: (error: string | null) => void;
   reset: () => void;
   dismiss: () => void;
-  submit: (sendMessage: SendMessageFn, override?: string) => Promise<boolean>;
+  submit: (sendMessage: SendMessageFn) => Promise<boolean>;
 }
 
 export type CommandStore = ReturnType<typeof createCommandStore>;
 
 export const createCommandStore = () => {
   return create<CommandState>()((set, get) => ({
-    input: "",
+    draftParts: [emptyTextPart()],
     isSubmitting: false,
     parts: [],
     error: null,
 
-    setInput: (value) => set({ input: value }),
-
-    clearInput: () => set({ input: "" }),
+    setDraftParts: (parts) => set({ draftParts: normalizeDraftParts(parts) }),
 
     setError: (error) => set({ error }),
 
     reset: () =>
       set({
-        input: "",
+        draftParts: [emptyTextPart()],
         isSubmitting: false,
         parts: [],
         error: null,
@@ -53,16 +82,17 @@ export const createCommandStore = () => {
       hideWindow();
     },
 
-    submit: async (sendMessage, override) => {
-      const text = (override ?? get().input).trim();
-      if (!text) return false;
+    submit: async (sendMessage) => {
+      const draftParts = get().draftParts;
+      const inputParts = submitReadyParts(draftParts);
+      if (inputParts.length === 0 || inputParts.every(isBlankTextPart)) {
+        return false;
+      }
 
       set({ isSubmitting: true, parts: [], error: null });
 
       try {
         const streamParts: MessagePart[] = [];
-        const inputParts = buildInputParts(text);
-
         const response = await sendMessage(inputParts, (event: StreamEvent) => {
           if (event.event !== "part.updated") return;
           const part = getPartFromEventData(event.data);
@@ -77,7 +107,7 @@ export const createCommandStore = () => {
         });
 
         set({
-          input: "",
+          draftParts: [emptyTextPart()],
           isSubmitting: false,
           parts: response.reply_parts ?? [],
           error: null,
@@ -121,46 +151,4 @@ function findPartIndexToUpdate(parts: MessagePart[], nextPart: MessagePart): num
   return parts.findIndex(
     (part) => part.type === "tool" && part.callId === nextPart.callId
   );
-}
-
-function buildInputParts(text: string): MessagePartInput[] {
-  const extensionParts = extractExtensionParts(text);
-  return [
-    ...extensionParts,
-    {
-      type: "text",
-      text,
-    },
-  ];
-}
-
-function extractExtensionParts(text: string): MessagePartInput[] {
-  const parts: MessagePartInput[] = [];
-  const seen = new Set<string>();
-  const pattern = /(^|\s)@([^\s@]+)/g;
-
-  let match: RegExpExecArray | null = pattern.exec(text);
-  while (match) {
-    const prefix = match[1] ?? "";
-    const extensionId = (match[2] ?? "").trim();
-    if (extensionId && !seen.has(extensionId)) {
-      seen.add(extensionId);
-      const sourceStart = match.index + prefix.length;
-      const sourceValue = `@${extensionId}`;
-      const sourceEnd = sourceStart + sourceValue.length;
-      parts.push({
-        type: "extension",
-        extensionId,
-        name: extensionId,
-        source: {
-          value: sourceValue,
-          start: sourceStart,
-          end: sourceEnd,
-        },
-      });
-    }
-    match = pattern.exec(text);
-  }
-
-  return parts;
 }

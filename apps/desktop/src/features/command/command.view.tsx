@@ -46,7 +46,14 @@ import { useFileSystemContext } from "../filesystem/filesystem.context";
 import { useSessionContext } from "../session/session.context";
 import { useServerContext } from "../server/server.context";
 import { useCommandContext } from "./command.context";
-import type { SourcePart, ToolPart } from "./command.types";
+import type {
+  ExtensionPartInput,
+  FilePartInput,
+  MessagePartInput,
+  SourcePart,
+  TextPartInput,
+  ToolPart,
+} from "./command.types";
 import styles from "./command.module.css";
 
 const FileIcon = (
@@ -69,6 +76,205 @@ const RemoveIcon = (
   </svg>
 );
 
+type ToolCardState = "pending" | "running" | "success" | "error";
+type FilterTab = "recent" | "extensions" | "commands" | "files";
+type ComposerTagSegment =
+  | { type: "text"; key: string; text: string }
+  | { type: "extension"; key: string; part: ExtensionPartInput; start: number; end: number }
+  | { type: "file"; key: string; part: FilePartInput; start: number; end: number };
+
+function emptyTextPart(): TextPartInput {
+  return { type: "text", text: "" };
+}
+
+function normalizeComposerParts(parts: MessagePartInput[]): MessagePartInput[] {
+  const merged: MessagePartInput[] = [];
+  for (const part of parts) {
+    const previous = merged[merged.length - 1];
+    if (part.type === "text" && previous?.type === "text") {
+      previous.text += part.text;
+      continue;
+    }
+    merged.push(part);
+  }
+
+  const cleaned = merged.filter((part, index) => {
+    if (part.type !== "text") return true;
+    const isLast = index === merged.length - 1;
+    return isLast || part.text.length > 0;
+  });
+
+  if (cleaned.length === 0 || cleaned[cleaned.length - 1]?.type !== "text") {
+    cleaned.push(emptyTextPart());
+  }
+  return cleaned;
+}
+
+function defaultSourceValue(part: ExtensionPartInput | FilePartInput): string {
+  if (part.type === "extension") return `@${part.extensionId}`;
+  return `#${part.name}`;
+}
+
+function resolveComposerSources(parts: MessagePartInput[]): MessagePartInput[] {
+  const resolved: MessagePartInput[] = [];
+  let cursor = 0;
+
+  for (const part of parts) {
+    if (part.type === "text") {
+      cursor += part.text.length;
+      resolved.push(part);
+      continue;
+    }
+
+    const value = part.source?.value ?? defaultSourceValue(part);
+    const source = {
+      value,
+      start: cursor,
+      end: cursor + value.length,
+    };
+    cursor = source.end;
+    resolved.push({ ...part, source });
+  }
+
+  return resolved;
+}
+
+function commitComposerParts(parts: MessagePartInput[]): MessagePartInput[] {
+  return resolveComposerSources(normalizeComposerParts(parts));
+}
+
+function getActiveTextPartIndex(parts: MessagePartInput[]): number {
+  for (let index = parts.length - 1; index >= 0; index -= 1) {
+    if (parts[index]?.type === "text") return index;
+  }
+  return -1;
+}
+
+function getActiveText(parts: MessagePartInput[]): string {
+  const activeIndex = getActiveTextPartIndex(parts);
+  if (activeIndex < 0) return "";
+  const part = parts[activeIndex];
+  return part?.type === "text" ? part.text : "";
+}
+
+function updateActiveText(parts: MessagePartInput[], text: string): MessagePartInput[] {
+  const next = [...parts];
+  const activeIndex = getActiveTextPartIndex(next);
+  if (activeIndex < 0) {
+    next.push({ type: "text", text });
+    return next;
+  }
+  const current = next[activeIndex];
+  if (current?.type !== "text") return next;
+  next[activeIndex] = { ...current, text };
+  return next;
+}
+
+function insertPartAfterActiveText(
+  parts: MessagePartInput[],
+  part: ExtensionPartInput | FilePartInput
+): MessagePartInput[] {
+  const next = [...parts];
+  const activeIndex = getActiveTextPartIndex(next);
+  if (activeIndex < 0) {
+    next.push(emptyTextPart(), part, emptyTextPart());
+    return next;
+  }
+  next.splice(activeIndex + 1, 0, part, emptyTextPart());
+  return next;
+}
+
+function removeTaggedPartBySource(
+  parts: MessagePartInput[],
+  match: { type: "extension" | "file"; start: number; end: number }
+): MessagePartInput[] {
+  const resolved = resolveComposerSources(parts);
+  const index = resolved.findIndex((part) => {
+    if (part.type !== match.type) return false;
+    if (!part.source) return false;
+    return part.source.start === match.start && part.source.end === match.end;
+  });
+  if (index < 0) return parts;
+  const next = [...parts];
+  next.splice(index, 1);
+  return next;
+}
+
+function buildTagSegments(parts: MessagePartInput[]): ComposerTagSegment[] {
+  const resolved = resolveComposerSources(parts);
+  const composedText = resolved
+    .map((part) => {
+      if (part.type === "text") return part.text;
+      return part.source?.value ?? defaultSourceValue(part);
+    })
+    .join("");
+
+  const ranges = resolved
+    .filter((part): part is ExtensionPartInput | FilePartInput => part.type !== "text")
+    .map((part) => {
+      const source = part.source;
+      return source
+        ? {
+            type: part.type,
+            start: source.start,
+            end: source.end,
+            part,
+          }
+        : null;
+    })
+    .filter((value): value is { type: "extension" | "file"; start: number; end: number; part: ExtensionPartInput | FilePartInput } => value !== null)
+    .sort((left, right) => left.start - right.start);
+
+  const segments: ComposerTagSegment[] = [];
+  let cursor = 0;
+  for (const range of ranges) {
+    if (range.start > cursor) {
+      const text = composedText.slice(cursor, range.start);
+      if (text.length > 0) {
+        segments.push({
+          type: "text",
+          key: `text-${cursor}`,
+          text,
+        });
+      }
+    }
+
+    if (range.type === "extension" && range.part.type === "extension") {
+      segments.push({
+        type: "extension",
+        key: `ext-${range.start}-${range.end}-${range.part.extensionId}`,
+        part: range.part,
+        start: range.start,
+        end: range.end,
+      });
+    }
+    if (range.type === "file" && range.part.type === "file") {
+      segments.push({
+        type: "file",
+        key: `file-${range.start}-${range.end}-${range.part.path}`,
+        part: range.part,
+        start: range.start,
+        end: range.end,
+      });
+    }
+
+    cursor = range.end;
+  }
+
+  if (cursor < composedText.length) {
+    const text = composedText.slice(cursor);
+    if (text.length > 0) {
+      segments.push({
+        type: "text",
+        key: `text-${cursor}-tail`,
+        text,
+      });
+    }
+  }
+
+  return segments;
+}
+
 function getMentionState(text: string): { query: string; start: number } | null {
   const match = /(^|\s)@([^\s@]*)$/.exec(text);
   if (!match) return null;
@@ -88,22 +294,6 @@ function getHashState(text: string): { query: string; start: number } | null {
   if (!match) return null;
   const start = match.index + match[1].length;
   return { query: match[2], start };
-}
-
-function resolveMentions(
-  text: string,
-  extensions: { id: string; name: string }[]
-): string {
-  return text.replace(/@([^\s@]+)/g, (full, name) => {
-    const normalized = String(name).trim().toLowerCase();
-    const match = extensions.find(
-      (extension) =>
-        extension.name.toLowerCase() === normalized ||
-        extension.id.toLowerCase() === normalized
-    );
-    if (!match) return full;
-    return `@${match.id}`;
-  });
 }
 
 function findExactMentionExtensionId(
@@ -155,9 +345,6 @@ function matchScore(query: string, name: string, id: string, kind: string): numb
   const best = Math.max(nameScore, idScore, kindScore);
   return best > 0 ? best : -1;
 }
-
-type ToolCardState = "pending" | "running" | "success" | "error";
-type FilterTab = "recent" | "extensions" | "commands" | "files";
 
 function formatPayload(value: unknown): string | undefined {
   if (value === undefined) return undefined;
@@ -211,45 +398,14 @@ function formatFileType(mediaType?: string | null): string | undefined {
   return bits[1].toUpperCase();
 }
 
-function trimTrailingWhitespace(value: string): string {
-  return value.replace(/\s+$/, "");
-}
-
 function removeTrailingSigilQuery(
   text: string,
-  sigilState: { start: number } | null,
-  clearWhenStateMissing: boolean
+  sigilState: { start: number } | null
 ): string {
   if (sigilState) {
-    return trimTrailingWhitespace(text.slice(0, sigilState.start));
+    return text.slice(0, sigilState.start);
   }
-  return clearWhenStateMissing ? "" : text;
-}
-
-type SelectedExtension = {
-  id: string;
-  name: string;
-  kind: string;
-};
-
-type SelectedFile = {
-  path: string;
-  name: string;
-  type: "file" | "directory" | "symlink" | "other";
-};
-
-function composeCommandInput(
-  input: string,
-  selectedExtensions: SelectedExtension[],
-  selectedFiles: SelectedFile[],
-  extensions: { id: string; name: string }[]
-): string {
-  const extensionTargets = [...new Set(selectedExtensions.map((extension) => `@${extension.id}`))];
-  const fileTargets = [...new Set(selectedFiles.map((file) => file.path))];
-  const text = resolveMentions(input, extensions).trim();
-  return [...extensionTargets, ...fileTargets, text]
-    .filter((segment) => segment.length > 0)
-    .join(" ");
+  return text;
 }
 
 export function CommandView() {
@@ -260,10 +416,9 @@ export function CommandView() {
   const [mentionIndex, setMentionIndex] = useState(0);
   const [slashIndex, setSlashIndex] = useState(0);
   const [fileIndex, setFileIndex] = useState(0);
-  const [selectedExtensions, setSelectedExtensions] = useState<SelectedExtension[]>([]);
-  const [selectedFiles, setSelectedFiles] = useState<SelectedFile[]>([]);
-  const input = useCommandContext((state) => state.input);
-  const setInput = useCommandContext((state) => state.setInput);
+
+  const draftParts = useCommandContext((state) => state.draftParts);
+  const setDraftParts = useCommandContext((state) => state.setDraftParts);
   const isSubmitting = useCommandContext((state) => state.isSubmitting);
   const parts = useCommandContext((state) => state.parts);
   const error = useCommandContext((state) => state.error);
@@ -278,22 +433,45 @@ export function CommandView() {
   const fetchExtensions = useExtensionContext((state) => state.fetchExtensions);
   const openExtension = useExtensionContext((state) => state.openExtension);
 
-  // Filesystem search
   const searchResults = useFileSystemContext((state) => state.searchResults);
   const isSearching = useFileSystemContext((state) => state.isSearching);
   const searchError = useFileSystemContext((state) => state.searchError);
   const searchFiles = useFileSystemContext((state) => state.search);
   const clearSearch = useFileSystemContext((state) => state.clearSearch);
 
-  const mentionState = useMemo(() => getMentionState(input), [input]);
-  const slashState = useMemo(() => getSlashState(input), [input]);
-  const hashState = useMemo(() => getHashState(input), [input]);
+  const composerParts = useMemo(
+    () => commitComposerParts(draftParts),
+    [draftParts]
+  );
+  const activeTextIndex = useMemo(
+    () => getActiveTextPartIndex(composerParts),
+    [composerParts]
+  );
+  const activeText = useMemo(() => getActiveText(composerParts), [composerParts]);
+  const committedParts = useMemo(() => {
+    if (activeTextIndex < 0) return composerParts;
+    return composerParts.slice(0, activeTextIndex);
+  }, [activeTextIndex, composerParts]);
+  const tagSegments = useMemo(
+    () => buildTagSegments(committedParts),
+    [committedParts]
+  );
+
+  const mentionState = useMemo(() => getMentionState(activeText), [activeText]);
+  const slashState = useMemo(() => getSlashState(activeText), [activeText]);
+  const hashState = useMemo(() => getHashState(activeText), [activeText]);
   const slashCommands = useMemo(
-    () => [
-      { id: "settings", name: "Settings", description: "Open the settings window" },
-    ],
+    () => [{ id: "settings", name: "Settings", description: "Open the settings window" }],
     []
   );
+
+  const applyComposerParts = (next: MessagePartInput[]) => {
+    setDraftParts(commitComposerParts(next));
+  };
+
+  const updateComposerText = (value: string) => {
+    applyComposerParts(updateActiveText(composerParts, value));
+  };
 
   useEffect(() => {
     if (!serverInfo) return;
@@ -323,7 +501,7 @@ export function CommandView() {
     const query = mentionState
       ? normalizeQuery(mentionState.query)
       : activeTab === "extensions"
-      ? normalizeQuery(input)
+      ? normalizeQuery(activeText)
       : "";
     if (!mentionState && activeTab !== "extensions") return [];
     if (!mentionState) {
@@ -347,7 +525,7 @@ export function CommandView() {
       .filter((entry) => (query.length === 0 ? true : entry.score >= 0))
       .sort((a, b) => b.score - a.score);
     return ranked.slice(0, 8).map((entry) => entry.extension);
-  }, [activeTab, extensions, input, mentionState]);
+  }, [activeTab, activeText, extensions, mentionState]);
 
   useEffect(() => {
     if (mentionState || activeTab === "extensions") {
@@ -366,7 +544,7 @@ export function CommandView() {
     const query = slashState
       ? normalizeQuery(slashState.query)
       : activeTab === "commands"
-      ? normalizeQuery(input)
+      ? normalizeQuery(activeText)
       : "";
     if (!query) return slashCommands;
     const ranked = slashCommands
@@ -377,25 +555,23 @@ export function CommandView() {
       .filter((entry) => (query.length === 0 ? true : entry.score >= 0))
       .sort((a, b) => b.score - a.score);
     return ranked.slice(0, 6).map((entry) => entry.command);
-  }, [activeTab, input, slashCommands, slashState]);
+  }, [activeTab, activeText, slashCommands, slashState]);
 
   const showExtensionsList = activeTab === "extensions" || !!mentionState;
   const showCommandsList = !showExtensionsList && filteredSlashCommands.length > 0;
   const showFilesList = activeTab === "files" || !!hashState;
 
-  // Trigger file search when hash state changes
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (!hashState && activeTab !== "files") {
       clearSearch();
       return;
     }
-    const query = hashState?.query ?? input;
+    const query = hashState?.query ?? activeText;
     if (!query.trim()) {
       clearSearch();
       return;
     }
-    // Debounce search
     if (searchDebounceRef.current) {
       clearTimeout(searchDebounceRef.current);
     }
@@ -407,9 +583,8 @@ export function CommandView() {
         clearTimeout(searchDebounceRef.current);
       }
     };
-  }, [hashState?.query, activeTab, input, searchFiles, clearSearch]);
+  }, [activeTab, activeText, clearSearch, hashState, searchFiles]);
 
-  // Reset file index when results change
   useEffect(() => {
     setFileIndex(0);
   }, [searchResults]);
@@ -422,17 +597,11 @@ export function CommandView() {
     });
   };
 
-  const clearSelectedTargets = () => {
-    setSelectedExtensions([]);
-    setSelectedFiles([]);
-  };
-
   const executeSlashCommand = (id: string) => {
     if (id !== "settings") return;
     openSettingsWindow()
       .then(() => {
         reset();
-        clearSelectedTargets();
         hideWindow();
       })
       .catch((err) => {
@@ -441,46 +610,74 @@ export function CommandView() {
   };
 
   const selectExtension = (extension: { id: string; name: string; kind: string }) => {
-    setSelectedExtensions((current) => {
-      if (current.some((item) => item.id === extension.id)) {
-        return current;
-      }
-      return [...current, extension];
+    const nextText = removeTrailingSigilQuery(activeText, mentionState);
+    let nextParts = updateActiveText(composerParts, nextText);
+    nextParts = insertPartAfterActiveText(nextParts, {
+      type: "extension",
+      extensionId: extension.id,
+      name: extension.name,
+      kind: extension.kind,
+      source: {
+        value: `@${extension.id}`,
+        start: 0,
+        end: 0,
+      },
     });
-    const nextValue = removeTrailingSigilQuery(input, mentionState, activeTab === "extensions");
-    setInput(nextValue);
+    applyComposerParts(nextParts);
     setActiveTab("recent");
     focusInput();
   };
 
-  const selectFile = (entry: { path: string; name: string; type: SelectedFile["type"] }) => {
+  const selectFile = (entry: {
+    path: string;
+    name: string;
+    type: "file" | "directory" | "symlink" | "other";
+  }) => {
     const normalizedName =
       entry.name.trim().length > 0
         ? entry.name
         : entry.path.split("/").filter(Boolean).pop() ?? entry.path;
-    setSelectedFiles((current) => {
-      if (current.some((item) => item.path === entry.path)) {
-        return current;
-      }
-      return [...current, { ...entry, name: normalizedName }];
+
+    const nextText = removeTrailingSigilQuery(activeText, hashState);
+    let nextParts = updateActiveText(composerParts, nextText);
+    nextParts = insertPartAfterActiveText(nextParts, {
+      type: "file",
+      path: entry.path,
+      name: normalizedName,
+      entryType: entry.type,
+      source: {
+        value: `#${normalizedName}`,
+        start: 0,
+        end: 0,
+      },
     });
-    const nextValue = removeTrailingSigilQuery(input, hashState, activeTab === "files");
-    setInput(nextValue);
+    applyComposerParts(nextParts);
     setActiveTab("recent");
     clearSearch();
     focusInput();
   };
 
+  const removeTaggedSegment = (segment: ComposerTagSegment) => {
+    if (segment.type !== "extension" && segment.type !== "file") return;
+    const next = removeTaggedPartBySource(composerParts, {
+      type: segment.type,
+      start: segment.start,
+      end: segment.end,
+    });
+    applyComposerParts(next);
+    focusInput();
+  };
+
   const insertSigilAtCursor = (sigil: "@" | "/" | "#") => {
     const node = inputRef.current;
-    const start = node?.selectionStart ?? input.length;
-    const end = node?.selectionEnd ?? input.length;
+    const start = node?.selectionStart ?? activeText.length;
+    const end = node?.selectionEnd ?? activeText.length;
     let replaceStart = start;
     let replaceEnd = end;
 
     if (start === end) {
-      const prevChar = start > 0 ? input[start - 1] : "";
-      const nextChar = start < input.length ? input[start] : "";
+      const prevChar = start > 0 ? activeText[start - 1] : "";
+      const nextChar = start < activeText.length ? activeText[start] : "";
       if (prevChar === "@" || prevChar === "/" || prevChar === "#") {
         replaceStart = start - 1;
         replaceEnd = start;
@@ -490,9 +687,9 @@ export function CommandView() {
       }
     }
 
-    const nextValue = `${input.slice(0, replaceStart)}${sigil}${input.slice(replaceEnd)}`;
+    const nextValue = `${activeText.slice(0, replaceStart)}${sigil}${activeText.slice(replaceEnd)}`;
     const caret = replaceStart + sigil.length;
-    setInput(nextValue);
+    updateComposerText(nextValue);
     requestAnimationFrame(() => {
       const current = inputRef.current;
       if (!current) return;
@@ -502,27 +699,32 @@ export function CommandView() {
   };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Backspace" && input.length === 0) {
-      if (selectedFiles.length > 0) {
-        e.preventDefault();
-        setSelectedFiles((current) => current.slice(0, current.length - 1));
-        return;
-      }
-      if (selectedExtensions.length > 0) {
-        e.preventDefault();
-        setSelectedExtensions((current) => current.slice(0, current.length - 1));
-        return;
-      }
-    }
-
     if (
       e.key === "Backspace" &&
-      input.length === 0 &&
+      activeText.length === 0 &&
       (activeTab === "extensions" || activeTab === "commands" || activeTab === "files")
     ) {
       e.preventDefault();
       setActiveTab("recent");
       return;
+    }
+
+    if (e.key === "Backspace" && activeText.length === 0) {
+      const activeIndex = getActiveTextPartIndex(composerParts);
+      if (activeIndex > 0) {
+        const previous = composerParts[activeIndex - 1];
+        e.preventDefault();
+        if (previous?.type === "text") {
+          const next = [...composerParts];
+          next.splice(activeIndex - 1, 2, { type: "text", text: previous.text });
+          applyComposerParts(next);
+        } else {
+          const next = [...composerParts];
+          next.splice(activeIndex - 1, 1);
+          applyComposerParts(next);
+        }
+        return;
+      }
     }
 
     if (showFilesList && fileEntries.length > 0) {
@@ -533,9 +735,7 @@ export function CommandView() {
       }
       if (e.key === "ArrowUp") {
         e.preventDefault();
-        setFileIndex((idx) =>
-          idx <= 0 ? fileEntries.length - 1 : idx - 1
-        );
+        setFileIndex((idx) => (idx <= 0 ? fileEntries.length - 1 : idx - 1));
         return;
       }
       if (e.key === "Enter") {
@@ -606,29 +806,18 @@ export function CommandView() {
       case "Enter":
         e.preventDefault();
         {
-          const composedInput = composeCommandInput(
-            input,
-            selectedExtensions,
-            selectedFiles,
-            extensions
-          );
-          const mentionExtensionId = findExactMentionExtensionId(composedInput, extensions);
-          if (mentionExtensionId) {
+          const mentionExtensionId = findExactMentionExtensionId(activeText, extensions);
+          if (mentionExtensionId && committedParts.length === 0) {
             openExtension(mentionExtensionId)
               .then(() => {
                 reset();
-                clearSelectedTargets();
               })
               .catch((err) => {
                 setError(String(err));
               });
             return;
           }
-          submit(sendMessage, composedInput).then((success) => {
-            if (success) {
-              clearSelectedTargets();
-            }
-          });
+          submit(sendMessage);
         }
         break;
       case "Escape":
@@ -639,52 +828,55 @@ export function CommandView() {
   };
 
   const inputTargetTags =
-    selectedExtensions.length > 0 || selectedFiles.length > 0 ? (
+    tagSegments.length > 0 ? (
       <div className={styles.targetTagRow}>
-        {selectedExtensions.map((extension) => (
-          <span
-            key={extension.id}
-            className={styles.targetTag}
-            title={`${extension.kind} extension`}
-          >
-            <Icon size={14}>{ExtensionIcon}</Icon>
-            <span className={styles.targetTagLabel}>@{extension.name}</span>
-            <button
-              type="button"
-              className={styles.targetTagRemove}
-              onMouseDown={(event) => event.preventDefault()}
-              onClick={() => {
-                setSelectedExtensions((current) =>
-                  current.filter((item) => item.id !== extension.id)
-                );
-                focusInput();
-              }}
-              aria-label={`Remove @${extension.name}`}
-            >
-              <Icon size={12}>{RemoveIcon}</Icon>
-            </button>
-          </span>
-        ))}
-        {selectedFiles.map((file) => (
-          <span key={file.path} className={styles.targetTag} title={file.path}>
-            <Icon size={14}>{file.type === "directory" ? FolderIcon : FileIcon}</Icon>
-            <span className={styles.targetTagLabel}>{file.name}</span>
-            <button
-              type="button"
-              className={styles.targetTagRemove}
-              onMouseDown={(event) => event.preventDefault()}
-              onClick={() => {
-                setSelectedFiles((current) =>
-                  current.filter((item) => item.path !== file.path)
-                );
-                focusInput();
-              }}
-              aria-label={`Remove ${file.name}`}
-            >
-              <Icon size={12}>{RemoveIcon}</Icon>
-            </button>
-          </span>
-        ))}
+        {tagSegments.map((segment) => {
+          if (segment.type === "text") {
+            return (
+              <span key={segment.key} className={styles.targetTextChunk}>
+                {segment.text}
+              </span>
+            );
+          }
+          if (segment.type === "extension") {
+            return (
+              <span
+                key={segment.key}
+                className={styles.targetTag}
+                title={`${segment.part.kind ?? "extension"} extension`}
+              >
+                <Icon size={14}>{ExtensionIcon}</Icon>
+                <span className={styles.targetTagLabel}>@{segment.part.name}</span>
+                <button
+                  type="button"
+                  className={styles.targetTagRemove}
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={() => removeTaggedSegment(segment)}
+                  aria-label={`Remove @${segment.part.name}`}
+                >
+                  <Icon size={12}>{RemoveIcon}</Icon>
+                </button>
+              </span>
+            );
+          }
+          return (
+            <span key={segment.key} className={styles.targetTag} title={segment.part.path}>
+              <Icon size={14}>
+                {segment.part.entryType === "directory" ? FolderIcon : FileIcon}
+              </Icon>
+              <span className={styles.targetTagLabel}>{segment.part.name}</span>
+              <button
+                type="button"
+                className={styles.targetTagRemove}
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => removeTaggedSegment(segment)}
+                aria-label={`Remove ${segment.part.name}`}
+              >
+                <Icon size={12}>{RemoveIcon}</Icon>
+              </button>
+            </span>
+          );
+        })}
       </div>
     ) : undefined;
 
@@ -693,233 +885,235 @@ export function CommandView() {
   return (
     <main className="app-shell">
       <CommandPaletteShell className={`app-shell-panel ${styles.shell}`}>
-      <HeaderArea>
-        <div className={styles.headerRow}>
-          <SearchField
-            className={styles.searchField}
-            icon={<Icon>{SearchIcon}</Icon>}
-            beforeInput={inputTargetTags}
-            placeholder="How can I help..."
-            inputRef={inputRef}
-            inputProps={{
-              id: inputId,
-              value: input,
-              onChange: (e) => setInput(e.target.value),
-              onKeyDown: handleKeyDown,
-              disabled: isSubmitting,
-              spellCheck: false,
-              autoComplete: "off",
-            }}
-          />
-          <StatusBadge
-            status={serverInfo ? "good" : "warn"}
-            label={serverInfo ? "Server online" : "Server offline"}
-          />
-        </div>
-        <Divider />
-      </HeaderArea>
+        <HeaderArea>
+          <div className={styles.headerRow}>
+            <SearchField
+              className={styles.searchField}
+              icon={<Icon>{SearchIcon}</Icon>}
+              beforeInput={inputTargetTags}
+              placeholder="How can I help..."
+              inputRef={inputRef}
+              inputProps={{
+                id: inputId,
+                value: activeText,
+                onChange: (e) => updateComposerText(e.target.value),
+                onKeyDown: handleKeyDown,
+                disabled: isSubmitting,
+                spellCheck: false,
+                autoComplete: "off",
+              }}
+            />
+            <StatusBadge
+              status={serverInfo ? "good" : "warn"}
+              label={serverInfo ? "Server online" : "Server offline"}
+            />
+          </div>
+          <Divider />
+        </HeaderArea>
 
-      <FilterArea>
-        <div className={styles.filterRow}>
-          <ChipGroup>
-            <Chip
-              label="Recent"
-              active={activeTab === "recent" && !mentionState && !slashState}
-              onClick={() => setActiveTab("recent")}
-            />
-            <Chip
-              label="Extensions"
-              active={activeTab === "extensions" || !!mentionState}
-              onClick={() => {
-                setActiveTab("extensions");
-                fetchExtensions();
-                insertSigilAtCursor("@");
-              }}
-            />
-            <Chip
-              label="Commands"
-              active={activeTab === "commands" || (!!slashState && !mentionState)}
-              onClick={() => {
-                setActiveTab("commands");
-                insertSigilAtCursor("/");
-              }}
-            />
-            <Chip
-              label="Files"
-              active={activeTab === "files" || !!hashState}
-              onClick={() => {
-                setActiveTab("files");
-                insertSigilAtCursor("#");
-              }}
-            />
-          </ChipGroup>
-          {isSubmitting ? <Badge>Working...</Badge> : null}
-        </div>
-      </FilterArea>
+        <FilterArea>
+          <div className={styles.filterRow}>
+            <ChipGroup>
+              <Chip
+                label="Recent"
+                active={activeTab === "recent" && !mentionState && !slashState}
+                onClick={() => setActiveTab("recent")}
+              />
+              <Chip
+                label="Extensions"
+                active={activeTab === "extensions" || !!mentionState}
+                onClick={() => {
+                  setActiveTab("extensions");
+                  fetchExtensions();
+                  insertSigilAtCursor("@");
+                }}
+              />
+              <Chip
+                label="Commands"
+                active={activeTab === "commands" || (!!slashState && !mentionState)}
+                onClick={() => {
+                  setActiveTab("commands");
+                  insertSigilAtCursor("/");
+                }}
+              />
+              <Chip
+                label="Files"
+                active={activeTab === "files" || !!hashState}
+                onClick={() => {
+                  setActiveTab("files");
+                  insertSigilAtCursor("#");
+                }}
+              />
+            </ChipGroup>
+            {isSubmitting ? <Badge>Working...</Badge> : null}
+          </div>
+        </FilterArea>
 
-      <ContentArea className={styles.content}>
-        <div className={styles.scrollArea} ref={scrollRef}>
-          {showExtensionsList ? (
-            <ListSection label="Extensions">
-              {filteredExtensions.length > 0 ? (
-                filteredExtensions.map((extension, index) => (
+        <ContentArea className={styles.content}>
+          <div className={styles.scrollArea} ref={scrollRef}>
+            {showExtensionsList ? (
+              <ListSection label="Extensions">
+                {filteredExtensions.length > 0 ? (
+                  filteredExtensions.map((extension, index) => (
+                    <ListItem
+                      key={extension.id}
+                      title={extension.name}
+                      subtitle={`${extension.kind} / ${extension.id}`}
+                      icon={
+                        <IconContainer>
+                          <Icon>{ExtensionIcon}</Icon>
+                        </IconContainer>
+                      }
+                      selected={index === mentionIndex}
+                      onMouseDown={(event) => {
+                        event.preventDefault();
+                        selectExtension({
+                          id: extension.id,
+                          name: extension.name,
+                          kind: extension.kind,
+                        });
+                      }}
+                    />
+                  ))
+                ) : (
+                  <Text size="sm" tone="secondary">
+                    {extensionsLoaded ? "No extensions found." : "Loading extensions..."}
+                  </Text>
+                )}
+              </ListSection>
+            ) : null}
+
+            {showCommandsList ? (
+              <ListSection label="Commands">
+                {filteredSlashCommands.map((command, index) => (
                   <ListItem
-                    key={extension.id}
-                    title={extension.name}
-                    subtitle={`${extension.kind} / ${extension.id}`}
+                    key={command.id}
+                    title={`/${command.id}`}
+                    subtitle={command.description}
                     icon={
                       <IconContainer>
-                        <Icon>{ExtensionIcon}</Icon>
+                        <Icon>{CommandIcon}</Icon>
                       </IconContainer>
                     }
-                    selected={index === mentionIndex}
+                    rightMeta={<ActionHint label="Enter" icon={<Icon>{ArrowIcon}</Icon>} />}
+                    selected={index === slashIndex}
                     onMouseDown={(event) => {
                       event.preventDefault();
-                      selectExtension({
-                        id: extension.id,
-                        name: extension.name,
-                        kind: extension.kind,
-                      });
+                      executeSlashCommand(command.id);
                     }}
                   />
-                ))
-              ) : (
-                <Text size="sm" tone="secondary">
-                  {extensionsLoaded ? "No extensions found." : "Loading extensions..."}
-                </Text>
-              )}
-            </ListSection>
-          ) : null}
+                ))}
+              </ListSection>
+            ) : null}
 
-          {showCommandsList ? (
-            <ListSection label="Commands">
-              {filteredSlashCommands.map((command, index) => (
-                <ListItem
-                  key={command.id}
-                  title={`/${command.id}`}
-                  subtitle={command.description}
-                  icon={
-                    <IconContainer>
-                      <Icon>{CommandIcon}</Icon>
-                    </IconContainer>
+            {showFilesList ? (
+              <ListSection label={isSearching ? "Searching..." : `Files${searchResults ? ` (${searchResults.count})` : ""}`}>
+                {searchError ? (
+                  <Text size="sm" tone="secondary">
+                    {searchError}
+                  </Text>
+                ) : fileEntries.length > 0 ? (
+                  fileEntries.map((entry, index) => (
+                    <ListItem
+                      key={entry.path}
+                      title={entry.name}
+                      subtitle={entry.path}
+                      icon={
+                        <IconContainer>
+                          <Icon>{entry.type === "directory" ? FolderIcon : FileIcon}</Icon>
+                        </IconContainer>
+                      }
+                      selected={index === fileIndex}
+                      onMouseDown={(event) => {
+                        event.preventDefault();
+                        selectFile({
+                          path: entry.path,
+                          name: entry.name,
+                          type: entry.type,
+                        });
+                      }}
+                    />
+                  ))
+                ) : hashState?.query ? (
+                  <Text size="sm" tone="secondary">
+                    {isSearching ? "Searching..." : "No files found."}
+                  </Text>
+                ) : (
+                  <Text size="sm" tone="secondary">
+                    Type to search files...
+                  </Text>
+                )}
+              </ListSection>
+            ) : null}
+
+            {(showExtensionsList || showCommandsList || showFilesList) && showResponses ? (
+              <Divider />
+            ) : null}
+
+            {showResponses ? (
+              <ResponseStack>
+                {error ? <ErrorCard message={error} /> : null}
+                {parts.map((part) => {
+                  switch (part.type) {
+                    case "text":
+                      return <MarkdownResponseCard key={part.id} body={part.text} />;
+                    case "reasoning":
+                      return <ReasoningCard key={part.id} reasoning={part.text} />;
+                    case "tool":
+                      return (
+                        <ToolCallCard
+                          key={part.id}
+                          toolName={part.tool}
+                          toolId={part.callId}
+                          state={mapToolStateToCard(part.state)}
+                          params={getToolParams(part.state)}
+                          result={getToolResult(part.state)}
+                          errorMessage={getToolError(part.state)}
+                        />
+                      );
+                    case "file":
+                      return (
+                        <FileCard
+                          key={part.id}
+                          fileName={part.name ?? "Untitled file"}
+                          fileType={formatFileType(part.mediaType)}
+                        />
+                      );
+                    case "source":
+                      return (
+                        <MarkdownResponseCard
+                          key={part.id}
+                          label="Source"
+                          body={formatSourceBody(part)}
+                        />
+                      );
+                    default:
+                      return null;
                   }
-                  rightMeta={<ActionHint label="Enter" icon={<Icon>{ArrowIcon}</Icon>} />}
-                  selected={index === slashIndex}
-                  onMouseDown={(event) => {
-                    event.preventDefault();
-                    executeSlashCommand(command.id);
-                  }}
-                />
-              ))}
-            </ListSection>
-          ) : null}
+                })}
+              </ResponseStack>
+            ) : !showExtensionsList && !showCommandsList ? (
+              <Text size="sm" tone="secondary">
+                Type a command, use @ to target an extension, or / for shortcuts.
+              </Text>
+            ) : null}
+          </div>
+        </ContentArea>
 
-          {showFilesList ? (
-            <ListSection label={isSearching ? "Searching..." : `Files${searchResults ? ` (${searchResults.count})` : ""}`}>
-              {searchError ? (
-                <Text size="sm" tone="secondary">
-                  {searchError}
-                </Text>
-              ) : fileEntries.length > 0 ? (
-                fileEntries.map((entry, index) => (
-                  <ListItem
-                    key={entry.path}
-                    title={entry.name}
-                    subtitle={entry.path}
-                    icon={
-                      <IconContainer>
-                        <Icon>{entry.type === "directory" ? FolderIcon : FileIcon}</Icon>
-                      </IconContainer>
-                    }
-                    selected={index === fileIndex}
-                    onMouseDown={(event) => {
-                      event.preventDefault();
-                      selectFile({
-                        path: entry.path,
-                        name: entry.name,
-                        type: entry.type,
-                      });
-                    }}
-                  />
-                ))
-              ) : hashState?.query ? (
-                <Text size="sm" tone="secondary">
-                  {isSearching ? "Searching..." : "No files found."}
-                </Text>
-              ) : (
-                <Text size="sm" tone="secondary">
-                  Type to search files...
-                </Text>
-              )}
-            </ListSection>
-          ) : null}
-
-          {(showExtensionsList || showCommandsList || showFilesList) && showResponses ? <Divider /> : null}
-
-          {showResponses ? (
-            <ResponseStack>
-              {error ? <ErrorCard message={error} /> : null}
-              {parts.map((part) => {
-                switch (part.type) {
-                  case "text":
-                    return <MarkdownResponseCard key={part.id} body={part.text} />;
-                  case "reasoning":
-                    return <ReasoningCard key={part.id} reasoning={part.text} />;
-                  case "tool":
-                    return (
-                      <ToolCallCard
-                        key={part.id}
-                        toolName={part.tool}
-                        toolId={part.callId}
-                        state={mapToolStateToCard(part.state)}
-                        params={getToolParams(part.state)}
-                        result={getToolResult(part.state)}
-                        errorMessage={getToolError(part.state)}
-                      />
-                    );
-                  case "file":
-                    return (
-                      <FileCard
-                        key={part.id}
-                        fileName={part.name ?? "Untitled file"}
-                        fileType={formatFileType(part.mediaType)}
-                      />
-                    );
-                  case "source":
-                    return (
-                      <MarkdownResponseCard
-                        key={part.id}
-                        label="Source"
-                        body={formatSourceBody(part)}
-                      />
-                    );
-                  default:
-                    return null;
-                }
-              })}
-            </ResponseStack>
-          ) : !showExtensionsList && !showCommandsList ? (
-            <Text size="sm" tone="secondary">
-              Type a command, use @ to target an extension, or / for shortcuts.
-            </Text>
-          ) : null}
-        </div>
-      </ContentArea>
-
-      <FooterArea>
-        <HintBar
-          left={
-            <>
-              <HintItem label="Navigate" keyHint={<KeyHint keys={["↑", "↓"]} />} />
-              <HintItem label="Enter" keyHint={<KeyHint keys="↵" />} />
-              <HintItem label="Extensions" keyHint={<KeyHint keys="@" />} />
-              <HintItem label="Command" keyHint={<KeyHint keys="/" />} />
-              <HintItem label="Files" keyHint={<KeyHint keys="#" />} />
-            </>
-          }
-          right={<CloseButton keyLabel="esc" onClick={dismiss} />}
-        />
-      </FooterArea>
+        <FooterArea>
+          <HintBar
+            left={
+              <>
+                <HintItem label="Navigate" keyHint={<KeyHint keys={["↑", "↓"]} />} />
+                <HintItem label="Enter" keyHint={<KeyHint keys="↵" />} />
+                <HintItem label="Extensions" keyHint={<KeyHint keys="@" />} />
+                <HintItem label="Command" keyHint={<KeyHint keys="/" />} />
+                <HintItem label="Files" keyHint={<KeyHint keys="#" />} />
+              </>
+            }
+            right={<CloseButton keyLabel="esc" onClick={dismiss} />}
+          />
+        </FooterArea>
       </CommandPaletteShell>
     </main>
   );

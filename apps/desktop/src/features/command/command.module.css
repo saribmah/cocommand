@@ -28,6 +28,11 @@
   display: none;
 }
 
+.targetTextChunk {
+  color: var(--cc-text-secondary);
+  white-space: pre;
+}
+
 .targetTag {
   display: inline-flex;
   align-items: center;

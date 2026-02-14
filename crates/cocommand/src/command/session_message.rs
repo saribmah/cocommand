@@ -23,6 +23,7 @@ pub struct SessionCommandInput {
 pub enum SessionCommandInputPart {
     Text(SessionCommandTextPartInput),
     Extension(SessionCommandExtensionPartInput),
+    File(SessionCommandFilePartInput),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -37,6 +38,16 @@ pub struct SessionCommandExtensionPartInput {
     pub name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub kind: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source: Option<FilePartSourceText>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SessionCommandFilePartInput {
+    pub path: String,
+    pub name: String,
+    #[serde(rename = "entryType", skip_serializing_if = "Option::is_none")]
+    pub entry_type: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source: Option<FilePartSourceText>,
 }
@@ -186,8 +197,30 @@ fn map_input_parts(
                 kind: part.kind,
                 source: part.source,
             }),
+            SessionCommandInputPart::File(part) => MessagePart::Text(TextPart {
+                base: PartBase::new(session_id, message_id),
+                text: map_file_input_to_text(part),
+            }),
         })
         .collect()
+}
+
+fn map_file_input_to_text(part: SessionCommandFilePartInput) -> String {
+    if !part.path.trim().is_empty() {
+        return part.path;
+    }
+
+    if let Some(source) = part.source {
+        if !source.value.trim().is_empty() {
+            return source.value;
+        }
+    }
+
+    if !part.name.trim().is_empty() {
+        return format!("#{}", part.name);
+    }
+
+    "#file".to_string()
 }
 
 #[cfg(test)]
@@ -206,6 +239,19 @@ mod tests {
     fn text_input_part(text: &str) -> SessionCommandInputPart {
         SessionCommandInputPart::Text(SessionCommandTextPartInput {
             text: text.to_string(),
+        })
+    }
+
+    fn file_input_part(path: &str, name: &str) -> SessionCommandInputPart {
+        SessionCommandInputPart::File(SessionCommandFilePartInput {
+            path: path.to_string(),
+            name: name.to_string(),
+            entry_type: Some("file".to_string()),
+            source: Some(FilePartSourceText {
+                value: format!("#{name}"),
+                start: 0,
+                end: name.len() as i64 + 1,
+            }),
         })
     }
 
@@ -283,6 +329,38 @@ mod tests {
         assert!(parts.iter().any(|part| matches!(
             part,
             MessagePart::Text(TextPart { text, .. }) if text == "hello"
+        )));
+    }
+
+    #[tokio::test]
+    async fn prepare_session_message_maps_file_input_to_text_part_path() {
+        let dir = tempdir().expect("tempdir");
+        let workspace = Arc::new(WorkspaceInstance::new(dir.path()).await.expect("workspace"));
+        let sessions = Arc::new(SessionManager::new(workspace.clone()));
+
+        let output = prepare_session_message(
+            sessions,
+            workspace.as_ref().clone(),
+            vec![
+                file_input_part("/tmp/note.md", "note.md"),
+                text_input_part("summarize"),
+            ],
+        )
+        .await
+        .expect("command");
+
+        let messages = Message::load(&workspace.storage, &output.context.session_id)
+            .await
+            .expect("load");
+        let parts = &messages[0].parts;
+
+        assert!(parts.iter().any(|part| matches!(
+            part,
+            MessagePart::Text(TextPart { text, .. }) if text == "/tmp/note.md"
+        )));
+        assert!(parts.iter().any(|part| matches!(
+            part,
+            MessagePart::Text(TextPart { text, .. }) if text == "summarize"
         )));
     }
 
