@@ -4,11 +4,11 @@ use serde_json::json;
 
 use crate::error::CoreError;
 
-use super::types::EntryKindFilter;
-use super::{
+use super::extension::{
     canonicalize_existing_path, normalize_input_path, parse_ignore_paths,
     parse_search_request_options,
 };
+use super::types::EntryKindFilter;
 
 #[test]
 fn search_request_options_default_to_hidden_and_unbounded_depth() {
