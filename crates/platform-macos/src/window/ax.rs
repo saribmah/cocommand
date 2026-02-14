@@ -109,7 +109,10 @@ pub fn copy_windows(app: &AxElement) -> Result<Vec<AxElement>, String> {
         return Ok(Vec::new());
     }
     let array = unsafe { CFArray::<CFType>::wrap_under_create_rule(value as CFArrayRef) };
-    Ok(array.iter().map(|item| AxElement::new(item.clone())).collect())
+    Ok(array
+        .iter()
+        .map(|item| AxElement::new(item.clone()))
+        .collect())
 }
 
 pub fn copy_title(element: &AxElement) -> Option<String> {
@@ -122,15 +125,18 @@ pub fn copy_minimized(element: &AxElement) -> Option<bool> {
         element,
         ax_minimized_attribute().as_CFTypeRef() as CFStringRef,
     )
-        .and_then(|value| value.downcast::<CFBoolean>().map(bool::from))
+    .and_then(|value| value.downcast::<CFBoolean>().map(bool::from))
 }
 
 pub fn copy_bounds(element: &AxElement) -> Option<Rect> {
-    let position =
-        copy_attribute_value_optional(element, ax_position_attribute().as_CFTypeRef() as CFStringRef)
-        .and_then(ax_value_to_point);
-    let size = copy_attribute_value_optional(element, ax_size_attribute().as_CFTypeRef() as CFStringRef)
-        .and_then(ax_value_to_size);
+    let position = copy_attribute_value_optional(
+        element,
+        ax_position_attribute().as_CFTypeRef() as CFStringRef,
+    )
+    .and_then(ax_value_to_point);
+    let size =
+        copy_attribute_value_optional(element, ax_size_attribute().as_CFTypeRef() as CFStringRef)
+            .and_then(ax_value_to_size);
     match (position, size) {
         (Some(position), Some(size)) => Some(Rect {
             x: position.x,
@@ -181,7 +187,7 @@ pub fn copy_close_button(element: &AxElement) -> Option<AxElement> {
         element,
         ax_close_button_attribute().as_CFTypeRef() as CFStringRef,
     )
-        .map(|value| AxElement::new(value))
+    .map(|value| AxElement::new(value))
 }
 
 fn perform_action(element: &AxElement, action: CFStringRef) -> Result<(), String> {
@@ -216,7 +222,11 @@ fn copy_attribute_value_optional(element: &AxElement, attribute: CFStringRef) ->
 fn ax_value_to_point(value: CFType) -> Option<CGPoint> {
     let mut point = CGPoint { x: 0.0, y: 0.0 };
     let success = unsafe {
-        AXValueGetValue(value.as_CFTypeRef(), K_AX_VALUE_CGPOINT_TYPE, &mut point as *mut _ as *mut c_void)
+        AXValueGetValue(
+            value.as_CFTypeRef(),
+            K_AX_VALUE_CGPOINT_TYPE,
+            &mut point as *mut _ as *mut c_void,
+        )
     };
     if success {
         Some(point)
@@ -231,7 +241,11 @@ fn ax_value_to_size(value: CFType) -> Option<CGSize> {
         height: 0.0,
     };
     let success = unsafe {
-        AXValueGetValue(value.as_CFTypeRef(), K_AX_VALUE_CGSIZE_TYPE, &mut size as *mut _ as *mut c_void)
+        AXValueGetValue(
+            value.as_CFTypeRef(),
+            K_AX_VALUE_CGSIZE_TYPE,
+            &mut size as *mut _ as *mut c_void,
+        )
     };
     if success {
         Some(size)

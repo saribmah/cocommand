@@ -81,12 +81,14 @@ pub fn capture_screenshot(
     if let Some(path) = output_path {
         command.arg(path);
         output_path_value = Some(path.to_string_lossy().to_string());
-        filename = path.file_name().map(|name| name.to_string_lossy().to_string());
+        filename = path
+            .file_name()
+            .map(|name| name.to_string_lossy().to_string());
     }
 
-    let status = command.status().map_err(|error| {
-        format!("failed to run screencapture: {error}")
-    })?;
+    let status = command
+        .status()
+        .map_err(|error| format!("failed to run screencapture: {error}"))?;
 
     if !status.success() {
         return Err(format!("screencapture failed with status {status}"));

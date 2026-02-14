@@ -1,149 +1,150 @@
-# Repository Guidelines for Agents
+# AGENTS.md
 
-This file is the primary, concise handbook for automated coding agents working in this repo.
-Keep changes minimal, follow established patterns, and update this file when new tooling is added.
+Agent handbook for working in the `cocommand` monorepo.
+Use this as the default execution and style guide for code agents.
 
-## Project Map
+## Repository Map
 - `apps/desktop/`: Tauri + React desktop app.
-  - `apps/desktop/src/`: React frontend (TypeScript).
-  - `apps/desktop/src-tauri/`: Tauri backend (Rust).
-- `crates/cocommand/`: Core Rust library (server, tools, workspace).
-- `crates/platform-macos/`: macOS bindings.
-- `apps/docs/`: Astro documentation site.
-- `extensions/`: Example extensions.
-- `docs/`, `SPEC.md`, `ARCHITECTURE.md`, `internal/Cocommand-Technical-Documentation.md`: references.
-- Example command/workflow JSON is bundled and stored in app data directories at runtime.
-- Frontend state lives in `apps/desktop/src/state/` (Zustand stores).
-- Shared TS types live in `apps/desktop/src/types/`.
+- `apps/desktop/src/`: React frontend (feature-oriented folders).
+- `apps/desktop/src-tauri/`: Tauri Rust bridge and app lifecycle.
+- `crates/cocommand/`: Core Rust backend (Axum server, workspace, tools, sessions).
+- `crates/platform-macos/`: macOS-specific bindings.
+- `apps/docs/`: Astro docs site.
+- `packages/ui/`: shared UI package.
+- `packages/demo/`: demo package.
+- `extensions/`: example extension assets.
 
 ## Prerequisites
-- Bun v1.2.17+
+- Bun `1.2.17+`
 - Rust 2021 edition
 - Tauri CLI v2
-- Local `ai-sdk/llm-kit-*` sibling directory exists (see `crates/cocommand/Cargo.toml`).
+- Local sibling SDKs required by Rust core: `../../../ai-sdk/llm-kit-core`, `../../../ai-sdk/llm-kit-openai-compatible`, `../../../ai-sdk/llm-kit-provider`, `../../../ai-sdk/llm-kit-provider-utils`
 
-## Build, Dev, and Test Commands
-Run commands from repo root unless noted.
+## Build, Run, and Check Commands
+Run from repo root unless noted.
 
-### Desktop App (Vite + Rust via Tauri)
-- Dev (full stack):
-  - `cd apps/desktop`
-  - `bun install`
-  - `bun tauri dev`
-- Frontend-only dev:
-  - `cd apps/desktop`
-  - `bun dev`
-- Build desktop app:
-  - `cd apps/desktop`
-  - `bun tauri build`
+### Desktop App (React + Tauri)
+- Full dev app: `bun --cwd apps/desktop run tauri dev`
+- Frontend only: `bun --cwd apps/desktop run dev`
+- Production bundle: `bun --cwd apps/desktop run tauri build`
+- Frontend production build: `bun --cwd apps/desktop run build`
+- Preview frontend build: `bun --cwd apps/desktop run preview`
 
-### Backend (Rust crate)
-- `cd crates/cocommand`
-- `cargo check`
-- `cargo test`
+### Rust Core (`crates/cocommand`)
+- Type/check compile: `cargo check --manifest-path crates/cocommand/Cargo.toml`
+- Run all tests: `cargo test --manifest-path crates/cocommand/Cargo.toml`
 
-### Tauri Bridge Tests
-- `cd apps/desktop/src-tauri`
-- `cargo test -p cocommand-desktop`
+### Tauri Bridge (`apps/desktop/src-tauri`)
+- Build/check crate: `cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml`
+- Run tests in crate: `cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml`
+- Note: this crate currently has no committed `#[test]` functions.
 
-### Docs Site (Astro)
-- `cd apps/docs`
-- `bun install`
-- `bun dev`
-- `bun build`
+### Docs Site (`apps/docs`)
+- Dev server: `bun --cwd apps/docs run dev`
+- Build docs: `bun --cwd apps/docs run build`
+- Preview docs: `bun --cwd apps/docs run preview`
 
-### Root Scripts (Docs wrappers)
+### Root Scripts
 - `bun run docs:dev`
 - `bun run docs:build`
 - `bun run docs:preview`
 
-### Single Test Examples
-- Rust unit/integration (crate):
-  - `cd crates/cocommand`
-  - `cargo test <test_name_substring>`
-- Rust unit/integration with output:
-  - `cd crates/cocommand`
-  - `cargo test <test_name_substring> -- --nocapture`
-- Tauri bridge (desktop):
-  - `cd apps/desktop/src-tauri`
-  - `cargo test -p cocommand-desktop <test_name_substring>`
+## Linting, Formatting, and Static Checks
+- There is no repo-wide ESLint/Prettier/Biome config committed right now.
+- TypeScript strictness is enabled in app configs (`strict`, `noUnusedLocals`, `noUnusedParameters`).
+- Rust formatting/check conventions:
+  - `cargo fmt --manifest-path crates/cocommand/Cargo.toml`
+  - `cargo clippy --manifest-path crates/cocommand/Cargo.toml -- -D warnings` (if requested)
+- Prefer matching existing formatting in touched files when no formatter is configured.
 
-### Linting/Formatting
-- No repo-level JS/TS lint or format scripts are configured.
-- Rust formatting uses standard `rustfmt` defaults if you run it (`cargo fmt`).
-- Keep formatting consistent with existing files; do not introduce new formatters unless requested.
+## Single-Test Workflows (Important)
+Primary test surface is Rust.
 
-## Architecture Notes
-- Planning happens in the backend via Tauri commands.
-- The UI calls `plan_command` and, for workflows, `run_workflow`.
-- IPC boundaries are explicit: keep Tauri command types simple and serializable.
-- Desktop UI talks to the backend server at `http://127.0.0.1:4840`.
-- Command/workflow JSON is loaded from bundled examples and user data directories under the app data path.
+### Run one test by name substring
+- Core crate:
+  - `cargo test --manifest-path crates/cocommand/Cargo.toml <test_name_substring>`
 
-## Code Style Guidelines
+### Run one exact test
+- Core crate:
+  - `cargo test --manifest-path crates/cocommand/Cargo.toml server::tests::start_binds_random_port -- --exact --nocapture`
 
-### General
-- Make focused changes; avoid sweeping refactors unless requested.
-- Prefer small, single-purpose components and functions.
-- Keep changes aligned with existing folder/module structure.
+### Run one module test group
+- Core crate:
+  - `cargo test --manifest-path crates/cocommand/Cargo.toml server::tests -- --nocapture`
 
-### TypeScript/React
-- Indentation: 2 spaces; use semicolons and double quotes.
-- Naming: `camelCase` for variables/functions, `PascalCase` for components.
-- Types: strict TS is enabled; avoid `any` and prefer explicit types for exported APIs.
+### Run tests for one file-backed module (example)
+- Filesystem built-in tests:
+  - `cargo test --manifest-path crates/cocommand/Cargo.toml extension::builtin::filesystem::tests -- --nocapture`
+
+### Tauri crate single-test pattern
+- `cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml <test_name_substring> -- --exact --nocapture`
+
+## Architecture Notes for Agents
+- Local HTTP server starts inside Tauri app state; server binds random local port.
+- Frontend obtains server metadata through Tauri invoke wrappers in `apps/desktop/src/lib/ipc.ts`.
+- Session command path is SSE-driven (`/sessions/command`) and streams partial events.
+- Workspace and extension data are persisted via Rust workspace/storage modules.
+- Keep payloads serializable and transport-friendly across IPC and HTTP boundaries.
+
+## Code Style and Conventions
+
+### Cross-Language
+- Keep functions cohesive and side effects explicit.
+- Prefer small helpers for parsing/normalization logic.
+- Do not add new dependencies unless necessary and justified.
+- Avoid broad refactors unless explicitly requested.
+
+### TypeScript / React
+- Indentation: 2 spaces.
+- Strings: use double quotes.
+- Semicolons: keep semicolons (current codebase style).
+- Naming:
+  - variables/functions: `camelCase`
+  - React components/types/interfaces: `PascalCase`
+  - many file names are feature-oriented lowercase with dots (for example `command.view.tsx`, `session.store.ts`).
 - Imports:
-  - External deps first, then local modules; keep side-effect CSS imports near the top.
-  - Use `type` imports for type-only symbols (e.g., `import type { Foo } from "..."`).
-- Components:
-  - Use function components; keep helpers above the component definition.
-  - Keep state in Zustand stores under `apps/desktop/src/state/`.
-- File naming:
-  - Components use `PascalCase.tsx` filenames.
-  - Store modules use `camelCase` filenames under `apps/desktop/src/state/`.
-  - Type definitions live in `apps/desktop/src/types/`.
-- Errors:
-  - Handle async failures with `.catch`/`try` and convert to user-facing error results.
-  - Avoid throwing across IPC boundaries; surface friendly messages instead.
-- IPC:
-  - Keep payloads JSON-serializable and small.
-  - Convert transport errors to friendly UI results.
+  - external packages first, then internal modules, then local styles.
+  - use `import type` for type-only imports.
+  - keep side-effect imports explicit (for example CSS/UI package imports).
+- Types:
+  - avoid `any`; prefer explicit interfaces/unions and `unknown` with narrowing.
+  - keep public boundary types stable and explicit.
+  - respect strict TS settings; do not suppress errors casually.
+- State/data flow:
+  - use existing Zustand/context provider patterns under `apps/desktop/src/features/*`.
+  - avoid duplicating server state in multiple stores unless intentional.
+- Error handling:
+  - normalize unknown errors before displaying.
+  - surface user-facing, actionable messages in UI flows.
+  - handle async failures (`try/catch`, rejected promises) close to boundary calls.
 
 ### Rust
-- Indentation: 4 spaces; use idiomatic `snake_case`.
+- Indentation: 4 spaces.
+- Naming: idiomatic `snake_case` for functions/modules, `PascalCase` for types.
 - Error handling:
-  - Prefer `CoreResult<T>`/`CoreError` in the core crate.
-  - At Tauri command boundaries, map errors to `Result<_, String>`.
-  - Avoid `unwrap`/`expect` in runtime paths; use `?` with context instead.
-- Imports: standard `use` groups (std, external crates, local crate) with blank lines between groups.
-- Modules:
-  - Keep new functionality in focused modules (e.g., `tool/`, `workspace/`, `session/`).
-  - Favor explicit types at public boundaries.
+  - prefer `Result<T, E>` returns and propagate with `?`.
+  - in core crate, use `CoreResult<T>`/`CoreError` where appropriate.
+  - at Tauri command boundary, return `Result<_, String>` and map errors clearly.
+  - avoid `unwrap`/`expect` in runtime paths (tests are fine).
+- Imports:
+  - group by std / external crates / local crate modules.
+  - keep import lists tidy and deterministic.
+- Concurrency/runtime:
+  - use `tokio` primitives already in use (`oneshot`, `watch`, async tasks).
+  - ensure shutdown paths are explicit and idempotent.
 
-### JSON Definitions
-- IDs use `kebab-case` (e.g., `daily-wrap`).
-- `version` fields use semver strings.
+### JSON and Config Shapes
+- IDs: `kebab-case`.
+- Versions: semver strings.
+- Keep schemas backward-compatible unless migration is part of the task.
 
-## Testing Guidelines
-- No dedicated JS test framework exists yet.
-- Add new tests only when needed and document how to run them here.
-- Desktop E2E (Tauri IPC/core flow) tests live under `apps/desktop/src-tauri/`.
-- Backend unit/integration tests live under `crates/cocommand/`.
+## Testing Expectations
+- Add/adjust tests for meaningful behavior changes in Rust modules.
+- Prefer targeted test runs during iteration, then broader suite before handoff.
+- If no automated test exists for a changed area, mention manual verification steps.
 
-## Repo Conventions
-- Commit messages: short, imperative, scope-light (e.g., `add planner`).
-- PRs should include: summary, testing performed, and screenshots for UI changes.
-- Note schema updates or example JSON changes explicitly.
-- Keep example JSON changes minimal and traceable.
-
-## Documentation References
-- `CLAUDE.md`: development commands and architecture reference.
-- `apps/docs/src/content/docs/`: module-by-module docs and quick start.
-- `SPEC.md` and `ARCHITECTURE.md`: design and architectural constraints.
-
-## Agent-Specific Rules
-- Follow this file and `CLAUDE.md`.
-- Do not revert unrelated local changes.
-- Keep IPC boundaries explicit between React UI and Tauri backend.
-
-## Cursor/Copilot Rules
-- No `.cursor/rules/`, `.cursorrules`, or `.github/copilot-instructions.md` found in this repo.
+## Cursor and Copilot Rules
+- `.cursor/rules/`: not present.
+- `.cursorrules`: not present.
+- `.github/copilot-instructions.md`: not present.
+- If these files are added later, treat them as higher-priority agent instructions.

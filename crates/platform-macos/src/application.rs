@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
-use objc2::{class, msg_send};
 use objc2::rc::autoreleasepool;
 use objc2::runtime::{AnyObject, Bool};
+use objc2::{class, msg_send};
 use serde::Serialize;
 
 use crate::applescript::{applescript_escape, run_applescript};

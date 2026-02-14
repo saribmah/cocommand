@@ -21,10 +21,7 @@ pub fn list_installed_apps() -> Vec<InstalledApp> {
                     continue;
                 }
                 if let Some(app) = read_app_info(&path) {
-                    let key = app
-                        .bundle_id
-                        .clone()
-                        .unwrap_or_else(|| app.path.clone());
+                    let key = app.bundle_id.clone().unwrap_or_else(|| app.path.clone());
                     if seen.insert(key) {
                         apps.push(app);
                     }

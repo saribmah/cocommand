@@ -6,9 +6,9 @@ use core_foundation::number::CFNumber;
 use core_foundation::string::{CFString, CFStringRef};
 use core_graphics::geometry::CGRect;
 use core_graphics::window::{
-    kCGNullWindowID, kCGWindowBounds, kCGWindowIsOnscreen, kCGWindowLayer,
-    kCGWindowListOptionAll, kCGWindowListOptionOnScreenOnly, kCGWindowName, kCGWindowNumber,
-    kCGWindowOwnerName, kCGWindowOwnerPID, CGWindowListCopyWindowInfo,
+    kCGNullWindowID, kCGWindowBounds, kCGWindowIsOnscreen, kCGWindowLayer, kCGWindowListOptionAll,
+    kCGWindowListOptionOnScreenOnly, kCGWindowName, kCGWindowNumber, kCGWindowOwnerName,
+    kCGWindowOwnerPID, CGWindowListCopyWindowInfo,
 };
 
 use super::{classify_window_kind, Rect, WindowInfo, WindowState};
@@ -73,10 +73,7 @@ pub fn list_windows_cg(visible_only: bool) -> Result<Vec<WindowInfo>, String> {
     Ok(windows)
 }
 
-unsafe fn dict_get_string(
-    dict: &CFDictionary<CFType, CFType>,
-    key: CFStringRef,
-) -> Option<String> {
+unsafe fn dict_get_string(dict: &CFDictionary<CFType, CFType>, key: CFStringRef) -> Option<String> {
     let key = CFString::wrap_under_get_rule(key);
     let value = dict.find(key.as_CFType())?;
     value.downcast::<CFString>().map(|value| value.to_string())
@@ -96,14 +93,14 @@ unsafe fn dict_get_bool(dict: &CFDictionary<CFType, CFType>, key: CFStringRef) -
     value.downcast::<CFBoolean>().map(bool::from)
 }
 
-unsafe fn dict_get_rect(
-    dict: &CFDictionary<CFType, CFType>,
-    key: CFStringRef,
-) -> Option<Rect> {
+unsafe fn dict_get_rect(dict: &CFDictionary<CFType, CFType>, key: CFStringRef) -> Option<Rect> {
     let key = CFString::wrap_under_get_rule(key);
     let value = dict.find(key.as_CFType())?;
     let rect_dict = value.as_CFTypeRef() as CFDictionaryRef;
-    let mut rect = CGRect::new(&core_graphics::geometry::CGPoint::new(0.0, 0.0), &core_graphics::geometry::CGSize::new(0.0, 0.0));
+    let mut rect = CGRect::new(
+        &core_graphics::geometry::CGPoint::new(0.0, 0.0),
+        &core_graphics::geometry::CGSize::new(0.0, 0.0),
+    );
     let success = unsafe { CGRectMakeWithDictionaryRepresentation(rect_dict, &mut rect) };
     if !success {
         return None;

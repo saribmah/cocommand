@@ -40,6 +40,8 @@ pub struct WorkspacePreferences {
     pub language: String,
     pub session: SessionPreferences,
     pub extension_cache: ExtensionCachePreferences,
+    #[serde(default)]
+    pub filesystem: FileSystemPreferences,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -63,6 +65,21 @@ pub struct SessionPreferences {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExtensionCachePreferences {
     pub max_extensions: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FileSystemPreferences {
+    pub watch_root: String,
+    pub ignore_paths: Vec<String>,
+}
+
+impl Default for FileSystemPreferences {
+    fn default() -> Self {
+        Self {
+            watch_root: "~".to_string(),
+            ignore_paths: Vec::new(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -97,6 +114,7 @@ impl WorkspaceConfig {
                     duration_seconds: 86_400,
                 },
                 extension_cache: ExtensionCachePreferences { max_extensions: 8 },
+                filesystem: FileSystemPreferences::default(),
             },
             llm: WorkspaceLLMPreferences {
                 provider: "openai-compatible".to_string(),
@@ -257,5 +275,51 @@ mod tests {
             CoreError::NotImplemented => {}
             other => panic!("expected NotImplemented, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn missing_filesystem_preferences_default_on_deserialize() {
+        let data = serde_json::json!({
+            "version": WORKSPACE_CONFIG_VERSION,
+            "workspace_id": "test-id",
+            "name": "Test Workspace",
+            "extensions": { "installed": [] },
+            "preferences": {
+                "language": "en",
+                "session": {
+                    "rollover_mode": "rolling",
+                    "duration_seconds": 86400
+                },
+                "extension_cache": {
+                    "max_extensions": 8
+                }
+            },
+            "llm": {
+                "provider": "openai-compatible",
+                "base_url": "https://api.openai.com/v1",
+                "api_key": null,
+                "model": "gpt-4o-mini",
+                "system_prompt": "You are Cocommand, a helpful command assistant.",
+                "temperature": 0.7,
+                "max_output_tokens": 80000,
+                "max_steps": 8
+            },
+            "theme": {
+                "mode": "system",
+                "accent": "copper"
+            },
+            "onboarding": {
+                "completed": false,
+                "completed_at": null,
+                "version": "1.0"
+            },
+            "created_at": 0,
+            "last_modified": 0
+        });
+
+        let parsed: WorkspaceConfig =
+            serde_json::from_value(data).expect("config should parse with defaults");
+        assert_eq!(parsed.preferences.filesystem.watch_root, "~");
+        assert!(parsed.preferences.filesystem.ignore_paths.is_empty());
     }
 }

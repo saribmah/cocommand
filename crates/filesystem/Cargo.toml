@@ -1,0 +1,46 @@
+[package]
+name = "filesystem"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# Core
+thiserror = "2"
+parking_lot = "0.12"
+fnv = "1.0"
+bitflags = "2"
+log = "0.4"
+
+# Async
+tokio = { version = "1", features = ["sync", "time", "fs"] }
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+postcard = { version = "1", features = ["use-std"] }
+zstd = { version = "0.13", features = ["zstdmt"] }
+
+# Filesystem
+ignore = "0.4"
+memmap2 = "0.9"
+rayon = "1"
+tempfile = "3"
+thin-vec = { version = "0.2", features = ["serde"] }
+memchr = "2"
+
+# Query parsing
+logos = "0.15"
+
+# Date/time
+chrono = "0.4"
+
+# Platform-specific (macOS)
+[target.'cfg(target_os = "macos")'.dependencies]
+core-foundation-sys = "0.8"
+plist = "1"
+xattr = "1"
+
+# Platform-specific (non-macOS)
+[target.'cfg(not(target_os = "macos"))'.dependencies]
+notify = "6"
+
+[dev-dependencies]

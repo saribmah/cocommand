@@ -15,6 +15,13 @@
   gap: var(--cc-space-2);
 }
 
+.extensionMeta {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cc-space-2);
+  margin-bottom: var(--cc-space-3);
+}
+
 .permissionsList {
   display: flex;
   flex-direction: column;

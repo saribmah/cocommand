@@ -1,4 +1,5 @@
 import "@cocommand/ui";
+import { useState } from "react";
 import styles from "./OnboardingDemoView.module.css";
 import {
   AccentSwatch,
@@ -39,6 +40,7 @@ const accentOptions = [
 const steps = [
   "Welcome",
   "Workspace",
+  "Extensions",
   "Theme",
   "AI",
   "Permissions",
@@ -46,12 +48,15 @@ const steps = [
 ];
 
 export function OnboardingDemoView() {
+  const [watchRoot, setWatchRoot] = useState("~/");
+  const [ignorePaths, setIgnorePaths] = useState(".git\nnode_modules\nLibrary/Caches");
+
   return (
     <AppShell className={`cc-theme-dark cc-reset ${styles.shell}`}>
       <AppPanel>
         <AppHeader
           title="Onboarding"
-          subtitle="Set up your workspace, AI, and permissions in a few steps."
+          subtitle="Set up your workspace, extensions, AI, and permissions in a few steps."
           brand={<img className={styles.brand} src="/logo_dark.png" alt="Cocommand" />}
           kicker={null}
         />
@@ -62,7 +67,7 @@ export function OnboardingDemoView() {
               <NavTab
                 key={label}
                 label={label}
-                active={label === "Theme"}
+                active={label === "Extensions"}
                 done={index < 2}
                 leading={String(index + 1)}
               />
@@ -71,6 +76,41 @@ export function OnboardingDemoView() {
         </AppNav>
 
         <AppContent>
+          <InfoCard>
+            <Text as="h3" size="lg" weight="semibold">
+              File system extension
+            </Text>
+            <Text as="p" size="sm" tone="secondary">
+              Configure the default root and ignored folders used by filesystem tools.
+            </Text>
+            <div className={styles.permissionRow}>
+              <div>
+                <Text as="div" size="sm" weight="medium">
+                  Extension status
+                </Text>
+                <Text as="div" size="sm" tone="secondary">
+                  Built-in extension available in every workspace.
+                </Text>
+              </div>
+              <StatusBadge status="good" label="Enabled" />
+            </div>
+            <Field label="Default watch root (watch_root)">
+              <TextInput
+                value={watchRoot}
+                onChange={(event) => setWatchRoot(event.target.value)}
+                placeholder="/"
+              />
+            </Field>
+            <Field label="Ignore paths (ignore_paths)">
+              <TextArea
+                value={ignorePaths}
+                onChange={(event) => setIgnorePaths(event.target.value)}
+                placeholder={".git\nnode_modules\nLibrary/Caches"}
+              />
+              <InlineHelp text="Use one path per line. Supports absolute, ~/..., or watch-root relative paths." />
+            </Field>
+          </InfoCard>
+
           <InfoCard>
             <Text as="h3" size="lg" weight="semibold">
               Name your workspace
@@ -176,7 +216,7 @@ export function OnboardingDemoView() {
             <ButtonPrimary>Continue</ButtonPrimary>
           </ButtonGroup>
           <Text size="xs" tone="tertiary">
-            Step 3 of 6
+            Step 3 of 7
           </Text>
         </AppFooter>
       </AppPanel>

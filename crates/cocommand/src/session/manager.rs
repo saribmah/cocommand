@@ -104,7 +104,7 @@ mod tests {
     #[tokio::test]
     async fn manager_rollover_resets_cache() {
         let dir = tempdir().expect("tempdir");
-        let mut workspace = WorkspaceInstance::new(dir.path()).await.expect("workspace");
+        let workspace = WorkspaceInstance::new(dir.path()).await.expect("workspace");
         {
             let mut config = workspace.config.write().await;
             config.preferences.session.duration_seconds = 0;

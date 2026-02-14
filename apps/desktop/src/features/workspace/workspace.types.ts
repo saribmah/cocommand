@@ -22,10 +22,16 @@ export interface ExtensionCachePreferences {
   max_extensions: number;
 }
 
+export interface FileSystemPreferences {
+  watch_root: string;
+  ignore_paths: string[];
+}
+
 export interface WorkspacePreferences {
   language: string;
   session: SessionPreferences;
   extension_cache: ExtensionCachePreferences;
+  filesystem: FileSystemPreferences;
 }
 
 export interface WorkspaceLlmSettings {

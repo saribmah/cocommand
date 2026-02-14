@@ -2,7 +2,7 @@ use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
 
 use objc2::class;
-use objc2::{msg_send};
+use objc2::msg_send;
 use objc2::runtime::AnyObject;
 
 pub fn nsstring_to_string(value: *mut AnyObject) -> Option<String> {

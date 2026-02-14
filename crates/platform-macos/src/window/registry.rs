@@ -43,10 +43,12 @@ impl WindowSnapshotStore {
 
     fn get_snapshot(&mut self, snapshot_id: u64) -> Option<WindowSnapshot> {
         self.prune();
-        self.snapshots.get(&snapshot_id).map(|entry| WindowSnapshot {
-            snapshot_id,
-            windows: entry.windows.clone(),
-        })
+        self.snapshots
+            .get(&snapshot_id)
+            .map(|entry| WindowSnapshot {
+                snapshot_id,
+                windows: entry.windows.clone(),
+            })
     }
 
     fn prune(&mut self) {

@@ -1,6 +1,6 @@
 use objc2::rc::autoreleasepool;
-use objc2::{class, msg_send};
 use objc2::runtime::{AnyObject, Bool};
+use objc2::{class, msg_send};
 
 use crate::util::{nsdata_to_vec, nsstring_to_string, string_to_nsstring, vec_to_nsdata};
 
@@ -39,7 +39,8 @@ pub fn read_clipboard() -> Result<Option<ClipboardItem>, String> {
             if count > 0 {
                 let mut files = Vec::with_capacity(count);
                 for index in 0..count {
-                    let item: *mut AnyObject = unsafe { msg_send![filenames, objectAtIndex: index] };
+                    let item: *mut AnyObject =
+                        unsafe { msg_send![filenames, objectAtIndex: index] };
                     if let Some(value) = nsstring_to_string(item) {
                         files.push(value);
                     }

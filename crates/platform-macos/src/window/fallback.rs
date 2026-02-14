@@ -1,10 +1,7 @@
 use crate::applescript::{applescript_escape, run_applescript};
 use crate::window::WindowInfo;
 
-pub fn perform_window_action_applescript(
-    window: &WindowInfo,
-    action: &str,
-) -> Result<(), String> {
+pub fn perform_window_action_applescript(window: &WindowInfo, action: &str) -> Result<(), String> {
     let owner_name = window
         .owner_name
         .clone()

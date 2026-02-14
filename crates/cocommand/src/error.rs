@@ -27,5 +27,14 @@ impl fmt::Display for CoreError {
 
 impl std::error::Error for CoreError {}
 
+impl From<filesystem::FilesystemError> for CoreError {
+    fn from(err: filesystem::FilesystemError) -> Self {
+        match err {
+            filesystem::FilesystemError::InvalidInput(msg) => CoreError::InvalidInput(msg),
+            other => CoreError::Internal(other.to_string()),
+        }
+    }
+}
+
 /// Result type alias using [`CoreError`].
 pub type CoreResult<T> = Result<T, CoreError>;

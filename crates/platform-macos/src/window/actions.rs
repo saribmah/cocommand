@@ -1,7 +1,7 @@
 use super::{WindowInfo, WindowSnapshot};
 use crate::permissions::check_accessibility;
-use crate::window::{fallback, mapping, registry};
 use crate::window::ax;
+use crate::window::{fallback, mapping, registry};
 
 pub fn perform_window_action(
     window_id: u32,

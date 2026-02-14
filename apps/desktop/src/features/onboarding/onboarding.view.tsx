@@ -35,6 +35,7 @@ import {
 type StepId =
   | "welcome"
   | "workspace"
+  | "extensions"
   | "theme"
   | "ai"
   | "permissions"
@@ -44,12 +45,17 @@ const steps: { id: StepId; title: string; subtitle: string }[] = [
   {
     id: "welcome",
     title: "Welcome",
-    subtitle: "Set up your workspace, AI, and permissions in a few steps.",
+    subtitle: "Set up your workspace, extensions, AI, and permissions in a few steps.",
   },
   {
     id: "workspace",
     title: "Workspace",
     subtitle: "Pick where Cocommand stores sessions and files.",
+  },
+  {
+    id: "extensions",
+    title: "Extensions",
+    subtitle: "Configure built-in extension defaults for this workspace.",
   },
   {
     id: "theme",
@@ -87,6 +93,21 @@ const themeModes = [
   { id: "dark", label: "Dark" },
 ];
 
+function formatIgnorePaths(paths: string[]): string {
+  return paths.join("\n");
+}
+
+function parseIgnorePaths(value: string): string[] {
+  const unique = new Set<string>();
+  for (const entry of value.split(/[\n,]/)) {
+    const trimmed = entry.trim();
+    if (trimmed.length > 0) {
+      unique.add(trimmed);
+    }
+  }
+  return Array.from(unique);
+}
+
 export function OnboardingView() {
   const serverInfo = useServerContext((state) => state.info);
   const setServerInfo = useServerContext((state) => state.setInfo);
@@ -106,6 +127,8 @@ export function OnboardingView() {
   const [workspaceType, setWorkspaceType] = useState<"local" | "remote">("local");
   const [workspacePath, setWorkspacePath] = useState("");
   const [workspaceName, setWorkspaceName] = useState("");
+  const [filesystemWatchRoot, setFilesystemWatchRoot] = useState("~");
+  const [filesystemIgnorePaths, setFilesystemIgnorePaths] = useState("");
   const [themeMode, setThemeMode] = useState("system");
   const [themeAccent, setThemeAccent] = useState("copper");
   const [aiForm, setAiForm] = useState({
@@ -141,6 +164,9 @@ export function OnboardingView() {
   useEffect(() => {
     if (!workspaceConfig) return;
     setWorkspaceName(workspaceConfig.name);
+    const filesystemPreferences = workspaceConfig.preferences.filesystem;
+    setFilesystemWatchRoot(filesystemPreferences.watch_root || "~");
+    setFilesystemIgnorePaths(formatIgnorePaths(filesystemPreferences.ignore_paths));
     setThemeMode(workspaceConfig.theme.mode);
     setThemeAccent(workspaceConfig.theme.accent);
   }, [workspaceConfig]);
@@ -243,6 +269,37 @@ export function OnboardingView() {
           });
           await fetchWorkspaceConfig();
         }
+        setStepIndex(stepIndex + 1);
+      } catch (err) {
+        setError(String(err));
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
+
+    if (stepId === "extensions") {
+      if (!workspaceConfig) {
+        setError("Workspace config unavailable.");
+        return;
+      }
+      const watchRoot = filesystemWatchRoot.trim();
+      if (!watchRoot) {
+        setError("Default watch root is required.");
+        return;
+      }
+      setBusy(true);
+      try {
+        await updateWorkspaceConfig({
+          ...workspaceConfig,
+          preferences: {
+            ...workspaceConfig.preferences,
+            filesystem: {
+              watch_root: watchRoot,
+              ignore_paths: parseIgnorePaths(filesystemIgnorePaths),
+            },
+          },
+        });
         setStepIndex(stepIndex + 1);
       } catch (err) {
         setError(String(err));
@@ -444,6 +501,40 @@ export function OnboardingView() {
             </InfoCard>
           )}
 
+          {stepId === "extensions" && (
+            <InfoCard>
+              <Text as="h3" size="lg" weight="semibold">
+                File system extension defaults
+              </Text>
+              <Text as="p" size="sm" tone="secondary">
+                These defaults are used by built-in filesystem tools when root and
+                ignore paths are not supplied in a tool call.
+              </Text>
+              <div className={styles.extensionMeta}>
+                <StatusBadge status="good" label="Built-in extension" />
+                <Text size="xs" tone="tertiary">
+                  filesystem
+                </Text>
+              </div>
+              <Field label="Default watch root">
+                <TextInput
+                  value={filesystemWatchRoot}
+                  onChange={(event) => setFilesystemWatchRoot(event.target.value)}
+                  placeholder="~"
+                />
+                <InlineHelp text="Absolute path, ~/path, or workspace-relative path." />
+              </Field>
+              <Field label="Default ignore paths">
+                <TextArea
+                  value={filesystemIgnorePaths}
+                  onChange={(event) => setFilesystemIgnorePaths(event.target.value)}
+                  placeholder={".git\nnode_modules\nLibrary/Caches"}
+                />
+                <InlineHelp text="One path per line (or comma-separated). Duplicates are removed." />
+              </Field>
+            </InfoCard>
+          )}
+
           {stepId === "theme" && (
             <InfoCard>
               <Field label="Workspace name">
@@ -576,8 +667,8 @@ export function OnboardingView() {
                 Setup complete
               </Text>
               <Text as="p" size="sm" tone="secondary">
-                Your workspace, AI provider, and permissions are ready. You can now
-                summon the command bar and start automating.
+                Your workspace, extension defaults, AI provider, and permissions are
+                ready. You can now summon the command bar and start automating.
               </Text>
               <HighlightGrid>
                 <HighlightItem
