@@ -1,3 +1,4 @@
+use std::any::Any;
 use std::sync::Arc;
 
 use crate::error::CoreError;
@@ -29,6 +30,10 @@ impl Extension for NoteExtension {
 
     fn tags(&self) -> Vec<String> {
         vec!["notes".to_string(), "writing".to_string()]
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 
     fn tools(&self) -> Vec<ExtensionTool> {

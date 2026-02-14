@@ -1,3 +1,4 @@
+use std::any::Any;
 use std::sync::Arc;
 
 use crate::error::CoreError;
@@ -31,6 +32,10 @@ impl Extension for SystemExtension {
 
     fn tags(&self) -> Vec<String> {
         vec!["system".to_string(), "os".to_string()]
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 
     fn tools(&self) -> Vec<ExtensionTool> {

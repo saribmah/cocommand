@@ -1,3 +1,4 @@
+use std::any::Any;
 use std::sync::Arc;
 
 use serde_json::json;
@@ -38,6 +39,10 @@ impl Extension for ClipboardExtension {
             "history".to_string(),
             "system".to_string(),
         ]
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 
     fn tools(&self) -> Vec<ExtensionTool> {

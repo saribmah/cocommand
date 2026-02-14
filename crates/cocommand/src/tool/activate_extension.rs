@@ -43,7 +43,7 @@ pub fn build_activate_extension_tool(
                             workspace,
                             session_id: session_id.clone(),
                         };
-                        app.initialize(&context).await?;
+                        app.activate(&context).await?;
                         session.activate_extension(&app_id);
                         Ok(())
                     })

@@ -1,5 +1,6 @@
 //! FileSystemExtension implementation.
 
+use std::any::Any;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -7,7 +8,7 @@ use std::sync::Arc;
 use serde_json::json;
 
 use crate::error::{CoreError, CoreResult};
-use crate::extension::{boxed_tool_future, Extension, ExtensionKind, ExtensionTool};
+use crate::extension::{boxed_tool_future, Extension, ExtensionInitContext, ExtensionKind, ExtensionTool};
 use crate::workspace::FileSystemPreferences;
 
 use filesystem::FileSystemIndexManager;
@@ -53,6 +54,11 @@ impl FileSystemExtension {
             index_manager: Arc::new(FileSystemIndexManager::default()),
         }
     }
+
+    /// Returns a reference to the index manager.
+    pub fn index_manager(&self) -> &Arc<FileSystemIndexManager> {
+        &self.index_manager
+    }
 }
 
 #[async_trait::async_trait]
@@ -77,6 +83,29 @@ impl Extension for FileSystemExtension {
             "search".to_string(),
             "io".to_string(),
         ]
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    async fn initialize(&self, context: ExtensionInitContext) -> CoreResult<()> {
+        let defaults = workspace_filesystem_defaults(context.workspace.as_ref()).await;
+        let workspace_dir = context.workspace.workspace_dir.clone();
+
+        let root = normalize_input_path(&defaults.watch_root, &workspace_dir)?;
+        let ignore_paths = normalize_ignore_paths(&defaults.ignore_paths, &root)?;
+        let index_cache_dir = workspace_dir.join("storage/filesystem-indexes");
+
+        let index_manager = self.index_manager.clone();
+
+        // Start indexing in background thread
+        tokio::task::spawn_blocking(move || {
+            // index_status triggers ensure_build_started internally
+            let _ = index_manager.index_status(root, index_cache_dir, ignore_paths);
+        });
+
+        Ok(())
     }
 
     fn tools(&self) -> Vec<ExtensionTool> {

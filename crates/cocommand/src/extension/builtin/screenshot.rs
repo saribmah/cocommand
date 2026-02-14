@@ -1,7 +1,8 @@
+use std::any::Any;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use crate::error::{CoreError, CoreResult};
+use crate::error::CoreError;
 use crate::extension::{boxed_tool_future, Extension, ExtensionKind, ExtensionTool};
 use crate::utils::time::now_secs;
 
@@ -69,6 +70,10 @@ impl Extension for ScreenshotExtension {
             "screen".to_string(),
             "system".to_string(),
         ]
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
     }
 
     fn tools(&self) -> Vec<ExtensionTool> {
@@ -218,9 +223,5 @@ impl Extension for ScreenshotExtension {
                 execute: unsupported,
             }]
         }
-    }
-
-    async fn initialize(&self, _context: &crate::extension::ExtensionContext) -> CoreResult<()> {
-        Ok(())
     }
 }

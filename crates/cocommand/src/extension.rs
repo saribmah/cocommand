@@ -5,6 +5,7 @@ pub mod loader;
 pub mod manifest;
 pub mod registry;
 
+use std::any::Any;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -61,6 +62,12 @@ impl std::fmt::Debug for ExtensionContext {
     }
 }
 
+/// Context for extension initialization at startup.
+#[derive(Clone)]
+pub struct ExtensionInitContext {
+    pub workspace: std::sync::Arc<crate::workspace::WorkspaceInstance>,
+}
+
 #[async_trait::async_trait]
 pub trait Extension: Send + Sync {
     fn id(&self) -> &str;
@@ -68,7 +75,18 @@ pub trait Extension: Send + Sync {
     fn kind(&self) -> ExtensionKind;
     fn tags(&self) -> Vec<String>;
     fn tools(&self) -> Vec<ExtensionTool>;
-    async fn initialize(&self, _context: &ExtensionContext) -> crate::error::CoreResult<()> {
+
+    /// Returns self as Any for downcasting to concrete types.
+    fn as_any(&self) -> &dyn Any;
+
+    /// Called once at startup when the extension is registered.
+    /// Use this for background tasks like beginning filesystem indexing.
+    async fn initialize(&self, _context: ExtensionInitContext) -> crate::error::CoreResult<()> {
+        Ok(())
+    }
+
+    /// Called when the extension is activated in a session context.
+    async fn activate(&self, _context: &ExtensionContext) -> crate::error::CoreResult<()> {
         Ok(())
     }
 }

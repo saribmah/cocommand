@@ -1,3 +1,4 @@
+use std::any::Any;
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -73,7 +74,11 @@ impl Extension for CustomExtension {
         self.tools.clone()
     }
 
-    async fn initialize(&self, _context: &ExtensionContext) -> CoreResult<()> {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    async fn activate(&self, _context: &ExtensionContext) -> CoreResult<()> {
         let mut guard = self.initialized.lock().await;
         if *guard {
             return Ok(());

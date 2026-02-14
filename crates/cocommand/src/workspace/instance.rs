@@ -11,7 +11,7 @@ use crate::extension::builtin::screenshot::ScreenshotExtension;
 use crate::extension::builtin::system::SystemExtension;
 use crate::extension::loader::load_custom_extensions;
 use crate::extension::registry::ExtensionRegistry;
-use crate::extension::Extension;
+use crate::extension::{Extension, ExtensionInitContext};
 use crate::storage::file::FileStorage;
 use crate::storage::SharedStorage;
 use crate::workspace::config::{load_or_create_workspace_storage, WorkspaceConfig};
@@ -51,12 +51,40 @@ impl WorkspaceInstance {
         let extension_registry = Arc::new(RwLock::new(ExtensionRegistry::new()));
         register_builtin_extensions(&extension_registry).await;
         register_custom_extensions(&extension_registry, workspace_dir).await?;
-        Ok(Self {
+
+        let instance = Self {
             workspace_dir: workspace_dir.to_path_buf(),
             config: Arc::new(RwLock::new(config)),
             extension_registry,
             storage,
-        })
+        };
+
+        // Initialize all extensions
+        instance.initialize_extensions().await;
+
+        Ok(instance)
+    }
+
+    /// Calls initialize on all registered extensions.
+    async fn initialize_extensions(&self) {
+        let extensions = {
+            let registry = self.extension_registry.read().await;
+            registry.list()
+        };
+
+        let context = ExtensionInitContext {
+            workspace: Arc::new(self.clone()),
+        };
+
+        for extension in extensions {
+            if let Err(error) = extension.initialize(context.clone()).await {
+                log::warn!(
+                    "failed to initialize extension {}: {}",
+                    extension.id(),
+                    error
+                );
+            }
+        }
     }
 }
 

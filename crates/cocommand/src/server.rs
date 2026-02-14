@@ -14,6 +14,7 @@ use crate::session::SessionManager;
 use crate::workspace::WorkspaceInstance;
 pub mod events;
 pub mod extension;
+pub mod filesystem;
 pub mod session;
 pub mod workspace;
 
@@ -69,6 +70,10 @@ impl Server {
             .route(
                 "/workspace/settings/permissions/open",
                 post(workspace::open_permission),
+            )
+            .route(
+                "/extension/filesystem/status",
+                post(filesystem::index_status),
             )
             .with_state(state.clone())
             .layer(cors);
