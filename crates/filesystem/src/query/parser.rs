@@ -61,9 +61,7 @@ impl QueryParser {
     pub fn parse(input: &str) -> Result<QueryExpression> {
         let tokens = tokenize_query_input(input)?;
         if tokens.is_empty() {
-            return Err(FilesystemError::QueryParse(
-                "query must not be empty".to_string(),
-            ));
+            return Ok(QueryExpression::And(Vec::new()));
         }
 
         let mut parser = Self { tokens, index: 0 };

@@ -67,6 +67,11 @@ pub struct WalkData<'a> {
     pub ignore_directories: &'a [PathBuf],
     /// Optional progress tracker for UI updates.
     pub progress: Option<&'a IndexBuildProgress>,
+    /// Whether metadata should be collected for file nodes.
+    ///
+    /// Cardinal skips file metadata during full-index builds for speed and only
+    /// fetches it when needed by specific operations.
+    pub need_metadata: bool,
 }
 
 impl<'a> WalkData<'a> {
@@ -79,6 +84,7 @@ impl<'a> WalkData<'a> {
             root_path,
             ignore_directories,
             progress: None,
+            need_metadata: false,
         }
     }
 
@@ -91,6 +97,12 @@ impl<'a> WalkData<'a> {
     /// Sets the progress tracker.
     pub fn with_progress(mut self, progress: &'a IndexBuildProgress) -> Self {
         self.progress = Some(progress);
+        self
+    }
+
+    /// Enables or disables file metadata collection.
+    pub fn with_file_metadata(mut self, need_metadata: bool) -> Self {
+        self.need_metadata = need_metadata;
         self
     }
 
@@ -258,10 +270,14 @@ fn walk(path: &Path, walk_data: &WalkData) -> Option<Node> {
                         .into_owned()
                         .into_boxed_str();
 
-                    let child_metadata = entry
-                        .metadata()
-                        .ok()
-                        .map(|m| SlabNodeMetadata::from_fs_metadata(&m));
+                    let child_metadata = if walk_data.need_metadata {
+                        entry
+                            .metadata()
+                            .ok()
+                            .map(|m| SlabNodeMetadata::from_fs_metadata(&m))
+                    } else {
+                        None
+                    };
 
                     Some(Node {
                         children: Vec::new(),

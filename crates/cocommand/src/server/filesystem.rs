@@ -173,9 +173,9 @@ pub struct SearchVersionResponse {
 pub(crate) async fn next_search_version(
     State(state): State<Arc<ServerState>>,
 ) -> Result<Json<SearchVersionResponse>, (StatusCode, String)> {
-    let manager = get_filesystem_index_manager(&state).await.map_err(|e| {
-        (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
-    })?;
+    let manager = get_filesystem_index_manager(&state)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     let version = manager.next_search_version();
     Ok(Json(SearchVersionResponse { version }))
@@ -199,11 +199,7 @@ pub(crate) async fn search(
     State(state): State<Arc<ServerState>>,
     Json(payload): Json<SearchRequest>,
 ) -> Result<Json<SearchResponse>, (StatusCode, String)> {
-    let query = payload.query.trim();
-    if query.is_empty() {
-        return Err((StatusCode::BAD_REQUEST, "query must not be empty".to_string()));
-    }
-    let query = query.to_string();
+    let query = payload.query.trim().to_string();
 
     let (watch_root, default_ignore_paths) = {
         let config = state.workspace.config.read().await;
@@ -220,18 +216,15 @@ pub(crate) async fn search(
     });
 
     let workspace_dir = state.workspace.workspace_dir.clone();
-    let root = normalize_path(&root_raw, &workspace_dir).map_err(|e| {
-        (StatusCode::BAD_REQUEST, e.to_string())
-    })?;
+    let root = normalize_path(&root_raw, &workspace_dir)
+        .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
 
     let ignore_paths_raw = payload.ignore_paths.unwrap_or(default_ignore_paths);
-    let ignore_paths = normalize_ignore_paths(&ignore_paths_raw, &root).map_err(|e| {
-        (StatusCode::BAD_REQUEST, e.to_string())
-    })?;
+    let ignore_paths = normalize_ignore_paths(&ignore_paths_raw, &root)
+        .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
 
-    let kind = parse_kind_filter(payload.kind.as_deref()).map_err(|e| {
-        (StatusCode::BAD_REQUEST, e.to_string())
-    })?;
+    let kind = parse_kind_filter(payload.kind.as_deref())
+        .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
 
     let include_hidden = payload.include_hidden.unwrap_or(true);
     let case_sensitive = payload.case_sensitive.unwrap_or(false);
@@ -242,9 +235,9 @@ pub(crate) async fn search(
     let search_version = payload.search_version;
 
     // Get the index manager from the filesystem extension via downcasting
-    let manager = get_filesystem_index_manager(&state).await.map_err(|e| {
-        (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
-    })?;
+    let manager = get_filesystem_index_manager(&state)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     let result = tokio::task::spawn_blocking(move || {
         manager
@@ -263,7 +256,12 @@ pub(crate) async fn search(
             .map_err(CoreError::from)
     })
     .await
-    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("task failed: {e}")))?
+    .map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("task failed: {e}"),
+        )
+    })?
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     // If search was cancelled (result is None), return 204 No Content
@@ -295,21 +293,19 @@ pub(crate) async fn index_status(
     });
 
     let workspace_dir = state.workspace.workspace_dir.clone();
-    let root = normalize_path(&root_raw, &workspace_dir).map_err(|e| {
-        (StatusCode::BAD_REQUEST, e.to_string())
-    })?;
+    let root = normalize_path(&root_raw, &workspace_dir)
+        .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
 
     let ignore_paths_raw = payload.ignore_paths.unwrap_or(default_ignore_paths);
-    let ignore_paths = normalize_ignore_paths(&ignore_paths_raw, &root).map_err(|e| {
-        (StatusCode::BAD_REQUEST, e.to_string())
-    })?;
+    let ignore_paths = normalize_ignore_paths(&ignore_paths_raw, &root)
+        .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
 
     let index_cache_dir = workspace_dir.join("storage/filesystem-indexes");
 
     // Get the index manager from the filesystem extension via downcasting
-    let manager = get_filesystem_index_manager(&state).await.map_err(|e| {
-        (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
-    })?;
+    let manager = get_filesystem_index_manager(&state)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     let result = tokio::task::spawn_blocking(move || {
         manager
@@ -317,7 +313,12 @@ pub(crate) async fn index_status(
             .map_err(CoreError::from)
     })
     .await
-    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("task failed: {e}")))?
+    .map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("task failed: {e}"),
+        )
+    })?
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     Ok(Json(result.into()))
@@ -326,7 +327,9 @@ pub(crate) async fn index_status(
 fn normalize_path(raw: &str, workspace_dir: &std::path::Path) -> Result<PathBuf, CoreError> {
     let trimmed = raw.trim();
     if trimmed.is_empty() {
-        return Err(CoreError::InvalidInput("path must not be empty".to_string()));
+        return Err(CoreError::InvalidInput(
+            "path must not be empty".to_string(),
+        ));
     }
 
     let candidate = if trimmed == "~" || trimmed.starts_with("~/") || trimmed.starts_with("~\\") {
@@ -342,22 +345,26 @@ fn normalize_path(raw: &str, workspace_dir: &std::path::Path) -> Result<PathBuf,
     }
 }
 
-fn normalize_ignore_paths(raw_paths: &[String], root: &std::path::Path) -> Result<Vec<PathBuf>, CoreError> {
+fn normalize_ignore_paths(
+    raw_paths: &[String],
+    root: &std::path::Path,
+) -> Result<Vec<PathBuf>, CoreError> {
     let mut normalized = Vec::new();
     for raw_path in raw_paths {
         if raw_path.trim().is_empty() {
             continue;
         }
-        let candidate = if raw_path == "~" || raw_path.starts_with("~/") || raw_path.starts_with("~\\") {
-            expand_home(raw_path)?
-        } else {
-            let path = PathBuf::from(raw_path);
-            if path.is_absolute() {
-                path
+        let candidate =
+            if raw_path == "~" || raw_path.starts_with("~/") || raw_path.starts_with("~\\") {
+                expand_home(raw_path)?
             } else {
-                root.join(path)
-            }
-        };
+                let path = PathBuf::from(raw_path);
+                if path.is_absolute() {
+                    path
+                } else {
+                    root.join(path)
+                }
+            };
         normalized.push(std::fs::canonicalize(&candidate).unwrap_or(candidate));
     }
     normalized.sort();
@@ -384,9 +391,9 @@ async fn get_filesystem_index_manager(
     state: &ServerState,
 ) -> Result<Arc<FileSystemIndexManager>, CoreError> {
     let registry = state.workspace.extension_registry.read().await;
-    let extension = registry.get("filesystem").ok_or_else(|| {
-        CoreError::Internal("filesystem extension not found".to_string())
-    })?;
+    let extension = registry
+        .get("filesystem")
+        .ok_or_else(|| CoreError::Internal("filesystem extension not found".to_string()))?;
 
     let fs_extension = extension
         .as_any()

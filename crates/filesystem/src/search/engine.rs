@@ -2,6 +2,7 @@
 
 use std::collections::{BTreeSet, HashSet};
 use std::path::{Path, PathBuf};
+use std::time::UNIX_EPOCH;
 
 use rayon::iter::{ParallelBridge, ParallelIterator};
 
@@ -9,8 +10,8 @@ use crate::cancel::CancellationToken;
 use crate::error::Result;
 use crate::indexer::{NodeView, RootIndexData};
 use crate::query::{
-    file_content_matches, QueryExpression, QueryFilter, QueryTerm, SearchQueryMatcher,
-    TypeFilterTarget,
+    file_content_matches, segment_query_text, QueryExpression, QueryFilter, QueryTerm,
+    SearchQueryMatcher, TextQuerySegment, TextSegmentMatcher, TypeFilterTarget,
 };
 use crate::storage::{NodeFileType, SlabIndex};
 use crate::types::{FileEntry, FileType, KindFilter, SearchResult};
@@ -23,10 +24,9 @@ use crate::types::{FileEntry, FileType, KindFilter, SearchResult};
 const TAG_FILTER_MDFIND_THRESHOLD: usize = 10000;
 
 /// A candidate entry for search matching.
-/// Contains the node index and the precomputed path string.
+/// Keeps only the node id to avoid eager path reconstruction.
 struct SearchCandidate {
     id: SlabIndex,
-    path: String,
 }
 
 /// Searches the index data with the given query.
@@ -63,66 +63,65 @@ pub fn search_index_data(
 
     let prefiltered_ids = candidate_ids.map(|ids| ids.into_iter().collect::<BTreeSet<_>>());
 
-    let root_str = root.to_string_lossy();
     let mut candidates: Vec<SearchCandidate> = Vec::new();
+    let Some(root_id) = data.node_index_for_path(root) else {
+        return Ok(Some(SearchResult {
+            query,
+            root: root.to_string_lossy().to_string(),
+            entries: Vec::new(),
+            count: 0,
+            truncated: false,
+            scanned: 0,
+            errors: data.errors,
+            index_state: index_state.to_string(),
+            index_scanned_files,
+            index_scanned_dirs,
+            index_started_at,
+            index_last_update_at,
+            index_finished_at,
+            highlight_terms: matcher.highlight_terms(),
+        }));
+    };
 
-    // Compute the depth of the indexed root for relative depth calculation.
-    // Path components count includes RootDir, so depth = components - 1.
-    // For example: "/" has 1 component -> depth 0
-    //              "/var" has 2 components -> depth 1
-    //              "/var/folders/.../foo" with 7 components -> depth 6
-    let root_depth = root.components().count().saturating_sub(1);
-
-    // Iterate over all nodes in the slab with sparse cancellation checks
-    for (i, (id, _node)) in data.iter_nodes().enumerate() {
-        // Sparse cancellation check
-        if cancel_token.is_cancelled_sparse(i).is_none() {
+    // Traverse only the indexed root subtree. This avoids repeatedly computing
+    // full parent chains for every node on each search.
+    let mut stack = vec![(root_id, 0usize, false)];
+    let mut counter = 0usize;
+    while let Some((id, depth, hidden_in_chain)) = stack.pop() {
+        if cancel_token.is_cancelled_sparse(counter).is_none() {
             return Ok(None);
         }
+        counter += 1;
 
-        // Apply prefilter if we have required terms
-        if let Some(prefilter) = prefiltered_ids.as_ref() {
-            if !prefilter.contains(&id) {
-                continue;
-            }
-        }
-
-        // Compute depth relative to the indexed root
-        let view = NodeView::new(&*data.file_nodes, id);
-        let absolute_depth = view.compute_depth().unwrap_or(0);
-
-        // Skip nodes that are above the indexed root (ancestors in the path)
-        if absolute_depth < root_depth {
+        if depth > max_depth {
             continue;
         }
 
-        // Depth relative to root: if node is at depth 10 and root is at depth 6,
-        // relative depth is 4 (meaning 4 levels below root)
-        let relative_depth = absolute_depth - root_depth;
-        if relative_depth > max_depth {
+        let Some(node) = data.get_node(id) else {
             continue;
-        }
-
-        // Check hidden status only within the indexed subtree (not ancestors above root)
-        // We check up to (relative_depth - 1) ancestors because we want to exclude the
-        // indexed root itself from the hidden check - if user chose to index a hidden
-        // folder, they still want to search inside it.
-        // Note: saturating_sub(1) ensures we don't check the root (relative_depth=0 -> 0 levels)
-        if !include_hidden
-            && view
-                .is_hidden_within_depth(relative_depth.saturating_sub(1))
-                .unwrap_or(false)
-        {
-            continue;
-        }
-
-        // Compute the full path
-        let path = match view.compute_path(&root_str) {
-            Some(p) => p,
-            None => continue,
         };
 
-        candidates.push(SearchCandidate { id, path });
+        // Indexed root visibility is always allowed, even if hidden. For all
+        // descendants, hide matches where any node in the path is hidden.
+        let hidden_for_this = hidden_in_chain || (depth > 0 && node.is_hidden());
+        if !include_hidden && hidden_for_this {
+            continue;
+        }
+
+        if let Some(prefilter) = prefiltered_ids.as_ref() {
+            if prefilter.contains(&id) {
+                candidates.push(SearchCandidate { id });
+            }
+        } else {
+            candidates.push(SearchCandidate { id });
+        }
+
+        if depth == max_depth {
+            continue;
+        }
+        for child_id in node.children.iter().rev() {
+            stack.push((*child_id, depth + 1, hidden_for_this));
+        }
     }
 
     // Check for cancellation before expression evaluation
@@ -133,7 +132,6 @@ pub fn search_index_data(
     let universe = candidates.iter().map(|c| c.id).collect::<BTreeSet<_>>();
     let matched_ids = match evaluate_expression_set(
         data,
-        root,
         &matcher,
         matcher.expression(),
         &candidates,
@@ -150,7 +148,7 @@ pub fn search_index_data(
         return Ok(None);
     }
 
-    let mut matches = Vec::new();
+    let mut matched_nodes = Vec::new();
     for (i, candidate) in candidates.into_iter().enumerate() {
         // Sparse check during result building
         if cancel_token.is_cancelled_sparse(i).is_none() {
@@ -172,20 +170,53 @@ pub fn search_index_data(
         if !kind.matches(file_type) {
             continue;
         }
-        matches.push(FileEntry {
-            path: candidate.path,
-            name: node.name().to_string(),
+        matched_nodes.push((
+            node.name().to_string(),
             file_type,
-            size: node.size(),
-            modified_at: node.modified_at(),
-        });
+            candidate.id,
+            node.size(),
+            node.modified_at(),
+        ));
     }
 
-    // Sort by name ascending
-    matches.sort_by(|a, b| a.name.cmp(&b.name));
-    let truncated = matches.len() > max_results;
+    // Keep sorting behavior aligned with Cardinal while avoiding eager path expansion.
+    matched_nodes.sort_by(|a, b| a.0.cmp(&b.0));
+    let truncated = matched_nodes.len() > max_results;
     if truncated {
-        matches.truncate(max_results);
+        matched_nodes.truncate(max_results);
+    }
+
+    let mut matches = Vec::with_capacity(matched_nodes.len());
+    for (i, (name, file_type, id, mut size, mut modified_at)) in
+        matched_nodes.into_iter().enumerate()
+    {
+        if cancel_token.is_cancelled_sparse(i).is_none() {
+            return Ok(None);
+        }
+        let Some(path) = compute_node_path(data, id) else {
+            continue;
+        };
+
+        // Cardinal doesn't force file metadata during full indexing. If metadata is
+        // absent for this node, fetch it lazily for the final result entry only.
+        if modified_at.is_none() && matches!(file_type, FileType::File | FileType::Symlink) {
+            if let Ok(fs_meta) = std::fs::symlink_metadata(&path) {
+                size = Some(fs_meta.len());
+                modified_at = fs_meta
+                    .modified()
+                    .ok()
+                    .and_then(|value| value.duration_since(UNIX_EPOCH).ok())
+                    .map(|value| value.as_secs());
+            }
+        }
+
+        matches.push(FileEntry {
+            path,
+            name,
+            file_type,
+            size,
+            modified_at,
+        });
     }
 
     Ok(Some(SearchResult {
@@ -228,7 +259,7 @@ fn candidate_node_ids_for_terms(
             let matches = if case_sensitive {
                 name.contains(term)
             } else {
-                name.to_ascii_lowercase().contains(term)
+                contains_ascii_case_insensitive(name, term)
             };
             if matches {
                 matched.extend(ids.iter().copied());
@@ -248,6 +279,20 @@ fn candidate_node_ids_for_terms(
     }
 
     intersection
+}
+
+fn contains_ascii_case_insensitive(haystack: &str, needle: &str) -> bool {
+    let haystack_bytes = haystack.as_bytes();
+    let needle_bytes = needle.as_bytes();
+    if needle_bytes.is_empty() {
+        return true;
+    }
+    if needle_bytes.len() > haystack_bytes.len() {
+        return false;
+    }
+    haystack_bytes
+        .windows(needle_bytes.len())
+        .any(|window| window.eq_ignore_ascii_case(needle_bytes))
 }
 
 /// Intersects two sorted ID vectors.
@@ -283,6 +328,287 @@ fn intersect_sorted_ids(
         }
     }
     result
+}
+
+fn compute_node_path(data: &RootIndexData, id: SlabIndex) -> Option<String> {
+    let view = NodeView::new(&*data.file_nodes, id);
+    view.compute_path("")
+}
+
+fn all_indexed_ids(
+    data: &RootIndexData,
+    cancel_token: CancellationToken,
+) -> Option<Vec<SlabIndex>> {
+    let mut result = Vec::new();
+    for (i, indices) in data.name_index.values().enumerate() {
+        cancel_token.is_cancelled_sparse(i)?;
+        result.extend(indices.iter().copied());
+    }
+    Some(result)
+}
+
+fn matcher_matches_name(matcher: &TextSegmentMatcher, name: &str, case_sensitive: bool) -> bool {
+    if case_sensitive {
+        matcher.matches(name)
+    } else {
+        matcher.matches(&name.to_ascii_lowercase())
+    }
+}
+
+fn evaluate_text_term_set(
+    data: &RootIndexData,
+    value: &str,
+    case_sensitive: bool,
+    universe: &BTreeSet<SlabIndex>,
+    cancel_token: CancellationToken,
+) -> Option<BTreeSet<SlabIndex>> {
+    let segments = segment_query_text(value);
+    if segments.is_empty() {
+        return Some(BTreeSet::new());
+    }
+
+    let matched = execute_text_segments(data, &segments, case_sensitive, cancel_token)?;
+    Some(
+        matched
+            .into_iter()
+            .filter(|id| universe.contains(id))
+            .collect(),
+    )
+}
+
+fn execute_text_segments(
+    data: &RootIndexData,
+    segments: &[TextQuerySegment],
+    case_sensitive: bool,
+    cancel_token: CancellationToken,
+) -> Option<Vec<SlabIndex>> {
+    let mut node_set: Option<Vec<SlabIndex>> = None;
+    let mut pending_globstar = false;
+    let mut saw_matcher = false;
+    let mut saw_globstar = false;
+
+    for segment in segments {
+        match segment {
+            TextQuerySegment::GlobStar => {
+                saw_globstar = true;
+                pending_globstar = true;
+            }
+            TextQuerySegment::Star => {
+                saw_matcher = true;
+                let new_node_set = if let Some(nodes) = &node_set {
+                    if pending_globstar {
+                        all_descendant_segments(data, nodes, cancel_token)
+                    } else {
+                        all_direct_children(data, nodes, cancel_token)
+                    }
+                } else {
+                    all_indexed_ids(data, cancel_token)
+                }?;
+                node_set = Some(new_node_set);
+                pending_globstar = false;
+            }
+            TextQuerySegment::Concrete(matcher) => {
+                saw_matcher = true;
+                let new_node_set = if let Some(nodes) = &node_set {
+                    if pending_globstar {
+                        match_descendant_segments(
+                            data,
+                            nodes,
+                            matcher,
+                            case_sensitive,
+                            cancel_token,
+                        )
+                    } else {
+                        match_direct_child_segments(
+                            data,
+                            nodes,
+                            matcher,
+                            case_sensitive,
+                            cancel_token,
+                        )
+                    }
+                } else {
+                    match_initial_segment(data, matcher, case_sensitive, cancel_token)
+                }?;
+                node_set = Some(new_node_set);
+                pending_globstar = false;
+            }
+        }
+    }
+
+    let mut nodes = if pending_globstar {
+        if let Some(nodes) = node_set.take() {
+            Some(all_descendant_segments(data, &nodes, cancel_token)?)
+        } else {
+            all_indexed_ids(data, cancel_token)
+        }
+    } else if saw_matcher {
+        node_set
+    } else {
+        all_indexed_ids(data, cancel_token)
+    };
+
+    // `**` can produce duplicate hits for the same descendant; keep one.
+    if saw_globstar && saw_matcher {
+        if let Some(nodes) = &mut nodes {
+            dedup_indices_in_place(nodes);
+        }
+    }
+
+    nodes
+}
+
+fn match_initial_segment(
+    data: &RootIndexData,
+    matcher: &TextSegmentMatcher,
+    case_sensitive: bool,
+    cancel_token: CancellationToken,
+) -> Option<Vec<SlabIndex>> {
+    let mut nodes = Vec::new();
+    for (i, (name, ids)) in data.name_index.iter().enumerate() {
+        cancel_token.is_cancelled_sparse(i)?;
+        if matcher_matches_name(matcher, name, case_sensitive) {
+            nodes.extend(ids.iter().copied());
+        }
+    }
+    Some(nodes)
+}
+
+fn match_direct_child_segments(
+    data: &RootIndexData,
+    parents: &[SlabIndex],
+    matcher: &TextSegmentMatcher,
+    case_sensitive: bool,
+    cancel_token: CancellationToken,
+) -> Option<Vec<SlabIndex>> {
+    let mut new_node_set = Vec::new();
+    for (i, &node) in parents.iter().enumerate() {
+        cancel_token.is_cancelled_sparse(i)?;
+        let Some(parent_node) = data.get_node(node) else {
+            continue;
+        };
+        let mut child_matches: Vec<(&'static str, SlabIndex)> = parent_node
+            .children
+            .iter()
+            .filter_map(|&child| {
+                let child_node = data.get_node(child)?;
+                let name = child_node.name();
+                if matcher_matches_name(matcher, name, case_sensitive) {
+                    Some((name, child))
+                } else {
+                    None
+                }
+            })
+            .collect();
+        child_matches.sort_unstable_by_key(|(name, _)| *name);
+        new_node_set.extend(child_matches.into_iter().map(|(_, index)| index));
+    }
+    Some(new_node_set)
+}
+
+fn all_direct_children(
+    data: &RootIndexData,
+    parents: &[SlabIndex],
+    cancel_token: CancellationToken,
+) -> Option<Vec<SlabIndex>> {
+    let mut new_node_set = Vec::new();
+    for (i, &node) in parents.iter().enumerate() {
+        cancel_token.is_cancelled_sparse(i)?;
+        let Some(parent_node) = data.get_node(node) else {
+            continue;
+        };
+        let mut child_matches: Vec<(&'static str, SlabIndex)> = parent_node
+            .children
+            .iter()
+            .filter_map(|&child| {
+                data.get_node(child)
+                    .map(|child_node| (child_node.name(), child))
+            })
+            .collect();
+        child_matches.sort_unstable_by_key(|(name, _)| *name);
+        new_node_set.extend(child_matches.into_iter().map(|(_, index)| index));
+    }
+    Some(new_node_set)
+}
+
+fn match_descendant_segments(
+    data: &RootIndexData,
+    parents: &[SlabIndex],
+    matcher: &TextSegmentMatcher,
+    case_sensitive: bool,
+    cancel_token: CancellationToken,
+) -> Option<Vec<SlabIndex>> {
+    let mut matches = Vec::new();
+    let mut visited = 0usize;
+    for &node in parents {
+        cancel_token.is_cancelled_sparse(visited)?;
+        let descendants = all_subnodes(data, node, cancel_token)?;
+        for descendant in descendants {
+            cancel_token.is_cancelled_sparse(visited)?;
+            visited += 1;
+            let Some(descendant_node) = data.get_node(descendant) else {
+                continue;
+            };
+            let name = descendant_node.name();
+            if matcher_matches_name(matcher, name, case_sensitive) {
+                matches.push((name, descendant));
+            }
+        }
+    }
+    matches.sort_unstable_by_key(|(name, _)| *name);
+    Some(matches.into_iter().map(|(_, index)| index).collect())
+}
+
+fn all_descendant_segments(
+    data: &RootIndexData,
+    parents: &[SlabIndex],
+    cancel_token: CancellationToken,
+) -> Option<Vec<SlabIndex>> {
+    let mut matches = Vec::new();
+    let mut visited = 0usize;
+    for &node in parents {
+        cancel_token.is_cancelled_sparse(visited)?;
+        let descendants = all_subnodes(data, node, cancel_token)?;
+        for descendant in descendants {
+            cancel_token.is_cancelled_sparse(visited)?;
+            visited += 1;
+            let Some(descendant_node) = data.get_node(descendant) else {
+                continue;
+            };
+            matches.push((descendant_node.name(), descendant));
+        }
+    }
+    matches.sort_unstable_by_key(|(name, _)| *name);
+    Some(matches.into_iter().map(|(_, index)| index).collect())
+}
+
+fn all_subnodes(
+    data: &RootIndexData,
+    index: SlabIndex,
+    cancel_token: CancellationToken,
+) -> Option<Vec<SlabIndex>> {
+    let mut result = Vec::new();
+    let mut stack = Vec::new();
+    let mut i = 0usize;
+
+    if let Some(node) = data.get_node(index) {
+        stack.extend(node.children.iter().copied());
+    }
+
+    while let Some(current) = stack.pop() {
+        cancel_token.is_cancelled_sparse(i)?;
+        i += 1;
+        result.push(current);
+        if let Some(node) = data.get_node(current) {
+            stack.extend(node.children.iter().copied());
+        }
+    }
+    Some(result)
+}
+
+fn dedup_indices_in_place(indices: &mut Vec<SlabIndex>) {
+    indices.sort_unstable();
+    indices.dedup();
 }
 
 /// Collects extension IDs from the index.
@@ -410,7 +736,6 @@ fn structural_filter_set(
 /// Returns `None` if cancelled.
 fn evaluate_content_filter(
     data: &RootIndexData,
-    root: &Path,
     needle: &str,
     candidates: &[SearchCandidate],
     universe: &BTreeSet<SlabIndex>,
@@ -434,12 +759,7 @@ fn evaluate_content_filter(
             if node.file_type() != NodeFileType::File {
                 return None;
             }
-            // Construct full path from root + candidate path
-            let full_path = if c.path.starts_with('/') {
-                PathBuf::from(&c.path)
-            } else {
-                root.join(&c.path)
-            };
+            let full_path = data.node_path(c.id)?;
             Some((c.id, full_path))
         })
         .collect();
@@ -474,7 +794,6 @@ fn evaluate_content_filter(
 /// This matches Cardinal's adaptive tag filter strategy.
 fn evaluate_tag_filter(
     data: &RootIndexData,
-    root: &Path,
     tags: &[String],
     candidates: &[SearchCandidate],
     universe: &BTreeSet<SlabIndex>,
@@ -494,12 +813,7 @@ fn evaluate_tag_filter(
         .filter_map(|c| {
             // Get node to verify it exists
             let _node = data.get_node(c.id)?;
-            // Construct full path from root + candidate path
-            let full_path = if c.path.starts_with('/') {
-                PathBuf::from(&c.path)
-            } else {
-                root.join(&c.path)
-            };
+            let full_path = data.node_path(c.id)?;
             Some((c.id, full_path))
         })
         .collect();
@@ -628,21 +942,44 @@ fn evaluate_tag_filter_via_mdfind(
 
 /// Evaluates a single term against candidates.
 /// Returns `None` if cancelled.
+fn matches_term_with_path(
+    data: &RootIndexData,
+    matcher: &SearchQueryMatcher,
+    term: &QueryTerm,
+    candidate_id: SlabIndex,
+) -> bool {
+    let Some(node) = data.get_node(candidate_id) else {
+        return false;
+    };
+    let Some(path) = compute_node_path(data, candidate_id) else {
+        return false;
+    };
+    matcher.matches_node_term(term, node, &path)
+}
+
 fn evaluate_term_set(
     data: &RootIndexData,
-    root: &Path,
     matcher: &SearchQueryMatcher,
     term: &QueryTerm,
     candidates: &[SearchCandidate],
     universe: &BTreeSet<SlabIndex>,
     cancel_token: CancellationToken,
 ) -> Option<BTreeSet<SlabIndex>> {
+    if let QueryTerm::Text(value) = term {
+        return evaluate_text_term_set(
+            data,
+            value,
+            matcher.case_sensitive(),
+            universe,
+            cancel_token,
+        );
+    }
+
     if let QueryTerm::Filter(filter) = term {
         // Handle content filter specially with parallel search
         if let QueryFilter::Content { needle } = filter {
             return evaluate_content_filter(
                 data,
-                root,
                 needle,
                 candidates,
                 universe,
@@ -655,7 +992,6 @@ fn evaluate_term_set(
         if let QueryFilter::Tag { tags } = filter {
             return evaluate_tag_filter(
                 data,
-                root,
                 tags,
                 candidates,
                 universe,
@@ -683,10 +1019,7 @@ fn evaluate_term_set(
                 if !narrowed.contains(&candidate.id) {
                     continue;
                 }
-                let Some(node) = data.get_node(candidate.id) else {
-                    continue;
-                };
-                if matcher.matches_node_term(term, node, &candidate.path) {
+                if matches_term_with_path(data, matcher, term, candidate.id) {
                     result.insert(candidate.id);
                 }
             }
@@ -697,10 +1030,7 @@ fn evaluate_term_set(
     let mut result = BTreeSet::new();
     for (i, candidate) in candidates.iter().enumerate() {
         cancel_token.is_cancelled_sparse(i)?;
-        let Some(node) = data.get_node(candidate.id) else {
-            continue;
-        };
-        if matcher.matches_node_term(term, node, &candidate.path) {
+        if matches_term_with_path(data, matcher, term, candidate.id) {
             result.insert(candidate.id);
         }
     }
@@ -711,7 +1041,6 @@ fn evaluate_term_set(
 /// Returns `None` if cancelled.
 fn evaluate_expression_set(
     data: &RootIndexData,
-    root: &Path,
     matcher: &SearchQueryMatcher,
     expression: &QueryExpression,
     candidates: &[SearchCandidate],
@@ -722,25 +1051,12 @@ fn evaluate_expression_set(
     cancel_token.is_cancelled()?;
 
     match expression {
-        QueryExpression::Term(term) => evaluate_term_set(
-            data,
-            root,
-            matcher,
-            term,
-            candidates,
-            universe,
-            cancel_token,
-        ),
+        QueryExpression::Term(term) => {
+            evaluate_term_set(data, matcher, term, candidates, universe, cancel_token)
+        }
         QueryExpression::Not(inner) => {
-            let inner_set = evaluate_expression_set(
-                data,
-                root,
-                matcher,
-                inner,
-                candidates,
-                universe,
-                cancel_token,
-            )?;
+            let inner_set =
+                evaluate_expression_set(data, matcher, inner, candidates, universe, cancel_token)?;
             Some(universe.difference(&inner_set).copied().collect())
         }
         QueryExpression::And(parts) => {
@@ -748,20 +1064,12 @@ fn evaluate_expression_set(
             let Some(first) = parts_iter.next() else {
                 return Some(universe.clone());
             };
-            let mut set = evaluate_expression_set(
-                data,
-                root,
-                matcher,
-                first,
-                candidates,
-                universe,
-                cancel_token,
-            )?;
+            let mut set =
+                evaluate_expression_set(data, matcher, first, candidates, universe, cancel_token)?;
             for part in parts_iter {
                 cancel_token.is_cancelled()?;
                 let other = evaluate_expression_set(
                     data,
-                    root,
                     matcher,
                     part,
                     candidates,
@@ -781,7 +1089,6 @@ fn evaluate_expression_set(
                 cancel_token.is_cancelled()?;
                 let other = evaluate_expression_set(
                     data,
-                    root,
                     matcher,
                     part,
                     candidates,

@@ -3,12 +3,13 @@
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU64, AtomicU8, Ordering};
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicU8, Ordering};
+use std::sync::{Arc, Mutex, RwLock, TryLockError};
 use std::thread;
+use std::time::Instant;
 
 use super::engine::search_index_data;
-use crate::cancel::{CancellationToken, SearchVersionTracker};
+use crate::cancel::SearchVersionTracker;
 use crate::error::{canonicalize_existing_path, lock_poisoned_error, FilesystemError, Result};
 use crate::indexer::{
     load_index_snapshot, unix_now_secs, write_index_snapshot, FlushDecision, FlushSignal,
@@ -20,19 +21,24 @@ use crate::watcher::{apply_path_change, coalesce_event_paths, mark_index_dirty};
 
 #[cfg(target_os = "macos")]
 use crate::watcher::{create_fsevent_watcher, FsEventStream};
+#[cfg(target_os = "macos")]
+type WatcherHandle = FsEventStream;
 
 #[cfg(not(target_os = "macos"))]
 use crate::watcher::create_index_watcher;
 #[cfg(not(target_os = "macos"))]
 use notify::RecommendedWatcher;
+#[cfg(not(target_os = "macos"))]
+type WatcherHandle = RecommendedWatcher;
 
 /// A root index with its watcher and flush worker.
 struct RootIndex {
     shared: Arc<SharedRootIndex>,
+    first_status_timing_logged: AtomicBool,
     #[cfg(target_os = "macos")]
-    _watcher: Mutex<Option<FsEventStream>>,
+    _watcher: Arc<Mutex<Option<FsEventStream>>>,
     #[cfg(not(target_os = "macos"))]
-    _watcher: Mutex<Option<RecommendedWatcher>>,
+    _watcher: Arc<Mutex<Option<RecommendedWatcher>>>,
     _flush_worker: FlushWorkerHandle,
 }
 
@@ -47,6 +53,7 @@ impl std::fmt::Debug for RootIndex {
 
 impl RootIndex {
     fn new(key: RootIndexKey, cache_dir: PathBuf) -> Result<Self> {
+        let init_started = Instant::now();
         let root_metadata = fs::symlink_metadata(&key.root).map_err(|error| {
             FilesystemError::InvalidInput(format!(
                 "unable to access root path {}: {error}",
@@ -57,21 +64,29 @@ impl RootIndex {
         let cache_path = key.cache_path(&cache_dir);
         let flush_signal = Arc::new(FlushSignal::default());
 
-        let (snapshot, build_state, build_progress, cached_event_id) =
-            match load_index_snapshot(&cache_path, &key.root, root_is_dir, &key.ignored_roots) {
+        let cache_load_started = Instant::now();
+        let loaded_snapshot =
+            load_index_snapshot(&cache_path, &key.root, root_is_dir, &key.ignored_roots);
+        let cache_load_ms = cache_load_started.elapsed().as_millis();
+
+        let (snapshot, build_state, build_progress, cached_event_id, cache_loaded) =
+            match loaded_snapshot {
                 Some((snapshot, saved_at, event_id)) => (
                     snapshot,
                     IndexBuildState::Ready,
                     IndexBuildProgress::new_ready(saved_at),
                     event_id,
+                    true,
                 ),
                 None => (
                     RootIndexData::default(),
                     IndexBuildState::Idle,
                     IndexBuildProgress::default(),
                     0u64,
+                    false,
                 ),
             };
+        let cached_entries = snapshot.len();
 
         #[cfg(target_os = "macos")]
         let since_event_id = if cached_event_id > 0 {
@@ -103,42 +118,62 @@ impl RootIndex {
         });
 
         let flush_worker = spawn_flush_worker(shared.clone());
+        let watcher_slot: Arc<Mutex<Option<WatcherHandle>>> = Arc::new(Mutex::new(None));
 
-        #[cfg(target_os = "macos")]
-        let watcher = match create_fsevent_watcher(shared.clone(), since_event_id) {
-            Ok(watcher) => Some(watcher),
-            Err(error) => {
-                if let Ok(mut data) = shared.data.write() {
-                    data.errors += 1;
+        let watcher_shared = shared.clone();
+        let watcher_slot_clone = watcher_slot.clone();
+        thread::spawn(move || {
+            #[cfg(target_os = "macos")]
+            let watcher = match create_fsevent_watcher(watcher_shared.clone(), since_event_id) {
+                Ok(watcher) => Some(watcher),
+                Err(error) => {
+                    if let Ok(mut data) = watcher_shared.data.write() {
+                        data.errors += 1;
+                    }
+                    log::warn!(
+                        "filesystem watcher disabled for {}: {}",
+                        watcher_shared.root.display(),
+                        error
+                    );
+                    None
                 }
-                log::warn!(
-                    "filesystem watcher disabled for {}: {}",
-                    key.root.display(),
-                    error
-                );
-                None
-            }
-        };
+            };
 
-        #[cfg(not(target_os = "macos"))]
-        let watcher = match create_index_watcher(shared.clone()) {
-            Ok(watcher) => Some(watcher),
-            Err(error) => {
-                if let Ok(mut data) = shared.data.write() {
-                    data.errors += 1;
+            #[cfg(not(target_os = "macos"))]
+            let watcher = match create_index_watcher(watcher_shared.clone()) {
+                Ok(watcher) => Some(watcher),
+                Err(error) => {
+                    if let Ok(mut data) = watcher_shared.data.write() {
+                        data.errors += 1;
+                    }
+                    log::warn!(
+                        "filesystem watcher disabled for {}: {}",
+                        watcher_shared.root.display(),
+                        error
+                    );
+                    None
                 }
-                log::warn!(
-                    "filesystem watcher disabled for {}: {}",
-                    key.root.display(),
-                    error
-                );
-                None
+            };
+
+            if let Ok(mut slot) = watcher_slot_clone.lock() {
+                *slot = watcher;
             }
-        };
+        });
+
+        log::info!(
+            "filesystem index init root={} cache_loaded={} cache_load_ms={} cached_entries={} state={} total_init_ms={}",
+            key.root.display(),
+            cache_loaded,
+            cache_load_ms,
+            cached_entries,
+            build_state.as_str(),
+            init_started.elapsed().as_millis(),
+        );
 
         Ok(Self {
             shared,
-            _watcher: Mutex::new(watcher),
+            first_status_timing_logged: AtomicBool::new(false),
+            _watcher: watcher_slot,
             _flush_worker: flush_worker,
         })
     }
@@ -177,7 +212,10 @@ fn spawn_flush_worker(shared: Arc<SharedRootIndex>) -> FlushWorkerHandle {
 #[derive(Debug, Default)]
 pub struct FileSystemIndexManager {
     indexes: RwLock<HashMap<RootIndexKey, Arc<RootIndex>>>,
+    index_init_lane: Mutex<()>,
     search_version_tracker: SearchVersionTracker,
+    unversioned_search_tracker: SearchVersionTracker,
+    search_lane: Mutex<()>,
 }
 
 impl FileSystemIndexManager {
@@ -211,9 +249,9 @@ impl FileSystemIndexManager {
 
     /// Searches the filesystem index.
     ///
-    /// If `search_version` is provided, the search can be cancelled by calling
-    /// `next_search_version()` which increments the active version. Pass `None`
-    /// for searches that should not be cancellable.
+    /// If `search_version` is omitted, a fresh version is allocated automatically.
+    /// This keeps unversioned callers (tooling/internal callers) cancellable and
+    /// avoids piling up concurrent expensive searches.
     #[allow(clippy::too_many_arguments)]
     pub fn search(
         &self,
@@ -235,13 +273,25 @@ impl FileSystemIndexManager {
 
         let (state, progress) = progress_snapshot(index.shared.as_ref());
 
-        // Create cancellation token from version, or noop if no version provided
-        let cancel_token = match search_version {
-            Some(version) => self.search_version_tracker.token_for_version(version),
-            None => CancellationToken::noop(),
+        let cancel_token = if let Some(version) = search_version {
+            self.search_version_tracker.token_for_version(version)
+        } else {
+            let version = self.unversioned_search_tracker.next_version();
+            self.unversioned_search_tracker.token_for_version(version)
         };
 
         // Check if already cancelled before doing any work
+        if cancel_token.is_cancelled().is_none() {
+            return Ok(None);
+        }
+
+        // Cardinal executes searches on a single worker lane. Serializing search
+        // execution here prevents CPU thrash and runaway parallel I/O under bursts.
+        let _search_lane_guard = self
+            .search_lane
+            .lock()
+            .map_err(|_| lock_poisoned_error("filesystem search lane"))?;
+
         if cancel_token.is_cancelled().is_none() {
             return Ok(None);
         }
@@ -298,12 +348,31 @@ impl FileSystemIndexManager {
         cache_dir: PathBuf,
         ignored_roots: Vec<PathBuf>,
     ) -> Result<IndexStatus> {
+        let status_started = Instant::now();
         let key = self.build_key(root, ignored_roots)?;
         let index = self.get_or_create_index(key.clone(), cache_dir)?;
 
         ensure_build_started(index.shared.clone(), false);
 
-        build_status_payload(index.as_ref(), &key)
+        let status = build_status_payload(index.as_ref(), &key)?;
+
+        if !index
+            .first_status_timing_logged
+            .swap(true, Ordering::Relaxed)
+        {
+            log::info!(
+                "filesystem first index_status root={} elapsed_ms={} state={} indexed_entries={} scanned_files={} scanned_dirs={} watcher_enabled={}",
+                key.root.display(),
+                status_started.elapsed().as_millis(),
+                status.state,
+                status.indexed_entries,
+                status.scanned_files,
+                status.scanned_dirs,
+                status.watcher_enabled,
+            );
+        }
+
+        Ok(status)
     }
 
     /// Triggers a rescan of the index.
@@ -400,6 +469,25 @@ impl FileSystemIndexManager {
             return Ok(existing);
         }
 
+        // Avoid holding the registry write lock while building/loading a root index.
+        // This keeps unrelated calls from blocking behind heavy cache load work.
+        let _init_lane_guard = self
+            .index_init_lane
+            .lock()
+            .map_err(|_| lock_poisoned_error("filesystem index init lane"))?;
+
+        if let Some(existing) = self
+            .indexes
+            .read()
+            .map_err(|_| lock_poisoned_error("filesystem index registry"))?
+            .get(&key)
+            .cloned()
+        {
+            return Ok(existing);
+        }
+
+        let index = Arc::new(RootIndex::new(key.clone(), cache_dir)?);
+
         let mut indexes = self
             .indexes
             .write()
@@ -407,27 +495,31 @@ impl FileSystemIndexManager {
         if let Some(existing) = indexes.get(&key).cloned() {
             return Ok(existing);
         }
-
-        let index = Arc::new(RootIndex::new(key.clone(), cache_dir)?);
         indexes.insert(key, index.clone());
         Ok(index)
     }
 }
 
 fn build_status_payload(index: &RootIndex, key: &RootIndexKey) -> Result<IndexStatus> {
-    let data = index
-        .shared
-        .data
-        .read()
-        .map_err(|_| lock_poisoned_error("filesystem index data"))?;
-    let watcher_enabled = index
-        ._watcher
-        .lock()
-        .map_err(|_| lock_poisoned_error("filesystem watcher"))?
-        .is_some();
-
     let state = IndexBuildState::load(&index.shared.build_state);
     let progress = index.shared.build_progress.snapshot();
+    let (indexed_entries, errors) = match index.shared.data.try_read() {
+        Ok(data) => (data.len(), data.errors),
+        Err(TryLockError::WouldBlock) => (
+            progress.scanned_files.saturating_add(progress.scanned_dirs),
+            0,
+        ),
+        Err(TryLockError::Poisoned(_)) => {
+            return Err(lock_poisoned_error("filesystem index data"));
+        }
+    };
+    let watcher_enabled = match index._watcher.try_lock() {
+        Ok(watcher) => watcher.is_some(),
+        Err(TryLockError::WouldBlock) => false,
+        Err(TryLockError::Poisoned(_)) => {
+            return Err(lock_poisoned_error("filesystem watcher"));
+        }
+    };
     let last_error = index
         .shared
         .build_last_error
@@ -443,13 +535,13 @@ fn build_status_payload(index: &RootIndex, key: &RootIndexKey) -> Result<IndexSt
             .iter()
             .map(|path| path.to_string_lossy().to_string())
             .collect(),
-        indexed_entries: data.len(),
+        indexed_entries,
         scanned_files: progress.scanned_files,
         scanned_dirs: progress.scanned_dirs,
         started_at: progress.started_at,
         last_update_at: progress.last_update_at,
         finished_at: progress.finished_at,
-        errors: data.errors,
+        errors,
         watcher_enabled,
         cache_path: index.shared.cache_path.to_string_lossy().to_string(),
         rescan_count: index.shared.rescan_count(),
@@ -638,7 +730,8 @@ fn build_index_snapshot_with_ignored_paths_progress(
     // Cardinal-style two-phase build
     let walk_data = WalkData::new(root, ignored_roots)
         .with_cancel(cancel)
-        .with_progress(progress);
+        .with_progress(progress)
+        .with_file_metadata(false);
 
     // Phase 1 + 2: Walk builds tree, then RootIndexData::from_walk converts it
     let snapshot = RootIndexData::from_walk(&walk_data);
@@ -664,7 +757,7 @@ fn build_index_snapshot_with_ignored_paths(
     }
 
     // Cardinal-style two-phase build (no cancellation for sync builds)
-    let walk_data = WalkData::new(root, ignored_roots);
+    let walk_data = WalkData::new(root, ignored_roots).with_file_metadata(false);
 
     RootIndexData::from_walk(&walk_data).ok_or_else(|| {
         FilesystemError::Internal("index build was unexpectedly cancelled".to_string())

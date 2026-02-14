@@ -70,13 +70,25 @@ fn apply_fsevent_batch(shared: &SharedRootIndex, events: Vec<FsEvent>) {
     if needs_rescan {
         // Increment rescan count to signal UI that results may be stale (Cardinal approach)
         shared.increment_rescan_count();
+
+        // Build the replacement snapshot before taking the write lock so status/search
+        // reads are not blocked for the full rescan duration.
+        let snapshot_result = build_snapshot_for_rescan(shared);
+
         let mut data = match shared.data.write() {
             Ok(data) => data,
             Err(_) => return,
         };
-        match build_snapshot_for_rescan(shared) {
+        match snapshot_result {
             Ok(snapshot) => *data = snapshot,
-            Err(_) => data.errors += 1,
+            Err(error) => {
+                data.errors += 1;
+                log::warn!(
+                    "filesystem rescan failed for {}: {}",
+                    shared.root.display(),
+                    error
+                );
+            }
         }
         drop(data);
         mark_index_dirty(shared);

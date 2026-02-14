@@ -26,6 +26,7 @@ pub use content::file_content_matches;
 pub use expression::{QueryExpression, QueryFilter, QueryTerm};
 pub use matcher::SearchQueryMatcher;
 pub use parser::QueryParser;
+pub(crate) use text_match::{segment_query_text, TextQuerySegment, TextSegmentMatcher};
 pub use type_filter::TypeFilterTarget;
 
 // Internal re-exports for index module (will be used when index module is added)

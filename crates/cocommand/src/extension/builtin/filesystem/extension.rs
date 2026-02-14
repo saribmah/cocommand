@@ -8,7 +8,9 @@ use std::sync::Arc;
 use serde_json::json;
 
 use crate::error::{CoreError, CoreResult};
-use crate::extension::{boxed_tool_future, Extension, ExtensionInitContext, ExtensionKind, ExtensionTool};
+use crate::extension::{
+    boxed_tool_future, Extension, ExtensionInitContext, ExtensionKind, ExtensionTool,
+};
 use crate::workspace::FileSystemPreferences;
 
 use filesystem::FileSystemIndexManager;
@@ -598,13 +600,17 @@ pub(super) fn required_string(input: &serde_json::Value, key: &str) -> CoreResul
     let value = input
         .get(key)
         .and_then(|raw| raw.as_str())
-        .map(|raw| raw.trim())
-        .filter(|value| !value.is_empty())
         .ok_or_else(|| CoreError::InvalidInput(format!("missing {key}")))?;
-    Ok(value.to_string())
+    let trimmed = value.trim();
+    if trimmed.is_empty() && key != "query" {
+        return Err(CoreError::InvalidInput(format!("missing {key}")));
+    }
+    Ok(trimmed.to_string())
 }
 
-pub(super) fn parse_search_request_options(input: &serde_json::Value) -> CoreResult<SearchRequestOptions> {
+pub(super) fn parse_search_request_options(
+    input: &serde_json::Value,
+) -> CoreResult<SearchRequestOptions> {
     let include_hidden = optional_bool(input, "includeHidden").unwrap_or(true);
     let case_sensitive = optional_bool(input, "caseSensitive").unwrap_or(false);
     let max_results = bounded_usize(input, "maxResults", 50, 1, 500)?;

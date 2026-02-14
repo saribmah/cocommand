@@ -71,10 +71,7 @@ impl Server {
                 "/workspace/settings/permissions/open",
                 post(workspace::open_permission),
             )
-            .route(
-                "/extension/filesystem/search",
-                post(filesystem::search),
-            )
+            .route("/extension/filesystem/search", post(filesystem::search))
             .route(
                 "/extension/filesystem/search/version",
                 get(filesystem::next_search_version),

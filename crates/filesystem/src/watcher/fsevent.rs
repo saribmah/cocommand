@@ -8,6 +8,7 @@ use std::ffi::CStr;
 use std::os::raw::{c_char, c_void};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::sync::Mutex;
 use std::thread::{self, JoinHandle};
 
 use bitflags::bitflags;
@@ -155,7 +156,7 @@ unsafe impl Send for SendableRunLoop {}
 unsafe impl Sync for SendableRunLoop {}
 
 pub struct FsEventStream {
-    run_loop: SendableRunLoop,
+    run_loop_slot: Arc<Mutex<Option<SendableRunLoop>>>,
     _thread: JoinHandle<()>,
 }
 
@@ -177,12 +178,9 @@ impl FsEventStream {
             .collect();
 
         let handler = Arc::new(handler);
-        let run_loop_slot: Arc<std::sync::Mutex<Option<SendableRunLoop>>> =
-            Arc::new(std::sync::Mutex::new(None));
-        let run_loop_ready = Arc::new((std::sync::Mutex::new(false), std::sync::Condvar::new()));
+        let run_loop_slot: Arc<Mutex<Option<SendableRunLoop>>> = Arc::new(Mutex::new(None));
 
         let run_loop_slot_clone = run_loop_slot.clone();
-        let run_loop_ready_clone = run_loop_ready.clone();
 
         let thread = thread::spawn(move || {
             // Safety: all FFI calls below follow the documented CoreServices API contract.
@@ -218,6 +216,12 @@ impl FsEventStream {
                     latency,
                     flags,
                 );
+                if stream.is_null() {
+                    CFRelease(path_array as *const c_void);
+                    CFRelease(cf_path as *const c_void);
+                    drop(Arc::from_raw(handler_ptr as *const F));
+                    return;
+                }
 
                 // Set exclusion paths if any
                 if !exclusion_strings.is_empty() {
@@ -241,16 +245,18 @@ impl FsEventStream {
                 let current_run_loop = CFRunLoopGetCurrent();
                 FSEventStreamScheduleWithRunLoop(stream, current_run_loop, kCFRunLoopDefaultMode);
 
-                FSEventStreamStart(stream);
+                if !FSEventStreamStart(stream) {
+                    FSEventStreamInvalidate(stream);
+                    FSEventStreamRelease(stream);
+                    CFRelease(path_array as *const c_void);
+                    CFRelease(cf_path as *const c_void);
+                    drop(Arc::from_raw(handler_ptr as *const F));
+                    return;
+                }
 
                 // Publish run loop ref so the owner can stop it
-                {
-                    let mut slot = run_loop_slot_clone.lock().unwrap();
+                if let Ok(mut slot) = run_loop_slot_clone.lock() {
                     *slot = Some(SendableRunLoop(current_run_loop));
-                    let (lock, cvar) = &*run_loop_ready_clone;
-                    let mut ready = lock.lock().unwrap();
-                    *ready = true;
-                    cvar.notify_all();
                 }
 
                 CFRunLoopRun();
@@ -267,17 +273,8 @@ impl FsEventStream {
             }
         });
 
-        // Wait for the run loop to be ready
-        let (lock, cvar) = &*run_loop_ready;
-        let mut ready = lock.lock().unwrap();
-        while !*ready {
-            ready = cvar.wait(ready).unwrap();
-        }
-
-        let run_loop = run_loop_slot.lock().unwrap().unwrap();
-
         Self {
-            run_loop,
+            run_loop_slot,
             _thread: thread,
         }
     }
@@ -289,8 +286,12 @@ impl FsEventStream {
 
 impl Drop for FsEventStream {
     fn drop(&mut self) {
-        unsafe {
-            CFRunLoopStop(self.run_loop.0);
+        if let Ok(slot) = self.run_loop_slot.lock() {
+            if let Some(run_loop) = *slot {
+                unsafe {
+                    CFRunLoopStop(run_loop.0);
+                }
+            }
         }
         // The thread will exit after CFRunLoopRun returns, clean up the stream,
         // and terminate. We don't join here to avoid blocking the drop.
