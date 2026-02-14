@@ -39,6 +39,28 @@ impl SearchVersionTracker {
         self.active_version.fetch_add(1, Ordering::SeqCst) + 1
     }
 
+    /// Marks a caller-provided version as active if it is newer than the
+    /// currently active version.
+    ///
+    /// Returns the resulting active version after the update attempt.
+    pub fn activate_version(&self, version: u64) -> u64 {
+        let mut current = self.active_version.load(Ordering::SeqCst);
+        loop {
+            if version <= current {
+                return current;
+            }
+            match self.active_version.compare_exchange(
+                current,
+                version,
+                Ordering::SeqCst,
+                Ordering::SeqCst,
+            ) {
+                Ok(_) => return version,
+                Err(observed) => current = observed,
+            }
+        }
+    }
+
     /// Returns the current active version without incrementing.
     pub fn current_version(&self) -> u64 {
         self.active_version.load(Ordering::SeqCst)

@@ -5,12 +5,14 @@ use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
 use super::walker::{coalesce_event_paths, path_in_scope, path_is_ignored};
-use crate::error::Result;
+use crate::error::{FilesystemError, Result};
+#[cfg(target_os = "macos")]
+use crate::indexer::unix_now_secs;
 use crate::indexer::{IndexBuildState, RootIndexData, SharedRootIndex};
 use crate::storage::NAME_POOL;
 
 #[cfg(target_os = "macos")]
-use super::fsevent::{FsEvent, FsEventScanType, FsEventStream};
+use super::fsevent::{FsEvent, FsEventFlags, FsEventScanType, FsEventStream};
 
 #[cfg(not(target_os = "macos"))]
 use notify::{recommended_watcher, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
@@ -30,7 +32,13 @@ pub fn create_fsevent_watcher(
         move |events| {
             apply_fsevent_batch(callback_shared.as_ref(), events);
         },
-    );
+    )
+    .map_err(|error| {
+        FilesystemError::Internal(format!(
+            "failed to start FSEvents watcher for {}: {error}",
+            shared.root.display()
+        ))
+    })?;
     Ok(stream)
 }
 
@@ -41,12 +49,31 @@ fn apply_fsevent_batch(shared: &SharedRootIndex, events: Vec<FsEvent>) {
         return;
     }
 
+    let saw_history_done = events
+        .iter()
+        .any(|event| event.flags.contains(FsEventFlags::HISTORY_DONE));
+
     // Update last_event_id to the maximum in this batch
     let max_event_id = events.iter().map(|e| e.event_id).max().unwrap_or(0);
     if max_event_id > 0 {
         shared
             .last_event_id
             .fetch_max(max_event_id, Ordering::Relaxed);
+    }
+
+    if saw_history_done && IndexBuildState::load(&shared.build_state) == IndexBuildState::Updating {
+        let now = unix_now_secs();
+        shared
+            .build_state
+            .store(IndexBuildState::Ready as u8, Ordering::Relaxed);
+        shared
+            .build_progress
+            .last_update_at
+            .store(now, Ordering::Relaxed);
+        shared
+            .build_progress
+            .finished_at
+            .store(now, Ordering::Relaxed);
     }
 
     // If we're still building the index, queue paths for later
@@ -68,29 +95,9 @@ fn apply_fsevent_batch(shared: &SharedRootIndex, events: Vec<FsEvent>) {
         .any(|e| e.scan_type == FsEventScanType::ReScan);
 
     if needs_rescan {
-        // Increment rescan count to signal UI that results may be stale (Cardinal approach)
+        // Cardinal behavior: signal that a rescan is required, but do not
+        // synchronously rebuild here. This avoids long stalls in the watcher path.
         shared.increment_rescan_count();
-
-        // Build the replacement snapshot before taking the write lock so status/search
-        // reads are not blocked for the full rescan duration.
-        let snapshot_result = build_snapshot_for_rescan(shared);
-
-        let mut data = match shared.data.write() {
-            Ok(data) => data,
-            Err(_) => return,
-        };
-        match snapshot_result {
-            Ok(snapshot) => *data = snapshot,
-            Err(error) => {
-                data.errors += 1;
-                log::warn!(
-                    "filesystem rescan failed for {}: {}",
-                    shared.root.display(),
-                    error
-                );
-            }
-        }
-        drop(data);
         mark_index_dirty(shared);
         return;
     }
@@ -121,7 +128,6 @@ fn apply_fsevent_batch(shared: &SharedRootIndex, events: Vec<FsEvent>) {
 /// Creates a notify watcher on non-macOS platforms.
 #[cfg(not(target_os = "macos"))]
 pub fn create_index_watcher(shared: Arc<SharedRootIndex>) -> Result<RecommendedWatcher> {
-    use crate::error::FilesystemError;
     use std::path::Path;
 
     let callback_shared = shared.clone();

@@ -7,11 +7,8 @@ export interface SearchRequest {
   caseSensitive?: boolean;
   maxResults?: number;
   maxDepth?: number;
+  // Internally assigned by the frontend store for cancellation ordering.
   searchVersion?: number;
-}
-
-export interface SearchVersionResponse {
-  version: number;
 }
 
 export interface SearchEntry {
@@ -61,12 +58,13 @@ export interface IndexStatusResponse {
   lastError?: string;
 }
 
-export type IndexState = "idle" | "building" | "ready" | "error";
+export type IndexState = "idle" | "building" | "updating" | "ready" | "error";
 
 export function parseIndexState(state: string): IndexState {
   switch (state) {
     case "idle":
     case "building":
+    case "updating":
     case "ready":
     case "error":
       return state;

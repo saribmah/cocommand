@@ -7,6 +7,7 @@
 use std::ffi::CStr;
 use std::os::raw::{c_char, c_void};
 use std::path::{Path, PathBuf};
+use std::sync::mpsc;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::thread::{self, JoinHandle};
@@ -167,7 +168,7 @@ impl FsEventStream {
         since_event_id: u64,
         latency: f64,
         handler: F,
-    ) -> Self
+    ) -> std::result::Result<Self, String>
     where
         F: Fn(Vec<FsEvent>) + Send + Sync + 'static,
     {
@@ -179,6 +180,7 @@ impl FsEventStream {
 
         let handler = Arc::new(handler);
         let run_loop_slot: Arc<Mutex<Option<SendableRunLoop>>> = Arc::new(Mutex::new(None));
+        let (startup_tx, startup_rx) = mpsc::channel::<std::result::Result<(), String>>();
 
         let run_loop_slot_clone = run_loop_slot.clone();
 
@@ -217,6 +219,7 @@ impl FsEventStream {
                     flags,
                 );
                 if stream.is_null() {
+                    let _ = startup_tx.send(Err("FSEventStreamCreate returned null".to_string()));
                     CFRelease(path_array as *const c_void);
                     CFRelease(cf_path as *const c_void);
                     drop(Arc::from_raw(handler_ptr as *const F));
@@ -246,6 +249,7 @@ impl FsEventStream {
                 FSEventStreamScheduleWithRunLoop(stream, current_run_loop, kCFRunLoopDefaultMode);
 
                 if !FSEventStreamStart(stream) {
+                    let _ = startup_tx.send(Err("FSEventStreamStart returned false".to_string()));
                     FSEventStreamInvalidate(stream);
                     FSEventStreamRelease(stream);
                     CFRelease(path_array as *const c_void);
@@ -258,6 +262,7 @@ impl FsEventStream {
                 if let Ok(mut slot) = run_loop_slot_clone.lock() {
                     *slot = Some(SendableRunLoop(current_run_loop));
                 }
+                let _ = startup_tx.send(Ok(()));
 
                 CFRunLoopRun();
 
@@ -273,9 +278,19 @@ impl FsEventStream {
             }
         });
 
-        Self {
-            run_loop_slot,
-            _thread: thread,
+        match startup_rx.recv() {
+            Ok(Ok(())) => Ok(Self {
+                run_loop_slot,
+                _thread: thread,
+            }),
+            Ok(Err(error)) => {
+                let _ = thread.join();
+                Err(error)
+            }
+            Err(_) => {
+                let _ = thread.join();
+                Err("failed to receive watcher startup signal".to_string())
+            }
         }
     }
 

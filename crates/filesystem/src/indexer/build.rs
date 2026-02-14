@@ -13,6 +13,7 @@ pub enum IndexBuildState {
     Building = 1,
     Ready = 2,
     Error = 3,
+    Updating = 4,
 }
 
 impl IndexBuildState {
@@ -22,6 +23,7 @@ impl IndexBuildState {
             1 => Self::Building,
             2 => Self::Ready,
             3 => Self::Error,
+            4 => Self::Updating,
             _ => Self::Idle,
         }
     }
@@ -33,6 +35,7 @@ impl IndexBuildState {
             Self::Building => "building",
             Self::Ready => "ready",
             Self::Error => "error",
+            Self::Updating => "updating",
         }
     }
 }

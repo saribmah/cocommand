@@ -35,6 +35,7 @@ type WatcherHandle = RecommendedWatcher;
 struct RootIndex {
     shared: Arc<SharedRootIndex>,
     first_status_timing_logged: AtomicBool,
+    watcher_enabled: Arc<AtomicBool>,
     #[cfg(target_os = "macos")]
     _watcher: Arc<Mutex<Option<FsEventStream>>>,
     #[cfg(not(target_os = "macos"))]
@@ -69,7 +70,7 @@ impl RootIndex {
             load_index_snapshot(&cache_path, &key.root, root_is_dir, &key.ignored_roots);
         let cache_load_ms = cache_load_started.elapsed().as_millis();
 
-        let (snapshot, build_state, build_progress, cached_event_id, cache_loaded) =
+        let (snapshot, initial_state, build_progress, cached_event_id, cache_loaded) =
             match loaded_snapshot {
                 Some((snapshot, saved_at, event_id)) => (
                     snapshot,
@@ -87,6 +88,16 @@ impl RootIndex {
                 ),
             };
         let cached_entries = snapshot.len();
+
+        #[cfg(target_os = "macos")]
+        let build_state = if matches!(initial_state, IndexBuildState::Ready) && cached_event_id > 0
+        {
+            IndexBuildState::Updating
+        } else {
+            initial_state
+        };
+        #[cfg(not(target_os = "macos"))]
+        let build_state = initial_state;
 
         #[cfg(target_os = "macos")]
         let since_event_id = if cached_event_id > 0 {
@@ -118,10 +129,12 @@ impl RootIndex {
         });
 
         let flush_worker = spawn_flush_worker(shared.clone());
+        let watcher_enabled = Arc::new(AtomicBool::new(false));
         let watcher_slot: Arc<Mutex<Option<WatcherHandle>>> = Arc::new(Mutex::new(None));
 
         let watcher_shared = shared.clone();
         let watcher_slot_clone = watcher_slot.clone();
+        let watcher_enabled_clone = watcher_enabled.clone();
         thread::spawn(move || {
             #[cfg(target_os = "macos")]
             let watcher = match create_fsevent_watcher(watcher_shared.clone(), since_event_id) {
@@ -129,6 +142,16 @@ impl RootIndex {
                 Err(error) => {
                     if let Ok(mut data) = watcher_shared.data.write() {
                         data.errors += 1;
+                    }
+                    if let Ok(mut last_error) = watcher_shared.build_last_error.lock() {
+                        *last_error = Some(error.to_string());
+                    }
+                    if IndexBuildState::load(&watcher_shared.build_state)
+                        == IndexBuildState::Updating
+                    {
+                        watcher_shared
+                            .build_state
+                            .store(IndexBuildState::Ready as u8, Ordering::Relaxed);
                     }
                     log::warn!(
                         "filesystem watcher disabled for {}: {}",
@@ -146,6 +169,16 @@ impl RootIndex {
                     if let Ok(mut data) = watcher_shared.data.write() {
                         data.errors += 1;
                     }
+                    if let Ok(mut last_error) = watcher_shared.build_last_error.lock() {
+                        *last_error = Some(error.to_string());
+                    }
+                    if IndexBuildState::load(&watcher_shared.build_state)
+                        == IndexBuildState::Updating
+                    {
+                        watcher_shared
+                            .build_state
+                            .store(IndexBuildState::Ready as u8, Ordering::Relaxed);
+                    }
                     log::warn!(
                         "filesystem watcher disabled for {}: {}",
                         watcher_shared.root.display(),
@@ -156,6 +189,7 @@ impl RootIndex {
             };
 
             if let Ok(mut slot) = watcher_slot_clone.lock() {
+                watcher_enabled_clone.store(watcher.is_some(), Ordering::Relaxed);
                 *slot = watcher;
             }
         });
@@ -173,6 +207,7 @@ impl RootIndex {
         Ok(Self {
             shared,
             first_status_timing_logged: AtomicBool::new(false),
+            watcher_enabled,
             _watcher: watcher_slot,
             _flush_worker: flush_worker,
         })
@@ -274,6 +309,10 @@ impl FileSystemIndexManager {
         let (state, progress) = progress_snapshot(index.shared.as_ref());
 
         let cancel_token = if let Some(version) = search_version {
+            // Client-provided versions represent user intent order.
+            // Activate newer versions monotonically so delayed old requests
+            // cannot take precedence over newer ones.
+            self.search_version_tracker.activate_version(version);
             self.search_version_tracker.token_for_version(version)
         } else {
             let version = self.unversioned_search_tracker.next_version();
@@ -513,13 +552,7 @@ fn build_status_payload(index: &RootIndex, key: &RootIndexKey) -> Result<IndexSt
             return Err(lock_poisoned_error("filesystem index data"));
         }
     };
-    let watcher_enabled = match index._watcher.try_lock() {
-        Ok(watcher) => watcher.is_some(),
-        Err(TryLockError::WouldBlock) => false,
-        Err(TryLockError::Poisoned(_)) => {
-            return Err(lock_poisoned_error("filesystem watcher"));
-        }
-    };
+    let watcher_enabled = index.watcher_enabled.load(Ordering::Relaxed);
     let last_error = index
         .shared
         .build_last_error
@@ -567,7 +600,12 @@ fn ensure_build_started(shared: Arc<SharedRootIndex>, force: bool) {
 
     loop {
         let state = IndexBuildState::load(&shared.build_state);
-        if !force && matches!(state, IndexBuildState::Building | IndexBuildState::Ready) {
+        if !force
+            && matches!(
+                state,
+                IndexBuildState::Building | IndexBuildState::Ready | IndexBuildState::Updating
+            )
+        {
             return;
         }
 

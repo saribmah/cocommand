@@ -6,7 +6,6 @@ import type {
   IndexState,
   SearchRequest,
   SearchResponse,
-  SearchVersionResponse,
 } from "./filesystem.types";
 import { parseIndexState } from "./filesystem.types";
 
@@ -37,6 +36,10 @@ export type FileSystemStore = ReturnType<typeof createFileSystemStore>;
 export const createFileSystemStore = (getServer: () => ServerInfo | null) => {
   // Track the current search version for cancellation
   let currentSearchVersion: number | null = null;
+  // Monotonic local version counter (Cardinal-style).
+  let nextSearchVersion = 0;
+  // Abort in-flight HTTP search when a newer query starts.
+  let activeSearchController: AbortController | null = null;
 
   return create<FileSystemState>()((set) => ({
     // Index status state
@@ -92,24 +95,24 @@ export const createFileSystemStore = (getServer: () => ServerInfo | null) => {
         return;
       }
 
+      const version = ++nextSearchVersion;
+      currentSearchVersion = version;
+      if (activeSearchController) {
+        activeSearchController.abort();
+      }
+      const controller = new AbortController();
+      activeSearchController = controller;
+
       set({ searchQuery: request.query, isSearching: true, searchError: null });
 
       try {
-        // Get a new search version to cancel any in-flight searches
-        const versionUrl = buildServerUrl(server.addr, "/extension/filesystem/search/version");
-        const versionResponse = await fetch(versionUrl);
-        if (!versionResponse.ok) {
-          throw new Error(`Failed to get search version (${versionResponse.status})`);
-        }
-        const { version } = (await versionResponse.json()) as SearchVersionResponse;
-        currentSearchVersion = version;
-
         // Perform the search with the version
         const searchUrl = buildServerUrl(server.addr, "/extension/filesystem/search");
         const response = await fetch(searchUrl, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ ...request, searchVersion: version }),
+          signal: controller.signal,
         });
 
         // 204 No Content means the search was cancelled by a newer search
@@ -137,17 +140,29 @@ export const createFileSystemStore = (getServer: () => ServerInfo | null) => {
           });
         }
       } catch (error) {
+        if (currentSearchVersion !== version) {
+          return;
+        }
+        if (error instanceof DOMException && error.name === "AbortError") {
+          return;
+        }
         set({
           searchResults: null,
           isSearching: false,
           searchError: String(error),
         });
+      } finally {
+        if (activeSearchController === controller) {
+          activeSearchController = null;
+        }
       }
     },
 
     clearSearch: () => {
-      // Increment version to cancel any in-flight searches
-      // (next search will get a new version from the server)
+      if (activeSearchController) {
+        activeSearchController.abort();
+        activeSearchController = null;
+      }
       currentSearchVersion = null;
       set({
         searchResults: null,
