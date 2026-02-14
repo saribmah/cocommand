@@ -76,6 +76,10 @@ impl Server {
                 post(filesystem::search),
             )
             .route(
+                "/extension/filesystem/search/version",
+                get(filesystem::next_search_version),
+            )
+            .route(
                 "/extension/filesystem/status",
                 post(filesystem::index_status),
             )

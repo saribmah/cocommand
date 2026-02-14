@@ -8,7 +8,7 @@ use std::sync::{Arc, Mutex, RwLock};
 use std::thread;
 
 use super::engine::search_index_data;
-use crate::cancel::CancellationToken;
+use crate::cancel::{CancellationToken, SearchVersionTracker};
 use crate::error::{canonicalize_existing_path, lock_poisoned_error, FilesystemError, Result};
 use crate::indexer::{
     load_index_snapshot, unix_now_secs, write_index_snapshot, FlushDecision, FlushSignal,
@@ -177,9 +177,23 @@ fn spawn_flush_worker(shared: Arc<SharedRootIndex>) -> FlushWorkerHandle {
 #[derive(Debug, Default)]
 pub struct FileSystemIndexManager {
     indexes: RwLock<HashMap<RootIndexKey, Arc<RootIndex>>>,
+    search_version_tracker: SearchVersionTracker,
 }
 
 impl FileSystemIndexManager {
+    /// Returns the next search version, cancelling any in-flight searches.
+    ///
+    /// Call this before starting a new search to get a version number.
+    /// Pass this version to `search()` to enable cancellation.
+    pub fn next_search_version(&self) -> u64 {
+        self.search_version_tracker.next_version()
+    }
+
+    /// Returns the current search version without incrementing.
+    pub fn current_search_version(&self) -> u64 {
+        self.search_version_tracker.current_version()
+    }
+
     fn build_key(&self, root: PathBuf, ignored_roots: Vec<PathBuf>) -> Result<RootIndexKey> {
         if !root.exists() {
             return Err(FilesystemError::InvalidInput(format!(
@@ -196,6 +210,10 @@ impl FileSystemIndexManager {
     }
 
     /// Searches the filesystem index.
+    ///
+    /// If `search_version` is provided, the search can be cancelled by calling
+    /// `next_search_version()` which increments the active version. Pass `None`
+    /// for searches that should not be cancellable.
     #[allow(clippy::too_many_arguments)]
     pub fn search(
         &self,
@@ -208,13 +226,25 @@ impl FileSystemIndexManager {
         max_depth: usize,
         cache_dir: PathBuf,
         ignored_roots: Vec<PathBuf>,
-    ) -> Result<SearchResult> {
+        search_version: Option<u64>,
+    ) -> Result<Option<SearchResult>> {
         let key = self.build_key(root, ignored_roots)?;
         let index = self.get_or_create_index(key.clone(), cache_dir)?;
 
         ensure_build_started(index.shared.clone(), false);
 
         let (state, progress) = progress_snapshot(index.shared.as_ref());
+
+        // Create cancellation token from version, or noop if no version provided
+        let cancel_token = match search_version {
+            Some(version) => self.search_version_tracker.token_for_version(version),
+            None => CancellationToken::noop(),
+        };
+
+        // Check if already cancelled before doing any work
+        if cancel_token.is_cancelled().is_none() {
+            return Ok(None);
+        }
 
         let data = index
             .shared
@@ -223,7 +253,7 @@ impl FileSystemIndexManager {
             .map_err(|_| lock_poisoned_error("filesystem index data"))?;
 
         if state != "ready" && data.is_empty() {
-            return Ok(SearchResult {
+            return Ok(Some(SearchResult {
                 query,
                 root: key.root.to_string_lossy().to_string(),
                 entries: Vec::new(),
@@ -238,17 +268,14 @@ impl FileSystemIndexManager {
                 index_last_update_at: progress.last_update_at,
                 index_finished_at: progress.finished_at,
                 highlight_terms: Vec::new(),
-            });
+            }));
         }
 
-        // Use noop token for now - versioned cancellation can be integrated
-        // when the search API exposes a version parameter
-        let cancel_token = CancellationToken::noop();
-
-        match search_index_data(
+        // Search returns None if cancelled
+        search_index_data(
             &key.root,
             &data,
-            query.clone(),
+            query,
             kind,
             include_hidden,
             case_sensitive,
@@ -261,28 +288,7 @@ impl FileSystemIndexManager {
             progress.last_update_at,
             progress.finished_at,
             cancel_token,
-        )? {
-            Some(payload) => Ok(payload),
-            None => {
-                // Search was cancelled - return empty results
-                Ok(SearchResult {
-                    query,
-                    root: key.root.to_string_lossy().to_string(),
-                    entries: Vec::new(),
-                    count: 0,
-                    truncated: false,
-                    scanned: 0,
-                    errors: data.errors,
-                    index_state: state.to_string(),
-                    index_scanned_files: progress.scanned_files,
-                    index_scanned_dirs: progress.scanned_dirs,
-                    index_started_at: progress.started_at,
-                    index_last_update_at: progress.last_update_at,
-                    index_finished_at: progress.finished_at,
-                    highlight_terms: Vec::new(),
-                })
-            }
-        }
+        )
     }
 
     /// Returns the index status.

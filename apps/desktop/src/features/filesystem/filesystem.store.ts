@@ -6,6 +6,7 @@ import type {
   IndexState,
   SearchRequest,
   SearchResponse,
+  SearchVersionResponse,
 } from "./filesystem.types";
 import { parseIndexState } from "./filesystem.types";
 
@@ -34,6 +35,9 @@ function buildServerUrl(addr: string, path: string): string {
 export type FileSystemStore = ReturnType<typeof createFileSystemStore>;
 
 export const createFileSystemStore = (getServer: () => ServerInfo | null) => {
+  // Track the current search version for cancellation
+  let currentSearchVersion: number | null = null;
+
   return create<FileSystemState>()((set) => ({
     // Index status state
     indexStatus: null,
@@ -87,24 +91,51 @@ export const createFileSystemStore = (getServer: () => ServerInfo | null) => {
         set({ searchResults: null, isSearching: false, searchError: "Server unavailable" });
         return;
       }
+
       set({ searchQuery: request.query, isSearching: true, searchError: null });
-      const url = buildServerUrl(server.addr, "/extension/filesystem/search");
+
       try {
-        const response = await fetch(url, {
+        // Get a new search version to cancel any in-flight searches
+        const versionUrl = buildServerUrl(server.addr, "/extension/filesystem/search/version");
+        const versionResponse = await fetch(versionUrl);
+        if (!versionResponse.ok) {
+          throw new Error(`Failed to get search version (${versionResponse.status})`);
+        }
+        const { version } = (await versionResponse.json()) as SearchVersionResponse;
+        currentSearchVersion = version;
+
+        // Perform the search with the version
+        const searchUrl = buildServerUrl(server.addr, "/extension/filesystem/search");
+        const response = await fetch(searchUrl, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(request),
+          body: JSON.stringify({ ...request, searchVersion: version }),
         });
+
+        // 204 No Content means the search was cancelled by a newer search
+        if (response.status === 204) {
+          // Only clear isSearching if this was the latest version
+          if (currentSearchVersion === version) {
+            set({ isSearching: false });
+          }
+          return;
+        }
+
         if (!response.ok) {
           const errorText = await response.text();
           throw new Error(errorText || `Server error (${response.status})`);
         }
+
         const data = (await response.json()) as SearchResponse;
-        set({
-          searchResults: data,
-          isSearching: false,
-          searchError: null,
-        });
+
+        // Only update state if this is still the active search version
+        if (currentSearchVersion === version) {
+          set({
+            searchResults: data,
+            isSearching: false,
+            searchError: null,
+          });
+        }
       } catch (error) {
         set({
           searchResults: null,
@@ -115,6 +146,9 @@ export const createFileSystemStore = (getServer: () => ServerInfo | null) => {
     },
 
     clearSearch: () => {
+      // Increment version to cancel any in-flight searches
+      // (next search will get a new version from the server)
+      currentSearchVersion = null;
       set({
         searchResults: null,
         searchQuery: "",

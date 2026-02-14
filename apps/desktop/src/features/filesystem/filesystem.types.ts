@@ -7,6 +7,11 @@ export interface SearchRequest {
   caseSensitive?: boolean;
   maxResults?: number;
   maxDepth?: number;
+  searchVersion?: number;
+}
+
+export interface SearchVersionResponse {
+  version: number;
 }
 
 export interface SearchEntry {

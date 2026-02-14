@@ -138,11 +138,13 @@ impl Extension for FileSystemExtension {
                                 search_options.max_depth,
                                 index_cache_dir,
                                 ignore_paths,
+                                None, // Tool calls don't use cancellation
                             )
                             .map_err(CoreError::from)
                     })
                     .await?;
-                    let payload: super::types::SearchPayload = result.into();
+                    // Tool search is not cancellable, so result is always Some
+                    let payload: super::types::SearchPayload = result.unwrap().into();
                     Ok(json!(payload))
                 })
             },

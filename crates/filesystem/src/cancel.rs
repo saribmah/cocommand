@@ -14,6 +14,58 @@ use std::sync::atomic::{AtomicU64, Ordering};
 /// Using a power of 2 allows efficient modulo via bitwise AND.
 pub const CANCEL_CHECK_INTERVAL: usize = 0x10000; // 65,536
 
+/// Tracks the active search version for cancellation.
+///
+/// When a new search starts, call `next_version()` to get a new version number.
+/// Previous searches with older versions will be cancelled when they check
+/// their `CancellationToken`.
+#[derive(Debug, Default)]
+pub struct SearchVersionTracker {
+    active_version: AtomicU64,
+}
+
+impl SearchVersionTracker {
+    /// Creates a new search version tracker.
+    pub fn new() -> Self {
+        Self {
+            active_version: AtomicU64::new(0),
+        }
+    }
+
+    /// Increments the active version and returns the new version number.
+    ///
+    /// This effectively cancels any in-flight searches using older versions.
+    pub fn next_version(&self) -> u64 {
+        self.active_version.fetch_add(1, Ordering::SeqCst) + 1
+    }
+
+    /// Returns the current active version without incrementing.
+    pub fn current_version(&self) -> u64 {
+        self.active_version.load(Ordering::SeqCst)
+    }
+
+    /// Creates a cancellation token for the given version.
+    ///
+    /// The token will report as cancelled if the active version has moved past
+    /// the given version.
+    ///
+    /// # Safety
+    /// This uses a static reference trick - the tracker must outlive all tokens.
+    /// In practice, the tracker lives in FileSystemIndexManager which is long-lived.
+    pub fn token_for_version(&self, version: u64) -> CancellationToken {
+        // SAFETY: We need a 'static reference for the token. The tracker is owned
+        // by FileSystemIndexManager which lives for the app lifetime. We use a raw
+        // pointer cast to achieve this - the caller must ensure the tracker outlives
+        // all tokens (which is guaranteed by the manager's lifetime).
+        let static_ref: &'static AtomicU64 =
+            unsafe { &*(&self.active_version as *const AtomicU64) };
+        CancellationToken {
+            active_version: static_ref,
+            version,
+        }
+    }
+}
+
 /// A cancellation token for terminating long-running operations.
 #[derive(Clone, Copy, Debug)]
 pub struct CancellationToken {

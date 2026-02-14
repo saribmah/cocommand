@@ -34,6 +34,10 @@ pub struct SearchRequest {
     pub max_results: Option<usize>,
     /// Maximum depth from root. Defaults to unlimited.
     pub max_depth: Option<usize>,
+    /// Search version for cancellation. If provided, this search can be cancelled
+    /// by a subsequent search with a higher version. Get a new version from
+    /// GET /extension/filesystem/search/version before starting a search.
+    pub search_version: Option<u64>,
 }
 
 /// A single file entry in search results.
@@ -153,6 +157,30 @@ impl From<filesystem::IndexStatus> for IndexStatusResponse {
     }
 }
 
+/// Response payload for search version.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SearchVersionResponse {
+    pub version: u64,
+}
+
+/// GET /extension/filesystem/search/version
+///
+/// Returns the next search version. Call this before starting a search to get
+/// a version number that enables cancellation. Subsequent calls will return
+/// incrementing versions, and any in-flight searches with older versions will
+/// be cancelled.
+pub(crate) async fn next_search_version(
+    State(state): State<Arc<ServerState>>,
+) -> Result<Json<SearchVersionResponse>, (StatusCode, String)> {
+    let manager = get_filesystem_index_manager(&state).await.map_err(|e| {
+        (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
+    })?;
+
+    let version = manager.next_search_version();
+    Ok(Json(SearchVersionResponse { version }))
+}
+
 fn parse_kind_filter(raw: Option<&str>) -> Result<filesystem::KindFilter, CoreError> {
     match raw.unwrap_or("all") {
         "all" => Ok(filesystem::KindFilter::All),
@@ -211,6 +239,7 @@ pub(crate) async fn search(
     let max_depth = payload.max_depth.unwrap_or(usize::MAX);
 
     let index_cache_dir = workspace_dir.join("storage/filesystem-indexes");
+    let search_version = payload.search_version;
 
     // Get the index manager from the filesystem extension via downcasting
     let manager = get_filesystem_index_manager(&state).await.map_err(|e| {
@@ -229,6 +258,7 @@ pub(crate) async fn search(
                 max_depth,
                 index_cache_dir,
                 ignore_paths,
+                search_version,
             )
             .map_err(CoreError::from)
     })
@@ -236,7 +266,11 @@ pub(crate) async fn search(
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("task failed: {e}")))?
     .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    Ok(Json(result.into()))
+    // If search was cancelled (result is None), return 204 No Content
+    match result {
+        Some(search_result) => Ok(Json(search_result.into())),
+        None => Err((StatusCode::NO_CONTENT, String::new())),
+    }
 }
 
 /// POST /extension/filesystem/status

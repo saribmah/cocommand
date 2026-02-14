@@ -24,7 +24,7 @@ pub mod types;
 pub mod watcher;
 
 // Re-export main types
-pub use cancel::CancellationToken;
+pub use cancel::{CancellationToken, SearchVersionTracker};
 pub use error::{FilesystemError, Result};
 pub use indexer::RootIndexKey;
 pub use query::{QueryExpression, QueryParser, SearchQueryMatcher};
