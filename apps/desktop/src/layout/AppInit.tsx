@@ -1,6 +1,7 @@
 import { ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { AppPanel, ButtonPrimary, Text } from "@cocommand/ui";
 import { ExtensionProvider } from "../features/extension/extension.provider";
+import { FileSystemProvider } from "../features/filesystem/filesystem.provider";
 import { OnboardingProvider } from "../features/onboarding/onboarding.provider";
 import { ServerProvider } from "../features/server/server.provider.tsx";
 import { SessionProvider } from "../features/session/session.provider";
@@ -62,11 +63,13 @@ export function AppInit({ children }: AppInitProps) {
   return (
     <ServerProvider serverInfo={serverInfo}>
       <WorkspaceProvider>
-        <OnboardingProvider>
-          <SessionProvider>
-            <ExtensionProvider>{children}</ExtensionProvider>
-          </SessionProvider>
-        </OnboardingProvider>
+        <FileSystemProvider>
+          <OnboardingProvider>
+            <SessionProvider>
+              <ExtensionProvider>{children}</ExtensionProvider>
+            </SessionProvider>
+          </OnboardingProvider>
+        </FileSystemProvider>
       </WorkspaceProvider>
     </ServerProvider>
   );

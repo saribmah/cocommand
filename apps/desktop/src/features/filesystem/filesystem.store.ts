@@ -1,0 +1,126 @@
+import { create } from "zustand";
+import type { ServerInfo } from "../../lib/ipc";
+import type {
+  IndexStatusRequest,
+  IndexStatusResponse,
+  IndexState,
+  SearchRequest,
+  SearchResponse,
+} from "./filesystem.types";
+import { parseIndexState } from "./filesystem.types";
+
+export interface FileSystemState {
+  // Index status
+  indexStatus: IndexStatusResponse | null;
+  indexState: IndexState;
+  isLoading: boolean;
+  error: string | null;
+  fetchIndexStatus: (request?: IndexStatusRequest) => Promise<void>;
+
+  // Search
+  searchResults: SearchResponse | null;
+  searchQuery: string;
+  isSearching: boolean;
+  searchError: string | null;
+  search: (request: SearchRequest) => Promise<void>;
+  clearSearch: () => void;
+}
+
+function buildServerUrl(addr: string, path: string): string {
+  const prefix = addr.startsWith("http") ? addr : `http://${addr}`;
+  return `${prefix}${path}`;
+}
+
+export type FileSystemStore = ReturnType<typeof createFileSystemStore>;
+
+export const createFileSystemStore = (getServer: () => ServerInfo | null) => {
+  return create<FileSystemState>()((set) => ({
+    // Index status state
+    indexStatus: null,
+    indexState: "idle",
+    isLoading: false,
+    error: null,
+
+    // Search state
+    searchResults: null,
+    searchQuery: "",
+    isSearching: false,
+    searchError: null,
+
+    fetchIndexStatus: async (request?: IndexStatusRequest) => {
+      const server = getServer();
+      if (!server || !server.addr) {
+        set({ indexStatus: null, indexState: "idle", isLoading: false, error: null });
+        return;
+      }
+      set({ isLoading: true, error: null });
+      const url = buildServerUrl(server.addr, "/extension/filesystem/status");
+      try {
+        const response = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(request ?? {}),
+        });
+        if (!response.ok) {
+          throw new Error(`Server error (${response.status})`);
+        }
+        const data = (await response.json()) as IndexStatusResponse;
+        set({
+          indexStatus: data,
+          indexState: parseIndexState(data.state),
+          isLoading: false,
+          error: null,
+        });
+      } catch (error) {
+        set({
+          indexStatus: null,
+          indexState: "error",
+          isLoading: false,
+          error: String(error),
+        });
+      }
+    },
+
+    search: async (request: SearchRequest) => {
+      const server = getServer();
+      if (!server || !server.addr) {
+        set({ searchResults: null, isSearching: false, searchError: "Server unavailable" });
+        return;
+      }
+      set({ searchQuery: request.query, isSearching: true, searchError: null });
+      const url = buildServerUrl(server.addr, "/extension/filesystem/search");
+      try {
+        const response = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(request),
+        });
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(errorText || `Server error (${response.status})`);
+        }
+        const data = (await response.json()) as SearchResponse;
+        set({
+          searchResults: data,
+          isSearching: false,
+          searchError: null,
+        });
+      } catch (error) {
+        set({
+          searchResults: null,
+          isSearching: false,
+          searchError: String(error),
+        });
+      }
+    },
+
+    clearSearch: () => {
+      set({
+        searchResults: null,
+        searchQuery: "",
+        isSearching: false,
+        searchError: null,
+      });
+    },
+  }));
+};

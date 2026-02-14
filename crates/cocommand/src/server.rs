@@ -72,6 +72,10 @@ impl Server {
                 post(workspace::open_permission),
             )
             .route(
+                "/extension/filesystem/search",
+                post(filesystem::search),
+            )
+            .route(
                 "/extension/filesystem/status",
                 post(filesystem::index_status),
             )

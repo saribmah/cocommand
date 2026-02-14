@@ -14,6 +14,93 @@ use crate::server::ServerState;
 
 use filesystem::FileSystemIndexManager;
 
+/// Request payload for search.
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SearchRequest {
+    /// Search query string.
+    pub query: String,
+    /// Root path to search in. Defaults to workspace watch_root if not provided.
+    pub root: Option<String>,
+    /// Paths to ignore. Defaults to workspace ignore_paths if not provided.
+    pub ignore_paths: Option<Vec<String>>,
+    /// Filter by entry kind: "all", "file", or "directory". Defaults to "all".
+    pub kind: Option<String>,
+    /// Include hidden files. Defaults to true.
+    pub include_hidden: Option<bool>,
+    /// Case sensitive search. Defaults to false.
+    pub case_sensitive: Option<bool>,
+    /// Maximum number of results. Defaults to 50, max 500.
+    pub max_results: Option<usize>,
+    /// Maximum depth from root. Defaults to unlimited.
+    pub max_depth: Option<usize>,
+}
+
+/// A single file entry in search results.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SearchEntry {
+    pub path: String,
+    pub name: String,
+    #[serde(rename = "type")]
+    pub entry_type: String,
+    pub size: Option<u64>,
+    pub modified_at: Option<u64>,
+}
+
+/// Response payload for search.
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SearchResponse {
+    pub query: String,
+    pub root: String,
+    pub results: Vec<SearchEntry>,
+    pub count: usize,
+    pub truncated: bool,
+    pub scanned: usize,
+    pub errors: usize,
+    pub index_state: String,
+    pub index_scanned_files: usize,
+    pub index_scanned_dirs: usize,
+    pub index_started_at: Option<u64>,
+    pub index_last_update_at: Option<u64>,
+    pub index_finished_at: Option<u64>,
+    pub highlight_terms: Vec<String>,
+}
+
+impl From<filesystem::FileEntry> for SearchEntry {
+    fn from(entry: filesystem::FileEntry) -> Self {
+        Self {
+            path: entry.path,
+            name: entry.name,
+            entry_type: entry.file_type.as_str().to_string(),
+            size: entry.size,
+            modified_at: entry.modified_at,
+        }
+    }
+}
+
+impl From<filesystem::SearchResult> for SearchResponse {
+    fn from(result: filesystem::SearchResult) -> Self {
+        Self {
+            query: result.query,
+            root: result.root,
+            results: result.entries.into_iter().map(Into::into).collect(),
+            count: result.count,
+            truncated: result.truncated,
+            scanned: result.scanned,
+            errors: result.errors,
+            index_state: result.index_state,
+            index_scanned_files: result.index_scanned_files,
+            index_scanned_dirs: result.index_scanned_dirs,
+            index_started_at: result.index_started_at,
+            index_last_update_at: result.index_last_update_at,
+            index_finished_at: result.index_finished_at,
+            highlight_terms: result.highlight_terms,
+        }
+    }
+}
+
 /// Request payload for index status.
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -64,6 +151,92 @@ impl From<filesystem::IndexStatus> for IndexStatusResponse {
             last_error: status.last_error,
         }
     }
+}
+
+fn parse_kind_filter(raw: Option<&str>) -> Result<filesystem::KindFilter, CoreError> {
+    match raw.unwrap_or("all") {
+        "all" => Ok(filesystem::KindFilter::All),
+        "file" => Ok(filesystem::KindFilter::File),
+        "directory" => Ok(filesystem::KindFilter::Directory),
+        other => Err(CoreError::InvalidInput(format!(
+            "unsupported kind: {other} (expected one of: all, file, directory)"
+        ))),
+    }
+}
+
+/// POST /extension/filesystem/search
+///
+/// Searches the filesystem index and returns matching entries.
+pub(crate) async fn search(
+    State(state): State<Arc<ServerState>>,
+    Json(payload): Json<SearchRequest>,
+) -> Result<Json<SearchResponse>, (StatusCode, String)> {
+    let query = payload.query.trim();
+    if query.is_empty() {
+        return Err((StatusCode::BAD_REQUEST, "query must not be empty".to_string()));
+    }
+    let query = query.to_string();
+
+    let (watch_root, default_ignore_paths) = {
+        let config = state.workspace.config.read().await;
+        let prefs = &config.preferences.filesystem;
+        (prefs.watch_root.clone(), prefs.ignore_paths.clone())
+    };
+
+    let root_raw = payload.root.unwrap_or_else(|| {
+        if watch_root.trim().is_empty() {
+            "~".to_string()
+        } else {
+            watch_root
+        }
+    });
+
+    let workspace_dir = state.workspace.workspace_dir.clone();
+    let root = normalize_path(&root_raw, &workspace_dir).map_err(|e| {
+        (StatusCode::BAD_REQUEST, e.to_string())
+    })?;
+
+    let ignore_paths_raw = payload.ignore_paths.unwrap_or(default_ignore_paths);
+    let ignore_paths = normalize_ignore_paths(&ignore_paths_raw, &root).map_err(|e| {
+        (StatusCode::BAD_REQUEST, e.to_string())
+    })?;
+
+    let kind = parse_kind_filter(payload.kind.as_deref()).map_err(|e| {
+        (StatusCode::BAD_REQUEST, e.to_string())
+    })?;
+
+    let include_hidden = payload.include_hidden.unwrap_or(true);
+    let case_sensitive = payload.case_sensitive.unwrap_or(false);
+    let max_results = payload.max_results.unwrap_or(50).clamp(1, 500);
+    let max_depth = payload.max_depth.unwrap_or(usize::MAX);
+
+    let index_cache_dir = workspace_dir.join("storage/filesystem-indexes");
+
+    // Get the index manager from the filesystem extension via downcasting
+    let manager = get_filesystem_index_manager(&state).await.map_err(|e| {
+        (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
+    })?;
+
+    let result = tokio::task::spawn_blocking(move || {
+        manager
+            .search(
+                root,
+                query,
+                kind,
+                include_hidden,
+                case_sensitive,
+                max_results,
+                max_depth,
+                index_cache_dir,
+                ignore_paths,
+            )
+            .map_err(CoreError::from)
+    })
+    .await
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("task failed: {e}")))?
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    Ok(Json(result.into()))
 }
 
 /// POST /extension/filesystem/status

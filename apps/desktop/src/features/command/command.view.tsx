@@ -41,11 +41,25 @@ import {
   ToolCallCard,
 } from "@cocommand/ui";
 import { useExtensionContext } from "../extension/extension.context";
+import { useFileSystemContext } from "../filesystem/filesystem.context";
 import { useSessionContext } from "../session/session.context";
 import { useServerContext } from "../server/server.context";
 import { useCommandBar } from "./commandbar";
 import type { SourcePart, ToolPart } from "./command.types";
 import styles from "./command.module.css";
+
+const FileIcon = (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+    <polyline points="14,2 14,8 20,8" />
+  </svg>
+);
+
+const FolderIcon = (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z" />
+  </svg>
+);
 
 function getMentionState(text: string): { query: string; start: number } | null {
   const match = /(^|\s)@([^\s@]*)$/.exec(text);
@@ -56,6 +70,13 @@ function getMentionState(text: string): { query: string; start: number } | null 
 
 function getSlashState(text: string): { query: string; start: number } | null {
   const match = /(^|\s)\/([^\s/]*)$/.exec(text);
+  if (!match) return null;
+  const start = match.index + match[1].length;
+  return { query: match[2], start };
+}
+
+function getHashState(text: string): { query: string; start: number } | null {
+  const match = /(^|\s)#(.*)$/.exec(text);
   if (!match) return null;
   const start = match.index + match[1].length;
   return { query: match[2], start };
@@ -144,7 +165,7 @@ function matchScore(query: string, name: string, id: string, kind: string): numb
 }
 
 type ToolCardState = "pending" | "running" | "success" | "error";
-type FilterTab = "recent" | "extensions" | "commands";
+type FilterTab = "recent" | "extensions" | "commands" | "files";
 
 function formatPayload(value: unknown): string | undefined {
   if (value === undefined) return undefined;
@@ -215,6 +236,7 @@ export function CommandView() {
   const [activeTab, setActiveTab] = useState<FilterTab>("recent");
   const [mentionIndex, setMentionIndex] = useState(0);
   const [slashIndex, setSlashIndex] = useState(0);
+  const [fileIndex, setFileIndex] = useState(0);
   const sendMessage = useSessionContext((state) => state.sendMessage);
   const {
     input,
@@ -233,8 +255,16 @@ export function CommandView() {
   const fetchExtensions = useExtensionContext((state) => state.fetchExtensions);
   const openExtension = useExtensionContext((state) => state.openExtension);
 
+  // Filesystem search
+  const searchResults = useFileSystemContext((state) => state.searchResults);
+  const isSearching = useFileSystemContext((state) => state.isSearching);
+  const searchError = useFileSystemContext((state) => state.searchError);
+  const searchFiles = useFileSystemContext((state) => state.search);
+  const clearSearch = useFileSystemContext((state) => state.clearSearch);
+
   const mentionState = useMemo(() => getMentionState(input), [input]);
   const slashState = useMemo(() => getSlashState(input), [input]);
+  const hashState = useMemo(() => getHashState(input), [input]);
   const slashCommands = useMemo(
     () => [
       { id: "settings", name: "Settings", description: "Open the settings window" },
@@ -328,6 +358,40 @@ export function CommandView() {
 
   const showExtensionsList = activeTab === "extensions" || !!mentionState;
   const showCommandsList = !showExtensionsList && filteredSlashCommands.length > 0;
+  const showFilesList = activeTab === "files" || !!hashState;
+
+  // Trigger file search when hash state changes
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (!hashState && activeTab !== "files") {
+      clearSearch();
+      return;
+    }
+    const query = hashState?.query ?? input;
+    if (!query.trim()) {
+      clearSearch();
+      return;
+    }
+    // Debounce search
+    if (searchDebounceRef.current) {
+      clearTimeout(searchDebounceRef.current);
+    }
+    searchDebounceRef.current = setTimeout(() => {
+      searchFiles({ query: query.trim(), maxResults: 50 });
+    }, 150);
+    return () => {
+      if (searchDebounceRef.current) {
+        clearTimeout(searchDebounceRef.current);
+      }
+    };
+  }, [hashState?.query, activeTab, input, searchFiles, clearSearch]);
+
+  // Reset file index when results change
+  useEffect(() => {
+    setFileIndex(0);
+  }, [searchResults]);
+
+  const fileEntries = searchResults?.results ?? [];
 
   const insertSigilAtCursor = (sigil: "@" | "/" | "#") => {
     const node = inputRef.current;
@@ -363,11 +427,40 @@ export function CommandView() {
     if (
       e.key === "Backspace" &&
       input.length === 0 &&
-      (activeTab === "extensions" || activeTab === "commands")
+      (activeTab === "extensions" || activeTab === "commands" || activeTab === "files")
     ) {
       e.preventDefault();
       setActiveTab("recent");
       return;
+    }
+
+    if (showFilesList && fileEntries.length > 0) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setFileIndex((idx) => (idx + 1) % fileEntries.length);
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setFileIndex((idx) =>
+          idx <= 0 ? fileEntries.length - 1 : idx - 1
+        );
+        return;
+      }
+      if (e.key === "Enter") {
+        e.preventDefault();
+        const selected = fileEntries[fileIndex];
+        if (selected) {
+          // Insert the file path into the input
+          const pathToInsert = selected.path;
+          const beforeHash = hashState ? input.slice(0, hashState.start) : input;
+          const nextValue = `${beforeHash}${pathToInsert} `;
+          setInput(nextValue);
+          setActiveTab("recent");
+          clearSearch();
+        }
+        return;
+      }
     }
 
     if (showExtensionsList && filteredExtensions.length > 0) {
@@ -506,6 +599,14 @@ export function CommandView() {
                 insertSigilAtCursor("/");
               }}
             />
+            <Chip
+              label="Files"
+              active={activeTab === "files" || !!hashState}
+              onClick={() => {
+                setActiveTab("files");
+                insertSigilAtCursor("#");
+              }}
+            />
           </ChipGroup>
           {isSubmitting ? <Badge>Working...</Badge> : null}
         </div>
@@ -572,7 +673,43 @@ export function CommandView() {
             </ListSection>
           ) : null}
 
-          {(showExtensionsList || showCommandsList) && showResponses ? <Divider /> : null}
+          {showFilesList ? (
+            <ListSection label={isSearching ? "Searching..." : `Files${searchResults ? ` (${searchResults.count})` : ""}`}>
+              {searchError ? (
+                <Text size="sm" tone="secondary">
+                  {searchError}
+                </Text>
+              ) : fileEntries.length > 0 ? (
+                fileEntries.map((entry, index) => (
+                  <ListItem
+                    key={entry.path}
+                    title={entry.name}
+                    subtitle={entry.path}
+                    icon={
+                      <IconContainer>
+                        <Icon>{entry.type === "directory" ? FolderIcon : FileIcon}</Icon>
+                      </IconContainer>
+                    }
+                    selected={index === fileIndex}
+                    onMouseDown={(event) => {
+                      event.preventDefault();
+                      // TODO: Handle file selection (open, insert path, etc.)
+                    }}
+                  />
+                ))
+              ) : hashState?.query ? (
+                <Text size="sm" tone="secondary">
+                  {isSearching ? "Searching..." : "No files found."}
+                </Text>
+              ) : (
+                <Text size="sm" tone="secondary">
+                  Type to search files...
+                </Text>
+              )}
+            </ListSection>
+          ) : null}
+
+          {(showExtensionsList || showCommandsList || showFilesList) && showResponses ? <Divider /> : null}
 
           {showResponses ? (
             <ResponseStack>
@@ -632,6 +769,7 @@ export function CommandView() {
               <HintItem label="Enter" keyHint={<KeyHint keys="↵" />} />
               <HintItem label="Extensions" keyHint={<KeyHint keys="@" />} />
               <HintItem label="Command" keyHint={<KeyHint keys="/" />} />
+              <HintItem label="Files" keyHint={<KeyHint keys="#" />} />
             </>
           }
           right={<CloseButton keyLabel="esc" onClick={dismiss} />}
