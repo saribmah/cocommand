@@ -1,6 +1,10 @@
 import { create } from "zustand";
 import type { ServerInfo } from "../../lib/ipc";
-import type { MessagePart, RecordMessageResponse } from "../command/command.types";
+import type {
+  MessagePart,
+  MessagePartInput,
+  RecordMessageResponse,
+} from "../command/command.types";
 import type { SessionContext, StreamEvent } from "./session.types";
 
 export interface SessionState {
@@ -8,7 +12,7 @@ export interface SessionState {
   setContext: (context: SessionContext) => void;
   clear: () => void;
   sendMessage: (
-    text: string,
+    parts: MessagePartInput[],
     onEvent?: (event: StreamEvent) => void
   ) => Promise<RecordMessageResponse>;
   getContext: () => SessionContext | null;
@@ -71,7 +75,7 @@ export const createSessionStore = (getServer: () => ServerInfo | null) => {
     context: null,
     setContext: (context) => set({ context }),
     clear: () => set({ context: null }),
-    sendMessage: async (text, onEvent) => {
+    sendMessage: async (parts, onEvent) => {
       const server = getServer();
       if (!server || !server.addr) {
         throw new Error("Server unavailable");
@@ -84,7 +88,7 @@ export const createSessionStore = (getServer: () => ServerInfo | null) => {
           "Content-Type": "application/json",
           Accept: "text/event-stream",
         },
-        body: JSON.stringify({ text }),
+        body: JSON.stringify({ parts }),
       });
 
       if (!response.ok) {

@@ -1,10 +1,10 @@
 import { create } from "zustand";
-import { hideWindow, openSettingsWindow } from "../../lib/ipc";
+import { hideWindow } from "../../lib/ipc";
 import type { StreamEvent } from "../session/session.types";
-import type { MessagePart } from "./command.types";
+import type { MessagePart, MessagePartInput } from "./command.types";
 
 type SendMessageFn = (
-  text: string,
+  parts: MessagePartInput[],
   onEvent?: (event: StreamEvent) => void
 ) => Promise<{ reply_parts?: MessagePart[] }>;
 
@@ -57,19 +57,13 @@ export const createCommandStore = () => {
       const text = (override ?? get().input).trim();
       if (!text) return false;
 
-      if (text === "/settings") {
-        await openSettingsWindow();
-        hideWindow();
-        set({ input: "", parts: [], isSubmitting: false, error: null });
-        return true;
-      }
-
       set({ isSubmitting: true, parts: [], error: null });
 
       try {
         const streamParts: MessagePart[] = [];
+        const inputParts = buildInputParts(text);
 
-        const response = await sendMessage(text, (event: StreamEvent) => {
+        const response = await sendMessage(inputParts, (event: StreamEvent) => {
           if (event.event !== "part.updated") return;
           const part = getPartFromEventData(event.data);
           if (!part) return;
@@ -127,4 +121,46 @@ function findPartIndexToUpdate(parts: MessagePart[], nextPart: MessagePart): num
   return parts.findIndex(
     (part) => part.type === "tool" && part.callId === nextPart.callId
   );
+}
+
+function buildInputParts(text: string): MessagePartInput[] {
+  const extensionParts = extractExtensionParts(text);
+  return [
+    ...extensionParts,
+    {
+      type: "text",
+      text,
+    },
+  ];
+}
+
+function extractExtensionParts(text: string): MessagePartInput[] {
+  const parts: MessagePartInput[] = [];
+  const seen = new Set<string>();
+  const pattern = /(^|\s)@([^\s@]+)/g;
+
+  let match: RegExpExecArray | null = pattern.exec(text);
+  while (match) {
+    const prefix = match[1] ?? "";
+    const extensionId = (match[2] ?? "").trim();
+    if (extensionId && !seen.has(extensionId)) {
+      seen.add(extensionId);
+      const sourceStart = match.index + prefix.length;
+      const sourceValue = `@${extensionId}`;
+      const sourceEnd = sourceStart + sourceValue.length;
+      parts.push({
+        type: "extension",
+        extensionId,
+        name: extensionId,
+        source: {
+          value: sourceValue,
+          start: sourceStart,
+          end: sourceEnd,
+        },
+      });
+    }
+    match = pattern.exec(text);
+  }
+
+  return parts;
 }

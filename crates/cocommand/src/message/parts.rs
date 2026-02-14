@@ -27,7 +27,7 @@ pub enum MessagePart {
     Text(TextPart),
     Reasoning(ReasoningPart),
     Tool(ToolPart),
-    Source(SourcePart),
+    Extension(ExtensionPart),
     File(FilePart),
 }
 
@@ -37,7 +37,7 @@ impl MessagePart {
             MessagePart::Text(part) => &part.base,
             MessagePart::Reasoning(part) => &part.base,
             MessagePart::Tool(part) => &part.base,
-            MessagePart::Source(part) => &part.base,
+            MessagePart::Extension(part) => &part.base,
             MessagePart::File(part) => &part.base,
         }
     }
@@ -47,7 +47,7 @@ impl MessagePart {
             MessagePart::Text(part) => &mut part.base,
             MessagePart::Reasoning(part) => &mut part.base,
             MessagePart::Tool(part) => &mut part.base,
-            MessagePart::Source(part) => &mut part.base,
+            MessagePart::Extension(part) => &mut part.base,
             MessagePart::File(part) => &mut part.base,
         }
     }
@@ -144,18 +144,44 @@ pub struct ToolPart {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct SourcePart {
+pub struct ExtensionPart {
     #[serde(flatten)]
     pub base: PartBase,
-    #[serde(rename = "sourceId", skip_serializing_if = "Option::is_none")]
-    pub source_id: Option<String>,
-    #[serde(rename = "sourceType")]
-    pub source_type: String,
-    pub url: Option<String>,
-    pub title: Option<String>,
-    #[serde(rename = "mediaType")]
-    pub media_type: Option<String>,
-    pub filename: Option<String>,
+    #[serde(rename = "extensionId")]
+    pub extension_id: String,
+    pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub kind: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source: Option<FilePartSourceText>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct FilePartSourceText {
+    pub value: String,
+    pub start: i64,
+    pub end: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(tag = "type", rename_all = "lowercase")]
+pub enum FilePartSource {
+    File(FilePartFileSource),
+    Symbol(FilePartSymbolSource),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct FilePartFileSource {
+    pub text: FilePartSourceText,
+    pub path: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct FilePartSymbolSource {
+    pub text: FilePartSourceText,
+    pub path: String,
+    pub name: String,
+    pub kind: i64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -166,4 +192,106 @@ pub struct FilePart {
     #[serde(rename = "mediaType")]
     pub media_type: String,
     pub name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source: Option<FilePartSource>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn extension_part_serializes_as_extension_type() {
+        let part = MessagePart::Extension(ExtensionPart {
+            base: PartBase {
+                id: "part_1".to_string(),
+                session_id: "session_1".to_string(),
+                message_id: "message_1".to_string(),
+            },
+            extension_id: "filesystem".to_string(),
+            name: "Filesystem".to_string(),
+            kind: None,
+            source: Some(FilePartSourceText {
+                value: "@filesystem".to_string(),
+                start: 0,
+                end: 11,
+            }),
+        });
+
+        let value = serde_json::to_value(part).expect("part should serialize");
+        assert_eq!(value["type"], "extension");
+        assert_eq!(value["extensionId"], "filesystem");
+        assert_eq!(value["name"], "Filesystem");
+        assert_eq!(value["source"]["value"], "@filesystem");
+        assert_eq!(value["source"]["start"], 0);
+        assert_eq!(value["source"]["end"], 11);
+        assert!(value.get("kind").is_none());
+    }
+
+    #[test]
+    fn file_part_source_file_serializes_with_text_range() {
+        let source = FilePartSource::File(FilePartFileSource {
+            text: FilePartSourceText {
+                value: "match this".to_string(),
+                start: 4,
+                end: 14,
+            },
+            path: "/tmp/example.rs".to_string(),
+        });
+
+        let value = serde_json::to_value(source).expect("source should serialize");
+
+        assert_eq!(value["type"], "file");
+        assert_eq!(value["path"], "/tmp/example.rs");
+        assert_eq!(value["text"]["value"], "match this");
+        assert_eq!(value["text"]["start"], 4);
+        assert_eq!(value["text"]["end"], 14);
+    }
+
+    #[test]
+    fn file_part_source_symbol_deserializes() {
+        let value = serde_json::json!({
+            "type": "symbol",
+            "path": "/tmp/example.rs",
+            "name": "run",
+            "kind": 12,
+            "text": {
+                "value": "fn run()",
+                "start": 0,
+                "end": 8
+            }
+        });
+
+        let source: FilePartSource =
+            serde_json::from_value(value).expect("source should deserialize");
+        match source {
+            FilePartSource::Symbol(symbol) => {
+                assert_eq!(symbol.path, "/tmp/example.rs");
+                assert_eq!(symbol.name, "run");
+                assert_eq!(symbol.kind, 12);
+                assert_eq!(symbol.text.value, "fn run()");
+                assert_eq!(symbol.text.start, 0);
+                assert_eq!(symbol.text.end, 8);
+            }
+            FilePartSource::File(_) => panic!("expected symbol source"),
+        }
+    }
+
+    #[test]
+    fn file_part_without_source_omits_source_field() {
+        let part = FilePart {
+            base: PartBase {
+                id: "part_1".to_string(),
+                session_id: "session_1".to_string(),
+                message_id: "message_1".to_string(),
+            },
+            base64: "dGVzdA==".to_string(),
+            media_type: "text/plain".to_string(),
+            name: Some("note.txt".to_string()),
+            source: None,
+        };
+
+        let value = serde_json::to_value(part).expect("file part should serialize");
+        assert!(value.get("source").is_none());
+    }
 }

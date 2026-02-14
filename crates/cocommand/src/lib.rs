@@ -17,7 +17,8 @@ pub use crate::error::{CoreError, CoreResult};
 pub use crate::extension::{Extension, ExtensionContext, ExtensionKind, ExtensionTool};
 pub use crate::llm::LlmService;
 pub use crate::message::{
-    FilePart, Message, MessagePart, PartBase, ReasoningPart, SourcePart, TextPart, ToolPart,
+    ExtensionPart, FilePart, FilePartFileSource, FilePartSource, FilePartSourceText,
+    FilePartSymbolSource, Message, MessagePart, PartBase, ReasoningPart, TextPart, ToolPart,
     ToolState, ToolStateCompleted, ToolStateError, ToolStatePending, ToolStateRunning,
     ToolStateTimeCompleted, ToolStateTimeRange, ToolStateTimeStart,
 };

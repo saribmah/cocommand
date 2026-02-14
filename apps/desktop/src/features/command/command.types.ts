@@ -11,10 +11,32 @@ export interface MessagePartBase {
   messageId: string;
 }
 
+export interface TextSource {
+  value: string;
+  start: number;
+  end: number;
+}
+
+export interface TextPartInput {
+  type: "text";
+  text: string;
+}
+
+export interface ExtensionPartInput {
+  type: "extension";
+  extensionId: string;
+  name: string;
+  kind?: string | null;
+  source?: TextSource | null;
+}
+
+export type MessagePartInput = TextPartInput | ExtensionPartInput;
+
 export type MessagePart =
   | TextPart
   | ReasoningPart
   | ToolPart
+  | ExtensionPart
   | SourcePart
   | FilePart;
 
@@ -81,6 +103,14 @@ export interface ToolPart extends MessagePartBase {
   tool: string;
   state: ToolState;
   metadata?: Record<string, unknown> | null;
+}
+
+export interface ExtensionPart extends MessagePartBase {
+  type: "extension";
+  extensionId: string;
+  name: string;
+  kind?: string | null;
+  source?: TextSource | null;
 }
 
 export interface SourcePart extends MessagePartBase {

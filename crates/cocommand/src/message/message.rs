@@ -108,9 +108,6 @@ fn user_message_to_prompt(message: &Message) -> Vec<LlmMessage> {
         .filter_map(|part| match part {
             MessagePart::Text(text) => Some(UserContentPart::Text(LlmTextPart::new(&text.text))),
             MessagePart::File(file) => Some(UserContentPart::File(map_file_part(file))),
-            MessagePart::Source(source) => Some(UserContentPart::Text(LlmTextPart::new(
-                format_source(source),
-            ))),
             _ => None,
         })
         .collect();
@@ -137,13 +134,9 @@ fn assistant_message_to_prompt(message: &Message) -> Vec<LlmMessage> {
                     assistant_parts.push(assistant_part);
                 }
             }
+            MessagePart::Extension(_) => {}
             MessagePart::File(file) => {
                 assistant_parts.push(AssistantContentPart::File(map_file_part(file)));
-            }
-            MessagePart::Source(source) => {
-                assistant_parts.push(AssistantContentPart::Text(LlmTextPart::new(format_source(
-                    source,
-                ))));
             }
         }
     }
@@ -209,23 +202,6 @@ fn map_file_part(file: &crate::message::parts::FilePart) -> LlmFilePart {
     match &file.name {
         Some(name) => part.with_filename(name.clone()),
         None => part,
-    }
-}
-
-fn format_source(source: &crate::message::parts::SourcePart) -> String {
-    match (&source.title, &source.url, &source.filename) {
-        (Some(title), Some(url), _) => format!("Source: {} ({})", title, url),
-        (Some(title), None, Some(filename)) => format!("Source: {} ({})", title, filename),
-        (Some(title), None, None) => format!("Source: {}", title),
-        (None, Some(url), _) => format!("Source: {}", url),
-        (None, None, Some(filename)) => format!("Source: {}", filename),
-        (None, None, None) => format!(
-            "Source: {}",
-            source
-                .source_id
-                .as_deref()
-                .unwrap_or(source.base.id.as_str())
-        ),
     }
 }
 

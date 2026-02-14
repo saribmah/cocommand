@@ -14,7 +14,7 @@ use tokio_stream::wrappers::UnboundedReceiverStream;
 use uuid::Uuid;
 
 use crate::command::session_message::{
-    run_session_command, SessionCommandContextEvent, SessionCommandInput,
+    run_session_command, SessionCommandContextEvent, SessionCommandInput, SessionCommandInputPart,
     SessionCommandPartUpdatedEvent,
 };
 use crate::message::parts::MessagePart;
@@ -23,7 +23,7 @@ use crate::session::SessionContext;
 
 #[derive(Debug, Deserialize)]
 pub struct RecordMessageRequest {
-    pub text: String,
+    pub parts: Vec<SessionCommandInputPart>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -51,7 +51,7 @@ pub(crate) async fn session_command(
     Json(payload): Json<RecordMessageRequest>,
 ) -> Sse<impl tokio_stream::Stream<Item = Result<Event, Infallible>>> {
     let request_id = Uuid::now_v7().to_string();
-    let text = payload.text;
+    let parts = payload.parts;
 
     let mut bus_rx = state.bus.subscribe();
     let (command_result_tx, mut command_result_rx) =
@@ -67,7 +67,7 @@ pub(crate) async fn session_command(
                 state.workspace.clone(),
                 &state.llm,
                 &state.bus,
-                SessionCommandInput { request_id, text },
+                SessionCommandInput { request_id, parts },
             )
             .await;
             let payload = result.ok().map(|output| RecordMessageResponse {

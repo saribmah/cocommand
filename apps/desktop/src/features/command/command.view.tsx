@@ -7,6 +7,7 @@ import {
   useState,
   type KeyboardEvent,
 } from "react";
+import { hideWindow, openSettingsWindow } from "../../lib/ipc";
 import {
   ActionHint,
   ArrowIcon,
@@ -87,14 +88,6 @@ function getHashState(text: string): { query: string; start: number } | null {
   if (!match) return null;
   const start = match.index + match[1].length;
   return { query: match[2], start };
-}
-
-function applySlashCommand(
-  text: string,
-  slash: { start: number },
-  id: string
-): string {
-  return `${text.slice(0, slash.start)}/${id} `;
 }
 
 function resolveMentions(
@@ -216,11 +209,6 @@ function formatFileType(mediaType?: string | null): string | undefined {
   const bits = mediaType.split("/");
   if (bits.length < 2) return mediaType.toUpperCase();
   return bits[1].toUpperCase();
-}
-
-function appendSlashCommand(text: string, id: string): string {
-  const separator = text.length === 0 || text.endsWith(" ") ? "" : " ";
-  return `${text}${separator}/${id} `;
 }
 
 function trimTrailingWhitespace(value: string): string {
@@ -439,6 +427,19 @@ export function CommandView() {
     setSelectedFiles([]);
   };
 
+  const executeSlashCommand = (id: string) => {
+    if (id !== "settings") return;
+    openSettingsWindow()
+      .then(() => {
+        reset();
+        clearSelectedTargets();
+        hideWindow();
+      })
+      .catch((err) => {
+        setError(String(err));
+      });
+  };
+
   const selectExtension = (extension: { id: string; name: string; kind: string }) => {
     setSelectedExtensions((current) => {
       if (current.some((item) => item.id === extension.id)) {
@@ -595,11 +596,7 @@ export function CommandView() {
         const selected = filteredSlashCommands[slashIndex];
         if (selected) {
           e.preventDefault();
-          const nextValue = slashState
-            ? applySlashCommand(input, slashState, selected.id)
-            : appendSlashCommand(input, selected.id);
-          setInput(nextValue);
-          setActiveTab("recent");
+          executeSlashCommand(selected.id);
           return;
         }
       }
@@ -810,11 +807,7 @@ export function CommandView() {
                   selected={index === slashIndex}
                   onMouseDown={(event) => {
                     event.preventDefault();
-                    const nextValue = slashState
-                      ? applySlashCommand(input, slashState, command.id)
-                      : appendSlashCommand(input, command.id);
-                    setInput(nextValue);
-                    setActiveTab("recent");
+                    executeSlashCommand(command.id);
                   }}
                 />
               ))}

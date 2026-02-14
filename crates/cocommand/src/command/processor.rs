@@ -4,7 +4,7 @@ use crate::bus::Bus;
 use crate::command::session_message::SessionCommandPartUpdatedEvent;
 use crate::error::{CoreError, CoreResult};
 use crate::message::parts::{
-    FilePart, MessagePart, PartBase, ReasoningPart, SourcePart, TextPart, ToolPart, ToolState,
+    FilePart, MessagePart, PartBase, ReasoningPart, TextPart, ToolPart, ToolState,
     ToolStateCompleted, ToolStateError, ToolStateRunning, ToolStateTimeCompleted,
     ToolStateTimeRange, ToolStateTimeStart,
 };
@@ -12,7 +12,6 @@ use crate::message::Message;
 use crate::storage::SharedStorage;
 use crate::utils::time::now_secs;
 use llm_kit_core::stream_text::TextStreamPart;
-use llm_kit_provider::language_model::content::source::LanguageModelSource;
 use serde_json::{Map, Value};
 use tokio_stream::StreamExt;
 
@@ -92,17 +91,6 @@ impl StreamProcessor {
             TextStreamPart::ToolInputStart { .. } => {}
             TextStreamPart::ToolInputDelta { .. } => {}
             TextStreamPart::ToolInputEnd { .. } => {}
-            TextStreamPart::Source { source } => {
-                self.store_part(
-                    MessagePart::Source(map_source_to_part(
-                        &source,
-                        context.session_id,
-                        context.message_id,
-                    )),
-                    context,
-                )
-                .await?;
-            }
             TextStreamPart::File { file } => {
                 self.store_part(
                     MessagePart::File(FilePart {
@@ -110,6 +98,7 @@ impl StreamProcessor {
                         base64: file.base64,
                         media_type: file.media_type,
                         name: file.name,
+                        source: None,
                     }),
                     context,
                 )
@@ -220,6 +209,7 @@ impl StreamProcessor {
             TextStreamPart::Start => {}
             TextStreamPart::Finish { .. } => {}
             TextStreamPart::Abort => {}
+            TextStreamPart::Source { .. } => {}
             TextStreamPart::Error { error } => {
                 return Err(CoreError::Internal(format!("llm stream error: {error}")));
             }
@@ -349,39 +339,6 @@ impl StreamProcessor {
         self.flush_reasoning(context).await?;
         self.current_reasoning_id = Some(id);
         Ok(())
-    }
-}
-
-fn map_source_to_part(
-    source: &llm_kit_core::output::SourceOutput,
-    session_id: &str,
-    message_id: &str,
-) -> SourcePart {
-    match &source.source {
-        LanguageModelSource::Url { id, url, title, .. } => SourcePart {
-            base: PartBase::new(session_id, message_id),
-            source_id: Some(id.clone()),
-            source_type: "url".to_string(),
-            url: Some(url.clone()),
-            title: title.clone(),
-            media_type: None,
-            filename: None,
-        },
-        LanguageModelSource::Document {
-            id,
-            media_type,
-            title,
-            filename,
-            ..
-        } => SourcePart {
-            base: PartBase::new(session_id, message_id),
-            source_id: Some(id.clone()),
-            source_type: "document".to_string(),
-            url: None,
-            title: Some(title.clone()),
-            media_type: Some(media_type.clone()),
-            filename: filename.clone(),
-        },
     }
 }
 

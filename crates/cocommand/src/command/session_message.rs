@@ -4,16 +4,41 @@ use crate::bus::Bus;
 use crate::command::processor::{StorePartContext, StreamProcessor};
 use crate::error::CoreResult;
 use crate::llm::LlmService;
-use crate::message::{Message, MessageInfo, MessagePart};
+use crate::message::{
+    ExtensionPart, FilePartSourceText, Message, MessageInfo, MessagePart, PartBase, TextPart,
+};
 use crate::session::{SessionContext, SessionManager};
 use crate::tool::ToolRegistry;
 use crate::workspace::WorkspaceInstance;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone)]
 pub struct SessionCommandInput {
     pub request_id: String,
+    pub parts: Vec<SessionCommandInputPart>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(tag = "type", rename_all = "kebab-case")]
+pub enum SessionCommandInputPart {
+    Text(SessionCommandTextPartInput),
+    Extension(SessionCommandExtensionPartInput),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SessionCommandTextPartInput {
     pub text: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SessionCommandExtensionPartInput {
+    #[serde(rename = "extensionId")]
+    pub extension_id: String,
+    pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub kind: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source: Option<FilePartSourceText>,
 }
 
 pub struct SessionCommandOutput {
@@ -56,7 +81,7 @@ pub async fn run_session_command(
 ) -> CoreResult<SessionCommandOutput> {
     let request_id = input.request_id.clone();
     let prepared =
-        match prepare_session_message(sessions.clone(), workspace.clone(), input.text).await {
+        match prepare_session_message(sessions.clone(), workspace.clone(), input.parts).await {
             Ok(prepared) => prepared,
             Err(error) => return Err(error),
         };
@@ -111,7 +136,7 @@ pub async fn run_session_command(
 async fn prepare_session_message(
     sessions: Arc<SessionManager>,
     workspace: WorkspaceInstance,
-    text: String,
+    parts: Vec<SessionCommandInputPart>,
 ) -> CoreResult<PreparedSessionCommand> {
     let storage = workspace.storage.clone();
     let (active_extension_ids, context) = sessions
@@ -124,7 +149,8 @@ async fn prepare_session_message(
         })
         .await?;
 
-    let user_message = Message::from_text(&context.session_id, "user", &text);
+    let mut user_message = Message::from_parts(&context.session_id, "user", Vec::new());
+    user_message.parts = map_input_parts(parts, &context.session_id, &user_message.info.id);
     Message::store(&storage, &user_message).await?;
 
     let message_history = Message::load(&storage, &context.session_id).await?;
@@ -141,6 +167,29 @@ async fn prepare_session_message(
     })
 }
 
+fn map_input_parts(
+    parts: Vec<SessionCommandInputPart>,
+    session_id: &str,
+    message_id: &str,
+) -> Vec<MessagePart> {
+    parts
+        .into_iter()
+        .map(|part| match part {
+            SessionCommandInputPart::Text(part) => MessagePart::Text(TextPart {
+                base: PartBase::new(session_id, message_id),
+                text: part.text,
+            }),
+            SessionCommandInputPart::Extension(part) => MessagePart::Extension(ExtensionPart {
+                base: PartBase::new(session_id, message_id),
+                extension_id: part.extension_id,
+                name: part.name,
+                kind: part.kind,
+                source: part.source,
+            }),
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -154,16 +203,25 @@ mod tests {
     use llm_kit_core::stream_text::TextStreamPart;
     use llm_kit_provider_utils::tool::{ToolCall, ToolError, ToolResult};
 
+    fn text_input_part(text: &str) -> SessionCommandInputPart {
+        SessionCommandInputPart::Text(SessionCommandTextPartInput {
+            text: text.to_string(),
+        })
+    }
+
     #[tokio::test]
     async fn prepare_session_message_stores_user_message() {
         let dir = tempdir().expect("tempdir");
         let workspace = Arc::new(WorkspaceInstance::new(dir.path()).await.expect("workspace"));
         let sessions = Arc::new(SessionManager::new(workspace.clone()));
 
-        let output =
-            prepare_session_message(sessions, workspace.as_ref().clone(), "hello".to_string())
-                .await
-                .expect("command");
+        let output = prepare_session_message(
+            sessions,
+            workspace.as_ref().clone(),
+            vec![text_input_part("hello")],
+        )
+        .await
+        .expect("command");
 
         assert_eq!(output.user_message.role, "user");
         assert_eq!(output.context.session_id, output.user_message.session_id);
@@ -178,6 +236,54 @@ mod tests {
             Some(MessagePart::Text(part)) if part.text == "hello"
         ));
         assert!(!output.prompt_messages.is_empty());
+    }
+
+    #[tokio::test]
+    async fn prepare_session_message_stores_extension_part() {
+        let dir = tempdir().expect("tempdir");
+        let workspace = Arc::new(WorkspaceInstance::new(dir.path()).await.expect("workspace"));
+        let sessions = Arc::new(SessionManager::new(workspace.clone()));
+
+        let output = prepare_session_message(
+            sessions,
+            workspace.as_ref().clone(),
+            vec![
+                SessionCommandInputPart::Extension(SessionCommandExtensionPartInput {
+                    extension_id: "filesystem".to_string(),
+                    name: "Filesystem".to_string(),
+                    kind: Some("built-in".to_string()),
+                    source: Some(FilePartSourceText {
+                        value: "@filesystem".to_string(),
+                        start: 0,
+                        end: 11,
+                    }),
+                }),
+                text_input_part("hello"),
+            ],
+        )
+        .await
+        .expect("command");
+
+        let messages = Message::load(&workspace.storage, &output.context.session_id)
+            .await
+            .expect("load");
+        let parts = &messages[0].parts;
+        assert!(parts.iter().any(|part| matches!(
+            part,
+            MessagePart::Extension(part)
+                if part.extension_id == "filesystem"
+                    && part.name == "Filesystem"
+                    && part.kind.as_deref() == Some("built-in")
+                    && matches!(
+                        part.source.as_ref(),
+                        Some(source)
+                            if source.value == "@filesystem" && source.start == 0 && source.end == 11
+                    )
+        )));
+        assert!(parts.iter().any(|part| matches!(
+            part,
+            MessagePart::Text(TextPart { text, .. }) if text == "hello"
+        )));
     }
 
     #[tokio::test]
@@ -200,7 +306,7 @@ mod tests {
             &bus,
             SessionCommandInput {
                 request_id: "request-1".to_string(),
-                text: "hello".to_string(),
+                parts: vec![text_input_part("hello")],
             },
         )
         .await;
