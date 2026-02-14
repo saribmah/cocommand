@@ -5,6 +5,7 @@ import styles from "./SearchField.module.css";
 
 type SearchFieldProps = HTMLAttributes<HTMLDivElement> & {
   icon?: ReactNode;
+  beforeInput?: ReactNode;
   placeholder?: string;
   shortcut?: string | string[];
   inputRef?: Ref<HTMLInputElement>;
@@ -13,6 +14,7 @@ type SearchFieldProps = HTMLAttributes<HTMLDivElement> & {
 
 export function SearchField({
   icon,
+  beforeInput,
   placeholder = "Type a command or search",
   shortcut,
   inputRef,
@@ -23,6 +25,7 @@ export function SearchField({
   return (
     <div className={cx(styles.field, className)} {...props}>
       {icon ? <span className={styles.icon}>{icon}</span> : null}
+      {beforeInput ? <div className={styles.beforeInput}>{beforeInput}</div> : null}
       <input
         ref={inputRef}
         type="text"

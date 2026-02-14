@@ -14,6 +14,56 @@
   min-width: 0;
 }
 
+.targetTagRow {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cc-space-2);
+  max-width: 420px;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.targetTagRow::-webkit-scrollbar {
+  display: none;
+}
+
+.targetTag {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cc-space-1);
+  min-width: 0;
+  padding: 2px 6px;
+  border: 1px solid var(--cc-border-soft);
+  border-radius: var(--cc-radius-pill);
+  color: var(--cc-text-primary);
+  white-space: nowrap;
+}
+
+.targetTagLabel {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.targetTagRemove {
+  border: 0;
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  padding: 0;
+  background: transparent;
+  color: var(--cc-text-secondary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.targetTagRemove:hover {
+  color: var(--cc-text-primary);
+}
+
 .filterRow {
   display: flex;
   align-items: center;

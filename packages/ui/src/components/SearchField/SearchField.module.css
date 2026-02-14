@@ -15,12 +15,20 @@
   color: var(--cc-icon-muted);
 }
 
+.beforeInput {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cc-space-2);
+  min-width: 0;
+}
+
 .shortcut {
   margin-left: auto;
 }
 
 .input {
   flex: 1;
+  min-width: 56px;
   border: 0;
   background: transparent;
   color: var(--cc-text-primary);

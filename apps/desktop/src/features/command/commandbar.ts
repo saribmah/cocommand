@@ -40,15 +40,15 @@ export function useCommandBar(sendMessage: SendMessageFn) {
     });
   }, []);
 
-  const submit = useCallback(async (override?: string) => {
+  const submit = useCallback(async (override?: string): Promise<boolean> => {
     const text = (override ?? state.input).trim();
-    if (!text) return;
+    if (!text) return false;
 
     if (text === "/settings") {
       await openSettingsWindow();
       hideWindow();
       setState((s) => ({ ...s, input: "", parts: [], isSubmitting: false, error: null }));
-      return;
+      return true;
     }
 
     setState((s) => ({ ...s, isSubmitting: true, parts: [], error: null }));
@@ -76,6 +76,7 @@ export function useCommandBar(sendMessage: SendMessageFn) {
         parts: response.reply_parts ?? [],
         error: null,
       }));
+      return true;
     } catch (err) {
       console.error("CommandBar submit error", err);
       setState((s) => ({
@@ -84,6 +85,7 @@ export function useCommandBar(sendMessage: SendMessageFn) {
         parts: [],
         error: normalizeErrorMessage(err),
       }));
+      return false;
     }
   }, [state.input, sendMessage]);
 

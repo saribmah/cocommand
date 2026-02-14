@@ -61,6 +61,13 @@ const FolderIcon = (
   </svg>
 );
 
+const RemoveIcon = (
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M18 6L6 18" />
+    <path d="M6 6L18 18" />
+  </svg>
+);
+
 function getMentionState(text: string): { query: string; start: number } | null {
   const match = /(^|\s)@([^\s@]*)$/.exec(text);
   if (!match) return null;
@@ -80,14 +87,6 @@ function getHashState(text: string): { query: string; start: number } | null {
   if (!match) return null;
   const start = match.index + match[1].length;
   return { query: match[2], start };
-}
-
-function applyMention(
-  text: string,
-  mention: { start: number },
-  name: string
-): string {
-  return `${text.slice(0, mention.start)}@${name} `;
 }
 
 function applySlashCommand(
@@ -219,14 +218,50 @@ function formatFileType(mediaType?: string | null): string | undefined {
   return bits[1].toUpperCase();
 }
 
-function appendMention(text: string, name: string): string {
-  const separator = text.length === 0 || text.endsWith(" ") ? "" : " ";
-  return `${text}${separator}@${name} `;
-}
-
 function appendSlashCommand(text: string, id: string): string {
   const separator = text.length === 0 || text.endsWith(" ") ? "" : " ";
   return `${text}${separator}/${id} `;
+}
+
+function trimTrailingWhitespace(value: string): string {
+  return value.replace(/\s+$/, "");
+}
+
+function removeTrailingSigilQuery(
+  text: string,
+  sigilState: { start: number } | null,
+  clearWhenStateMissing: boolean
+): string {
+  if (sigilState) {
+    return trimTrailingWhitespace(text.slice(0, sigilState.start));
+  }
+  return clearWhenStateMissing ? "" : text;
+}
+
+type SelectedExtension = {
+  id: string;
+  name: string;
+  kind: string;
+};
+
+type SelectedFile = {
+  path: string;
+  name: string;
+  type: "file" | "directory" | "symlink" | "other";
+};
+
+function composeCommandInput(
+  input: string,
+  selectedExtensions: SelectedExtension[],
+  selectedFiles: SelectedFile[],
+  extensions: { id: string; name: string }[]
+): string {
+  const extensionTargets = [...new Set(selectedExtensions.map((extension) => `@${extension.id}`))];
+  const fileTargets = [...new Set(selectedFiles.map((file) => file.path))];
+  const text = resolveMentions(input, extensions).trim();
+  return [...extensionTargets, ...fileTargets, text]
+    .filter((segment) => segment.length > 0)
+    .join(" ");
 }
 
 export function CommandView() {
@@ -237,6 +272,8 @@ export function CommandView() {
   const [mentionIndex, setMentionIndex] = useState(0);
   const [slashIndex, setSlashIndex] = useState(0);
   const [fileIndex, setFileIndex] = useState(0);
+  const [selectedExtensions, setSelectedExtensions] = useState<SelectedExtension[]>([]);
+  const [selectedFiles, setSelectedFiles] = useState<SelectedFile[]>([]);
   const sendMessage = useSessionContext((state) => state.sendMessage);
   const {
     input,
@@ -393,6 +430,48 @@ export function CommandView() {
 
   const fileEntries = searchResults?.results ?? [];
 
+  const focusInput = () => {
+    requestAnimationFrame(() => {
+      inputRef.current?.focus();
+    });
+  };
+
+  const clearSelectedTargets = () => {
+    setSelectedExtensions([]);
+    setSelectedFiles([]);
+  };
+
+  const selectExtension = (extension: { id: string; name: string; kind: string }) => {
+    setSelectedExtensions((current) => {
+      if (current.some((item) => item.id === extension.id)) {
+        return current;
+      }
+      return [...current, extension];
+    });
+    const nextValue = removeTrailingSigilQuery(input, mentionState, activeTab === "extensions");
+    setInput(nextValue);
+    setActiveTab("recent");
+    focusInput();
+  };
+
+  const selectFile = (entry: { path: string; name: string; type: SelectedFile["type"] }) => {
+    const normalizedName =
+      entry.name.trim().length > 0
+        ? entry.name
+        : entry.path.split("/").filter(Boolean).pop() ?? entry.path;
+    setSelectedFiles((current) => {
+      if (current.some((item) => item.path === entry.path)) {
+        return current;
+      }
+      return [...current, { ...entry, name: normalizedName }];
+    });
+    const nextValue = removeTrailingSigilQuery(input, hashState, activeTab === "files");
+    setInput(nextValue);
+    setActiveTab("recent");
+    clearSearch();
+    focusInput();
+  };
+
   const insertSigilAtCursor = (sigil: "@" | "/" | "#") => {
     const node = inputRef.current;
     const start = node?.selectionStart ?? input.length;
@@ -424,6 +503,19 @@ export function CommandView() {
   };
 
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Backspace" && input.length === 0) {
+      if (selectedFiles.length > 0) {
+        e.preventDefault();
+        setSelectedFiles((current) => current.slice(0, current.length - 1));
+        return;
+      }
+      if (selectedExtensions.length > 0) {
+        e.preventDefault();
+        setSelectedExtensions((current) => current.slice(0, current.length - 1));
+        return;
+      }
+    }
+
     if (
       e.key === "Backspace" &&
       input.length === 0 &&
@@ -451,13 +543,11 @@ export function CommandView() {
         e.preventDefault();
         const selected = fileEntries[fileIndex];
         if (selected) {
-          // Insert the file path into the input
-          const pathToInsert = selected.path;
-          const beforeHash = hashState ? input.slice(0, hashState.start) : input;
-          const nextValue = `${beforeHash}${pathToInsert} `;
-          setInput(nextValue);
-          setActiveTab("recent");
-          clearSearch();
+          selectFile({
+            path: selected.path,
+            name: selected.name,
+            type: selected.type,
+          });
         }
         return;
       }
@@ -480,11 +570,11 @@ export function CommandView() {
         e.preventDefault();
         const selected = filteredExtensions[mentionIndex];
         if (selected) {
-          const nextValue = mentionState
-            ? applyMention(input, mentionState, selected.name)
-            : appendMention(input, selected.name);
-          setInput(nextValue);
-          setActiveTab("recent");
+          selectExtension({
+            id: selected.id,
+            name: selected.name,
+            kind: selected.kind,
+          });
         }
         return;
       }
@@ -521,20 +611,29 @@ export function CommandView() {
       case "Enter":
         e.preventDefault();
         {
-          const trimmed = input.trim();
-          const mentionExtensionId = findExactMentionExtensionId(trimmed, extensions);
+          const composedInput = composeCommandInput(
+            input,
+            selectedExtensions,
+            selectedFiles,
+            extensions
+          );
+          const mentionExtensionId = findExactMentionExtensionId(composedInput, extensions);
           if (mentionExtensionId) {
             openExtension(mentionExtensionId)
               .then(() => {
                 reset();
+                clearSelectedTargets();
               })
               .catch((err) => {
                 setError(String(err));
               });
             return;
           }
-          const resolved = resolveMentions(input, extensions);
-          submit(resolved);
+          submit(composedInput).then((success) => {
+            if (success) {
+              clearSelectedTargets();
+            }
+          });
         }
         break;
       case "Escape":
@@ -543,6 +642,56 @@ export function CommandView() {
         break;
     }
   };
+
+  const inputTargetTags =
+    selectedExtensions.length > 0 || selectedFiles.length > 0 ? (
+      <div className={styles.targetTagRow}>
+        {selectedExtensions.map((extension) => (
+          <span
+            key={extension.id}
+            className={styles.targetTag}
+            title={`${extension.kind} extension`}
+          >
+            <Icon size={14}>{ExtensionIcon}</Icon>
+            <span className={styles.targetTagLabel}>@{extension.name}</span>
+            <button
+              type="button"
+              className={styles.targetTagRemove}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => {
+                setSelectedExtensions((current) =>
+                  current.filter((item) => item.id !== extension.id)
+                );
+                focusInput();
+              }}
+              aria-label={`Remove @${extension.name}`}
+            >
+              <Icon size={12}>{RemoveIcon}</Icon>
+            </button>
+          </span>
+        ))}
+        {selectedFiles.map((file) => (
+          <span key={file.path} className={styles.targetTag} title={file.path}>
+            <Icon size={14}>{file.type === "directory" ? FolderIcon : FileIcon}</Icon>
+            <span className={styles.targetTagLabel}>{file.name}</span>
+            <button
+              type="button"
+              className={styles.targetTagRemove}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => {
+                setSelectedFiles((current) =>
+                  current.filter((item) => item.path !== file.path)
+                );
+                focusInput();
+              }}
+              aria-label={`Remove ${file.name}`}
+            >
+              <Icon size={12}>{RemoveIcon}</Icon>
+            </button>
+          </span>
+        ))}
+      </div>
+    ) : undefined;
 
   const showResponses = parts.length > 0 || !!error;
 
@@ -554,6 +703,7 @@ export function CommandView() {
           <SearchField
             className={styles.searchField}
             icon={<Icon>{SearchIcon}</Icon>}
+            beforeInput={inputTargetTags}
             placeholder="How can I help..."
             inputRef={inputRef}
             inputProps={{
@@ -630,11 +780,11 @@ export function CommandView() {
                     selected={index === mentionIndex}
                     onMouseDown={(event) => {
                       event.preventDefault();
-                      const nextValue = mentionState
-                        ? applyMention(input, mentionState, extension.name)
-                        : appendMention(input, extension.name);
-                      setInput(nextValue);
-                      setActiveTab("recent");
+                      selectExtension({
+                        id: extension.id,
+                        name: extension.name,
+                        kind: extension.kind,
+                      });
                     }}
                   />
                 ))
@@ -693,7 +843,11 @@ export function CommandView() {
                     selected={index === fileIndex}
                     onMouseDown={(event) => {
                       event.preventDefault();
-                      // TODO: Handle file selection (open, insert path, etc.)
+                      selectFile({
+                        path: entry.path,
+                        name: entry.name,
+                        type: entry.type,
+                      });
                     }}
                   />
                 ))
