@@ -879,6 +879,10 @@ export function CommandView() {
         })}
       </div>
     ) : undefined;
+  const placeholder =
+    activeText.length === 0 && tagSegments.length === 0
+      ? "How can I help..."
+      : "";
 
   const showResponses = parts.length > 0 || !!error;
 
@@ -891,7 +895,7 @@ export function CommandView() {
               className={styles.searchField}
               icon={<Icon>{SearchIcon}</Icon>}
               beforeInput={inputTargetTags}
-              placeholder="How can I help..."
+              placeholder={placeholder}
               inputRef={inputRef}
               inputProps={{
                 id: inputId,
@@ -905,7 +909,7 @@ export function CommandView() {
             />
             <StatusBadge
               status={serverInfo ? "good" : "warn"}
-              label={serverInfo ? "Server online" : "Server offline"}
+              label={serverInfo ? "online" : "offline"}
             />
           </div>
           <Divider />

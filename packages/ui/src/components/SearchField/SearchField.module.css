@@ -1,8 +1,7 @@
 .field {
   display: flex;
   align-items: center;
-  gap: var(--cc-space-3);
-  padding: var(--cc-space-3) var(--cc-space-4);
+  gap: var(--cc-space-2);
   min-height: 44px;
 }
 
