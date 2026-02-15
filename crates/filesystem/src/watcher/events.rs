@@ -89,15 +89,26 @@ fn apply_fsevent_batch(shared: &SharedRootIndex, events: Vec<FsEvent>) {
         return;
     }
 
-    // Check if any event requires a full rescan
-    let needs_rescan = events
-        .iter()
-        .any(|e| e.scan_type == FsEventScanType::ReScan);
+    // Check if any event requires a full rescan.
+    // Cardinal triggers rescan on explicit rescan events and on direct root hits.
+    let needs_rescan = events.iter().any(|event| {
+        event.scan_type == FsEventScanType::ReScan
+            || (matches!(
+                event.scan_type,
+                FsEventScanType::SingleNode | FsEventScanType::Folder
+            ) && event.path == shared.root)
+    });
 
     if needs_rescan {
-        // Cardinal behavior: signal that a rescan is required, but do not
-        // synchronously rebuild here. This avoids long stalls in the watcher path.
+        // Signal that a rescan is required. We avoid synchronous rebuild in the
+        // watcher callback; instead, move build state back to Idle so the next
+        // search/status call will start a fresh background rebuild.
         shared.increment_rescan_count();
+        if IndexBuildState::load(&shared.build_state) != IndexBuildState::Building {
+            shared
+                .build_state
+                .store(IndexBuildState::Idle as u8, Ordering::Relaxed);
+        }
         mark_index_dirty(shared);
         return;
     }

@@ -118,9 +118,9 @@ impl FsEventScanType {
         {
             return Self::Nop;
         }
-        if flags.contains(FsEventFlags::ROOT_CHANGED)
-            || flags.contains(FsEventFlags::MUST_SCAN_SUBDIRS)
-        {
+        // Cardinal only treats root changes as hard rescan signals here.
+        // MUST_SCAN_SUBDIRS is processed as a folder scan path.
+        if flags.contains(FsEventFlags::ROOT_CHANGED) {
             return Self::ReScan;
         }
         if flags.contains(FsEventFlags::ITEM_IS_DIR) {
