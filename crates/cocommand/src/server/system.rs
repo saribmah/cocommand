@@ -23,6 +23,8 @@ pub struct ApplicationInfo {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub bundle_id: Option<String>,
     pub path: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub icon: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -46,6 +48,8 @@ struct InstalledAppToolOutput {
     #[serde(default)]
     bundle_id: Option<String>,
     path: String,
+    #[serde(default)]
+    icon: Option<String>,
 }
 
 pub(crate) async fn list_applications(
@@ -154,6 +158,7 @@ async fn load_installed_applications(
                 name: app.name,
                 bundle_id: app.bundle_id,
                 path: app.path,
+                icon: app.icon,
             }
         })
         .collect::<Vec<_>>();

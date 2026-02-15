@@ -1,44 +1,50 @@
 //! File icon extraction for macOS.
 //!
-//! This module provides functionality to extract file icons using macOS system APIs.
-//! It uses NSWorkspace to get system icons for files and directories.
+//! This module provides functionality to extract file icons using the `icns` crate.
+//! For .app bundles, it reads the icon directly from the app's icns file.
 //!
 //! ## Features
 //!
-//! - Extract system icons via `NSWorkspace::iconForFile`
+//! - Extract app icons from .icns files in app bundles
 //! - Returns PNG data as base64-encoded data URI
-//! - Icons are scaled to 32x32 pixels
 //!
 //! ## Example
 //!
 //! ```ignore
 //! use platform_macos::file_icon::icon_of_path;
 //!
-//! if let Some(data_uri) = icon_of_path("/path/to/file.txt") {
+//! if let Some(data_uri) = icon_of_path("/Applications/Safari.app") {
 //!     // data_uri is "data:image/png;base64,..."
 //! }
 //! ```
 
 use base64::{engine::general_purpose::STANDARD, Engine};
-use objc2::rc::autoreleasepool;
-use objc2::runtime::AnyObject;
-use objc2::{class, msg_send};
-use objc2_foundation::{CGPoint, CGRect, CGSize, NSString};
-use std::ffi::c_void;
+use icns::{IconFamily, IconType};
+use std::fs::File;
+use std::io::BufReader;
+use std::path::Path;
 
-/// Target icon size in pixels.
-const ICON_SIZE: f64 = 32.0;
+/// Icon types to try, in order of preference (targeting ~32x32 size)
+const ICON_TYPES_TO_TRY: &[IconType] = &[
+    IconType::RGBA32_32x32,
+    IconType::RGBA32_16x16_2x, // 32x32 retina
+    IconType::RGB24_32x32,
+    IconType::RGBA32_16x16,
+    IconType::RGB24_16x16,
+    IconType::RGBA32_64x64,
+    IconType::RGB24_48x48,
+    IconType::RGBA32_128x128,
+    IconType::RGB24_128x128,
+];
 
-/// PNG file type constant for NSBitmapImageRep.
-const NS_PNG_FILE_TYPE: usize = 4;
-
-/// Extracts the system icon for a file path and returns it as a base64 data URI.
+/// Extracts the icon for an app bundle and returns it as a base64 data URI.
 ///
-/// Uses `NSWorkspace::iconForFile` to get the system icon, then converts it to PNG.
+/// For .app bundles, reads the icon file specified in Info.plist and extracts
+/// it using the `icns` crate.
 ///
 /// ## Arguments
 ///
-/// * `path` - The file path to get the icon for
+/// * `path` - The path to the .app bundle
 ///
 /// ## Returns
 ///
@@ -50,91 +56,86 @@ pub fn icon_of_path(path: &str) -> Option<String> {
     Some(format!("data:image/png;base64,{}", base64_data))
 }
 
-/// Extracts the system icon for a file path and returns raw PNG bytes.
+/// Extracts the icon for an app bundle and returns raw PNG bytes.
 ///
 /// This is the lower-level API that returns raw PNG data without base64 encoding.
 pub fn icon_of_path_raw(path: &str) -> Option<Vec<u8>> {
-    autoreleasepool(|_| unsafe {
-        // Get NSWorkspace
-        let workspace: *mut AnyObject = msg_send![class!(NSWorkspace), sharedWorkspace];
-        if workspace.is_null() {
-            return None;
+    let app_path = Path::new(path);
+
+    // Only handle .app bundles
+    if app_path.extension().and_then(|e| e.to_str()) != Some("app") {
+        return None;
+    }
+
+    // Read Info.plist to find the icon file name
+    let plist_path = app_path.join("Contents/Info.plist");
+    let plist = plist::Value::from_file(&plist_path).ok()?;
+    let dict = plist.as_dictionary()?;
+
+    // Get icon file name from CFBundleIconFile or CFBundleIconName
+    let icon_name = dict
+        .get("CFBundleIconFile")
+        .or_else(|| dict.get("CFBundleIconName"))
+        .and_then(|v| v.as_string())?;
+
+    // Build path to the icon file
+    let resources_path = app_path.join("Contents/Resources");
+
+    // Try with .icns extension first, then without
+    let icon_path = if icon_name.ends_with(".icns") {
+        resources_path.join(icon_name)
+    } else {
+        let with_ext = resources_path.join(format!("{}.icns", icon_name));
+        if with_ext.exists() {
+            with_ext
+        } else {
+            resources_path.join(icon_name)
         }
+    };
 
-        // Create NSString from path
-        let path_ns = NSString::from_str(path);
+    if !icon_path.exists() {
+        return None;
+    }
 
-        // Get icon for file
-        let image: *mut AnyObject = msg_send![workspace, iconForFile: &*path_ns];
-        if image.is_null() {
-            return None;
+    extract_png_from_icns(&icon_path)
+}
+
+/// Extract a PNG from an icns file using the icns crate
+fn extract_png_from_icns(icns_path: &Path) -> Option<Vec<u8>> {
+    let file = File::open(icns_path).ok()?;
+    let reader = BufReader::new(file);
+    let icon_family = IconFamily::read(reader).ok()?;
+
+    // Try each icon type in order of preference
+    for icon_type in ICON_TYPES_TO_TRY {
+        if let Ok(image) = icon_family.get_icon_with_type(*icon_type) {
+            let mut png_data = Vec::new();
+            if image.write_png(&mut png_data).is_ok() && !png_data.is_empty() {
+                return Some(png_data);
+            }
         }
+    }
 
-        // Set the icon size
-        let size = CGSize::new(ICON_SIZE, ICON_SIZE);
-        let _: () = msg_send![image, setSize: size];
-
-        // Lock focus on the image to draw it
-        let locked: bool = msg_send![image, lockFocus];
-        if !locked {
-            return None;
+    // If none of the preferred types worked, try to get any available icon
+    for icon_type in icon_family.available_icons() {
+        if let Ok(image) = icon_family.get_icon_with_type(icon_type) {
+            let mut png_data = Vec::new();
+            if image.write_png(&mut png_data).is_ok() && !png_data.is_empty() {
+                return Some(png_data);
+            }
         }
+    }
 
-        // Get the bitmap representation
-        let bitmap: *mut AnyObject = msg_send![class!(NSBitmapImageRep), alloc];
-        if bitmap.is_null() {
-            let _: () = msg_send![image, unlockFocus];
-            return None;
-        }
-
-        // Initialize with focused view rect
-        let rect = CGRect::new(CGPoint::new(0.0, 0.0), size);
-        let bitmap: *mut AnyObject = msg_send![bitmap, initWithFocusedViewRect: rect];
-
-        // Unlock focus
-        let _: () = msg_send![image, unlockFocus];
-
-        if bitmap.is_null() {
-            return None;
-        }
-
-        // Convert to PNG data
-        let png_data: *mut AnyObject = msg_send![
-            bitmap,
-            representationUsingType: NS_PNG_FILE_TYPE
-            properties: std::ptr::null::<c_void>()
-        ];
-
-        if png_data.is_null() {
-            return None;
-        }
-
-        // Get the bytes from NSData
-        let length: usize = msg_send![png_data, length];
-        let bytes: *const u8 = msg_send![png_data, bytes];
-
-        if bytes.is_null() || length == 0 {
-            return None;
-        }
-
-        // Copy the data
-        let slice = std::slice::from_raw_parts(bytes, length);
-        Some(slice.to_vec())
-    })
+    None
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    // NOTE: These tests require AppKit to be linked, which doesn't happen in
-    // pure CLI test runs. They work when run within the Tauri app context.
-    // Run with: cargo test --manifest-path crates/platform-macos/Cargo.toml file_icon -- --ignored
-
     #[test]
-    #[ignore = "requires AppKit to be linked (run in GUI context)"]
-    fn icon_of_existing_file() {
-        // Test with a file that definitely exists
+    fn icon_of_existing_app() {
+        // Test with Finder.app which should always exist
         let result = icon_of_path("/System/Library/CoreServices/Finder.app");
         assert!(result.is_some(), "should get icon for Finder.app");
 
@@ -146,24 +147,26 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "requires AppKit to be linked (run in GUI context)"]
-    fn icon_of_directory() {
+    fn icon_of_safari() {
+        // Test with Safari.app
+        let result = icon_of_path("/Applications/Safari.app");
+        assert!(result.is_some(), "should get icon for Safari.app");
+    }
+
+    #[test]
+    fn icon_of_nonexistent_app() {
+        let result = icon_of_path("/nonexistent/path/file.app");
+        assert!(result.is_none(), "should return None for nonexistent app");
+    }
+
+    #[test]
+    fn icon_of_non_app_path() {
+        // Should return None for non-.app paths
         let result = icon_of_path("/Applications");
-        assert!(result.is_some(), "should get icon for /Applications");
+        assert!(result.is_none(), "should return None for non-.app path");
     }
 
     #[test]
-    #[ignore = "requires AppKit to be linked (run in GUI context)"]
-    fn icon_of_nonexistent_file() {
-        // NSWorkspace still returns a generic icon for nonexistent files
-        let result = icon_of_path("/nonexistent/path/file.xyz");
-        // This may or may not return an icon depending on macOS behavior
-        // Just verify it doesn't crash
-        let _ = result;
-    }
-
-    #[test]
-    #[ignore = "requires AppKit to be linked (run in GUI context)"]
     fn icon_raw_returns_valid_png() {
         let result = icon_of_path_raw("/System/Library/CoreServices/Finder.app");
         assert!(result.is_some(), "should get raw PNG data");

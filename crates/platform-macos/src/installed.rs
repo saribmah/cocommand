@@ -1,12 +1,15 @@
 use serde::Serialize;
 
 use crate::applescript::run_applescript;
+use crate::file_icon::icon_of_path;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct InstalledApp {
     pub name: String,
     pub bundle_id: Option<String>,
     pub path: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub icon: Option<String>,
 }
 
 pub fn list_installed_apps() -> Vec<InstalledApp> {
@@ -131,5 +134,6 @@ fn read_app_info(app_path: &std::path::Path) -> Option<InstalledApp> {
         name,
         bundle_id,
         path: app_path.to_string_lossy().to_string(),
+        icon: icon_of_path(&app_path.to_string_lossy()),
     })
 }

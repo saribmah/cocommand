@@ -3,6 +3,7 @@ export interface ApplicationInfo {
   name: string;
   bundleId?: string;
   path: string;
+  icon?: string;
 }
 
 export interface ApplicationsResponse {

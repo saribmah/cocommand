@@ -1203,7 +1203,17 @@ export function CommandView() {
                       subtitle={application.bundleId ?? application.path}
                       icon={
                         <IconContainer>
-                          <Icon>{ApplicationIcon}</Icon>
+                          {application.icon ? (
+                            <img
+                              src={application.icon}
+                              alt=""
+                              width={18}
+                              height={18}
+                              style={{ borderRadius: 4, objectFit: "contain" }}
+                            />
+                          ) : (
+                            <Icon>{ApplicationIcon}</Icon>
+                          )}
                         </IconContainer>
                       }
                       rightMeta={<ActionHint label="Open" icon={<Icon>{ArrowIcon}</Icon>} />}
