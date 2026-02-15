@@ -16,6 +16,7 @@ pub mod events;
 pub mod extension;
 pub mod filesystem;
 pub mod session;
+pub mod system;
 pub mod workspace;
 
 pub struct Server {
@@ -79,6 +80,14 @@ impl Server {
             .route(
                 "/extension/filesystem/status",
                 post(filesystem::index_status),
+            )
+            .route(
+                "/workspace/extension/system/applications",
+                get(system::list_applications),
+            )
+            .route(
+                "/workspace/extension/system/applications/open",
+                post(system::open_application),
             )
             .with_state(state.clone())
             .layer(cors);

@@ -41,6 +41,8 @@ import {
   Text,
   ToolCallCard,
 } from "@cocommand/ui";
+import { useApplicationContext } from "../application/application.context";
+import type { ApplicationInfo } from "../application/application.types";
 import { useExtensionContext } from "../extension/extension.context";
 import { useFileSystemContext } from "../filesystem/filesystem.context";
 import { useSessionContext } from "../session/session.context";
@@ -76,8 +78,16 @@ const RemoveIcon = (
   </svg>
 );
 
+const ApplicationIcon = (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="4" width="18" height="14" rx="2" />
+    <path d="M8 20h8" />
+    <path d="M12 18v2" />
+  </svg>
+);
+
 type ToolCardState = "pending" | "running" | "success" | "error";
-type FilterTab = "recent" | "extensions" | "commands" | "files";
+type FilterTab = "recent" | "extensions" | "commands" | "files" | "applications";
 type ComposerTagSegment =
   | { type: "text"; key: string; text: string }
   | { type: "extension"; key: string; part: ExtensionPartInput; start: number; end: number }
@@ -296,6 +306,13 @@ function getHashState(text: string): { query: string; start: number } | null {
   return { query: match[2], start };
 }
 
+function getStarState(text: string): { query: string; start: number } | null {
+  const match = /(^|\s)\*(.*)$/.exec(text);
+  if (!match) return null;
+  const start = match.index + match[1].length;
+  return { query: match[2], start };
+}
+
 function findExactMentionExtensionId(
   text: string,
   extensions: { id: string; name: string }[]
@@ -416,6 +433,7 @@ export function CommandView() {
   const [mentionIndex, setMentionIndex] = useState(0);
   const [slashIndex, setSlashIndex] = useState(0);
   const [fileIndex, setFileIndex] = useState(0);
+  const [applicationIndex, setApplicationIndex] = useState(0);
 
   const draftParts = useCommandContext((state) => state.draftParts);
   const setDraftParts = useCommandContext((state) => state.setDraftParts);
@@ -438,6 +456,14 @@ export function CommandView() {
   const searchError = useFileSystemContext((state) => state.searchError);
   const searchFiles = useFileSystemContext((state) => state.search);
   const clearSearch = useFileSystemContext((state) => state.clearSearch);
+  const applications = useApplicationContext((state) => state.applications);
+  const applicationsCount = useApplicationContext((state) => state.count);
+  const applicationsLoaded = useApplicationContext((state) => state.isLoaded);
+  const applicationsLoading = useApplicationContext((state) => state.isLoading);
+  const applicationsError = useApplicationContext((state) => state.error);
+  const fetchApplications = useApplicationContext((state) => state.fetchApplications);
+  const openApplication = useApplicationContext((state) => state.openApplication);
+  const clearApplications = useApplicationContext((state) => state.clear);
 
   const composerParts = useMemo(
     () => commitComposerParts(draftParts),
@@ -460,6 +486,7 @@ export function CommandView() {
   const mentionState = useMemo(() => getMentionState(activeText), [activeText]);
   const slashState = useMemo(() => getSlashState(activeText), [activeText]);
   const hashState = useMemo(() => getHashState(activeText), [activeText]);
+  const starState = useMemo(() => getStarState(activeText), [activeText]);
   const slashCommands = useMemo(
     () => [{ id: "settings", name: "Settings", description: "Open the settings window" }],
     []
@@ -483,6 +510,10 @@ export function CommandView() {
     if (extensionsLoaded) return;
     fetchExtensions();
   }, [mentionState, extensionsLoaded, fetchExtensions]);
+
+  useEffect(() => {
+    clearApplications();
+  }, [serverInfo?.addr, clearApplications]);
 
   useEffect(() => {
     const node = document.getElementById(inputId) as HTMLInputElement | null;
@@ -557,9 +588,55 @@ export function CommandView() {
     return ranked.slice(0, 6).map((entry) => entry.command);
   }, [activeTab, activeText, slashCommands, slashState]);
 
+  const filteredApplications = useMemo(() => {
+    if (!starState && activeTab !== "applications") return [];
+    const query = starState
+      ? normalizeQuery(starState.query)
+      : activeTab === "applications"
+      ? normalizeQuery(activeText)
+      : "";
+    if (!query) {
+      return [...applications].sort((a, b) => a.name.localeCompare(b.name));
+    }
+    const ranked = applications
+      .map((application) => ({
+        application,
+        score: matchScore(query, application.name, application.id, application.path),
+      }))
+      .filter((entry) => entry.score >= 0)
+      .sort((a, b) => b.score - a.score);
+    return ranked.slice(0, 20).map((entry) => entry.application);
+  }, [activeTab, activeText, applications, starState]);
+
   const showExtensionsList = activeTab === "extensions" || !!mentionState;
-  const showCommandsList = !showExtensionsList && filteredSlashCommands.length > 0;
-  const showFilesList = activeTab === "files" || !!hashState;
+  const showCommandsList = !showExtensionsList && (activeTab === "commands" || !!slashState);
+  const showApplicationsList =
+    !showExtensionsList &&
+    !showCommandsList &&
+    (activeTab === "applications" || !!starState);
+  const showFilesList =
+    !showExtensionsList &&
+    !showCommandsList &&
+    !showApplicationsList &&
+    (activeTab === "files" || !!hashState);
+
+  useEffect(() => {
+    if (!showApplicationsList) return;
+    setApplicationIndex(0);
+  }, [showApplicationsList, starState?.query, starState?.start, activeTab]);
+
+  useEffect(() => {
+    if (!showApplicationsList) return;
+    if (applicationsLoaded || applicationsLoading) return;
+    fetchApplications().catch(() => {
+      // application store already tracks error state
+    });
+  }, [
+    fetchApplications,
+    applicationsLoaded,
+    applicationsLoading,
+    showApplicationsList,
+  ]);
 
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
@@ -603,6 +680,19 @@ export function CommandView() {
       .then(() => {
         reset();
         hideWindow();
+      })
+      .catch((err) => {
+        setError(String(err));
+      });
+  };
+
+  const openApplicationById = (application: ApplicationInfo) => {
+    openApplication({ id: application.id })
+      .then(() => {
+        const nextText = removeTrailingSigilQuery(activeText, starState);
+        updateComposerText(nextText);
+        setActiveTab("recent");
+        focusInput();
       })
       .catch((err) => {
         setError(String(err));
@@ -668,7 +758,7 @@ export function CommandView() {
     focusInput();
   };
 
-  const insertSigilAtCursor = (sigil: "@" | "/" | "#") => {
+  const insertSigilAtCursor = (sigil: "@" | "/" | "#" | "*") => {
     const node = inputRef.current;
     const start = node?.selectionStart ?? activeText.length;
     const end = node?.selectionEnd ?? activeText.length;
@@ -678,10 +768,10 @@ export function CommandView() {
     if (start === end) {
       const prevChar = start > 0 ? activeText[start - 1] : "";
       const nextChar = start < activeText.length ? activeText[start] : "";
-      if (prevChar === "@" || prevChar === "/" || prevChar === "#") {
+      if (prevChar === "@" || prevChar === "/" || prevChar === "#" || prevChar === "*") {
         replaceStart = start - 1;
         replaceEnd = start;
-      } else if (nextChar === "@" || nextChar === "/" || nextChar === "#") {
+      } else if (nextChar === "@" || nextChar === "/" || nextChar === "#" || nextChar === "*") {
         replaceStart = start;
         replaceEnd = start + 1;
       }
@@ -702,7 +792,10 @@ export function CommandView() {
     if (
       e.key === "Backspace" &&
       activeText.length === 0 &&
-      (activeTab === "extensions" || activeTab === "commands" || activeTab === "files")
+      (activeTab === "extensions" ||
+        activeTab === "commands" ||
+        activeTab === "files" ||
+        activeTab === "applications")
     ) {
       e.preventDefault();
       setActiveTab("recent");
@@ -799,6 +892,29 @@ export function CommandView() {
           executeSlashCommand(selected.id);
           return;
         }
+      }
+    }
+
+    if (showApplicationsList && filteredApplications.length > 0) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setApplicationIndex((idx) => (idx + 1) % filteredApplications.length);
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setApplicationIndex((idx) =>
+          idx <= 0 ? filteredApplications.length - 1 : idx - 1
+        );
+        return;
+      }
+      if (e.key === "Enter") {
+        e.preventDefault();
+        const selected = filteredApplications[applicationIndex];
+        if (selected) {
+          openApplicationById(selected);
+        }
+        return;
       }
     }
 
@@ -920,7 +1036,13 @@ export function CommandView() {
             <ChipGroup>
               <Chip
                 label="Recent"
-                active={activeTab === "recent" && !mentionState && !slashState}
+                active={
+                  activeTab === "recent" &&
+                  !mentionState &&
+                  !slashState &&
+                  !hashState &&
+                  !starState
+                }
                 onClick={() => setActiveTab("recent")}
               />
               <Chip
@@ -946,6 +1068,17 @@ export function CommandView() {
                 onClick={() => {
                   setActiveTab("files");
                   insertSigilAtCursor("#");
+                }}
+              />
+              <Chip
+                label="Applications"
+                active={activeTab === "applications" || !!starState}
+                onClick={() => {
+                  setActiveTab("applications");
+                  fetchApplications().catch(() => {
+                    // application store already tracks error state
+                  });
+                  insertSigilAtCursor("*");
                 }}
               />
             </ChipGroup>
@@ -1050,7 +1183,50 @@ export function CommandView() {
               </ListSection>
             ) : null}
 
-            {(showExtensionsList || showCommandsList || showFilesList) && showResponses ? (
+            {showApplicationsList ? (
+              <ListSection
+                label={
+                  applicationsLoading
+                    ? "Loading applications..."
+                    : `Applications${applicationsLoaded ? ` (${applicationsCount})` : ""}`
+                }
+              >
+                {applicationsError ? (
+                  <Text size="sm" tone="secondary">
+                    {applicationsError}
+                  </Text>
+                ) : filteredApplications.length > 0 ? (
+                  filteredApplications.map((application, index) => (
+                    <ListItem
+                      key={application.id}
+                      title={application.name}
+                      subtitle={application.bundleId ?? application.path}
+                      icon={
+                        <IconContainer>
+                          <Icon>{ApplicationIcon}</Icon>
+                        </IconContainer>
+                      }
+                      rightMeta={<ActionHint label="Open" icon={<Icon>{ArrowIcon}</Icon>} />}
+                      selected={index === applicationIndex}
+                      onMouseDown={(event) => {
+                        event.preventDefault();
+                        openApplicationById(application);
+                      }}
+                    />
+                  ))
+                ) : starState?.query ? (
+                  <Text size="sm" tone="secondary">
+                    {applicationsLoading ? "Loading applications..." : "No applications found."}
+                  </Text>
+                ) : (
+                  <Text size="sm" tone="secondary">
+                    Type to search applications...
+                  </Text>
+                )}
+              </ListSection>
+            ) : null}
+
+            {(showExtensionsList || showCommandsList || showFilesList || showApplicationsList) && showResponses ? (
               <Divider />
             ) : null}
 
@@ -1096,9 +1272,9 @@ export function CommandView() {
                   }
                 })}
               </ResponseStack>
-            ) : !showExtensionsList && !showCommandsList ? (
+            ) : !showExtensionsList && !showCommandsList && !showApplicationsList && !showFilesList ? (
               <Text size="sm" tone="secondary">
-                Type a command, use @ to target an extension, or / for shortcuts.
+                Type a command, use @ to target an extension, / for shortcuts, # for files, or * for applications.
               </Text>
             ) : null}
           </div>
@@ -1113,6 +1289,7 @@ export function CommandView() {
                 <HintItem label="Extensions" keyHint={<KeyHint keys="@" />} />
                 <HintItem label="Command" keyHint={<KeyHint keys="/" />} />
                 <HintItem label="Files" keyHint={<KeyHint keys="#" />} />
+                <HintItem label="Applications" keyHint={<KeyHint keys="*" />} />
               </>
             }
             right={<CloseButton keyLabel="esc" onClick={dismiss} />}

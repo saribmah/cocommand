@@ -1,5 +1,6 @@
 import { ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { AppPanel, ButtonPrimary, Text } from "@cocommand/ui";
+import { ApplicationProvider } from "../features/application/application.provider";
 import { CommandProvider } from "../features/command/command.provider";
 import { ExtensionProvider } from "../features/extension/extension.provider";
 import { FileSystemProvider } from "../features/filesystem/filesystem.provider";
@@ -67,13 +68,15 @@ export function AppInit({ children }: AppInitProps) {
       <WorkspaceProvider>
         <OnboardingProvider>
           <FileSystemProvider>
-            <SessionProvider>
-              <CommandProvider>
-                <SettingsProvider>
-                  <ExtensionProvider>{children}</ExtensionProvider>
-                </SettingsProvider>
-              </CommandProvider>
-            </SessionProvider>
+            <ApplicationProvider>
+              <SessionProvider>
+                <CommandProvider>
+                  <SettingsProvider>
+                    <ExtensionProvider>{children}</ExtensionProvider>
+                  </SettingsProvider>
+                </CommandProvider>
+              </SessionProvider>
+            </ApplicationProvider>
           </FileSystemProvider>
         </OnboardingProvider>
       </WorkspaceProvider>
