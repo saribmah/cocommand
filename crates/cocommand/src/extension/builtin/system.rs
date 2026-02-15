@@ -122,10 +122,7 @@ impl Extension for SystemExtension {
             });
             let list_installed_execute = Arc::new(|_input: serde_json::Value, _context| {
                 boxed_tool_future(async move {
-                    // Run on blocking thread since this does synchronous file I/O
-                    let apps = tokio::task::spawn_blocking(platform_macos::list_installed_apps)
-                        .await
-                        .map_err(|error| CoreError::Internal(format!("spawn_blocking failed: {error}")))?;
+                    let apps = platform_macos::list_installed_apps();
                     Ok(serde_json::to_value(apps).map_err(|error| {
                         CoreError::Internal(format!("failed to serialize installed apps: {error}"))
                     })?)
