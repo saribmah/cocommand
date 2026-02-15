@@ -123,7 +123,7 @@ export function SettingsView() {
             <div className={styles.status}>
               <StatusBadge
                 status={serverInfo ? "good" : "warn"}
-                label={serverInfo ? "Server running" : "Server offline"}
+                label={serverInfo ? "online" : "Server offline"}
               />
               <Text size="xs" tone="tertiary">
                 {serverInfo?.addr ?? "Not connected"}

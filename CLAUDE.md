@@ -69,7 +69,7 @@ bun tauri build
 - `POST /sessions/command` - Process user commands
 - `GET /sessions/context` - Session context
 - `GET /workspace/extensions` - List extensions 
-- `POST /workspace/applications/open` - Open application
+- `POST /workspace/extensions/open` - Open application
 - `GET /events` - SSE event stream
 
 **Key modules:**

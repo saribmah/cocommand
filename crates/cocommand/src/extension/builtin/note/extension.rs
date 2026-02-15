@@ -51,7 +51,7 @@ impl Extension for NoteExtension {
     }
 
     fn kind(&self) -> ExtensionKind {
-        ExtensionKind::BuiltIn
+        ExtensionKind::System
     }
 
     fn tags(&self) -> Vec<String> {

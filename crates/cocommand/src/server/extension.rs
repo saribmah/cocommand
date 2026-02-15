@@ -26,7 +26,7 @@ pub struct ExtensionToolInfo {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct OpenApplicationRequest {
+pub struct OpenExtensionRequest {
     pub id: String,
 }
 
@@ -42,23 +42,23 @@ pub(crate) async fn list_extensions(
     Json(apps)
 }
 
-pub(crate) async fn open_application(
+pub(crate) async fn open_extension(
     State(state): State<Arc<ServerState>>,
-    Json(payload): Json<OpenApplicationRequest>,
+    Json(payload): Json<OpenExtensionRequest>,
 ) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
     let app_id = payload.id;
     let app = {
         let registry = state.workspace.extension_registry.read().await;
         registry
             .get(&app_id)
-            .ok_or((StatusCode::NOT_FOUND, "application not found".to_string()))?
+            .ok_or((StatusCode::NOT_FOUND, "extension not found".to_string()))?
     };
 
     let supports_open = app.tools().into_iter().any(|tool| tool.id == "open");
     if !supports_open {
         return Err((
             StatusCode::BAD_REQUEST,
-            "application cannot be opened".to_string(),
+            "extension cannot be opened".to_string(),
         ));
     }
 
@@ -85,7 +85,7 @@ pub(crate) async fn open_application(
         .find(|tool| tool.id == "open")
         .ok_or((
             StatusCode::BAD_REQUEST,
-            "application cannot be opened".to_string(),
+            "extension cannot be opened".to_string(),
         ))?;
     let output = (tool.execute)(serde_json::json!({}), context)
         .await

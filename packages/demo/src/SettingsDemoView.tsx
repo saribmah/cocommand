@@ -35,7 +35,7 @@ export function SettingsDemoView() {
           kicker={null}
           meta={
             <div className={styles.status}>
-              <StatusBadge status="good" label="Server running" />
+              <StatusBadge status="good" label="online" />
               <Text size="xs" tone="tertiary">
                 127.0.0.1:4840
               </Text>

@@ -55,8 +55,8 @@ impl Server {
             .route("/sessions/context", get(session::session_context))
             .route("/workspace/extensions", get(extension::list_extensions))
             .route(
-                "/workspace/applications/open",
-                post(extension::open_application),
+                "/workspace/extensions/open",
+                post(extension::open_extension),
             )
             .route("/workspace/config", get(workspace::get_workspace_config))
             .route(

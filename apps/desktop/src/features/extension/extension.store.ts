@@ -48,7 +48,7 @@ export const createExtensionStore = (getServer: () => ServerInfo | null) => {
         throw new Error("Server unavailable");
       }
 
-      const url = buildServerUrl(server.addr, "/workspace/applications/open");
+      const url = buildServerUrl(server.addr, "/workspace/extensions/open");
       const response = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
