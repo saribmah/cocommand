@@ -15,6 +15,7 @@ use crate::workspace::WorkspaceInstance;
 pub mod events;
 pub mod extension;
 pub mod filesystem;
+pub mod notes;
 pub mod session;
 pub mod system;
 pub mod workspace;
@@ -89,6 +90,11 @@ impl Server {
                 "/workspace/extension/system/applications/open",
                 post(system::open_application),
             )
+            .route("/extension/notes/create", post(notes::create))
+            .route("/extension/notes/list", post(notes::list))
+            .route("/extension/notes/get", post(notes::get))
+            .route("/extension/notes/update", post(notes::update))
+            .route("/extension/notes/delete", post(notes::delete))
             .with_state(state.clone())
             .layer(cors);
         let listener = TcpListener::bind("127.0.0.1:0")

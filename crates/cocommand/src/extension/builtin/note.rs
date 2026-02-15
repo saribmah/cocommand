@@ -1,8 +1,8 @@
 //! Notes extension module.
 
 mod extension;
-mod ops;
-mod types;
+pub mod ops;
+pub mod types;
 
 #[cfg(test)]
 mod tests;

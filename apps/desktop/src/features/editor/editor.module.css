@@ -1,0 +1,169 @@
+/* Editor container */
+.editor {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+/* ProseMirror editor styles */
+.editorContent {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.editorContent :global(.tiptap) {
+  outline: none;
+  padding: var(--cc-space-4);
+  min-height: 100%;
+  color: var(--cc-text-primary);
+  font-family: var(--cc-font-sans);
+  font-size: var(--cc-text-md);
+  line-height: 1.6;
+}
+
+/* Placeholder */
+.editorContent :global(.tiptap p.is-editor-empty:first-child::before) {
+  content: attr(data-placeholder);
+  color: var(--cc-text-tertiary);
+  pointer-events: none;
+  float: left;
+  height: 0;
+}
+
+/* Typography */
+.editorContent :global(.tiptap p) {
+  margin: 0 0 0.75em 0;
+}
+
+.editorContent :global(.tiptap p:last-child) {
+  margin-bottom: 0;
+}
+
+.editorContent :global(.tiptap h1),
+.editorContent :global(.tiptap h2),
+.editorContent :global(.tiptap h3),
+.editorContent :global(.tiptap h4),
+.editorContent :global(.tiptap h5),
+.editorContent :global(.tiptap h6) {
+  color: var(--cc-text-primary);
+  font-weight: 600;
+  line-height: var(--cc-line-tight);
+  margin: 1.5em 0 0.5em 0;
+}
+
+.editorContent :global(.tiptap h1:first-child),
+.editorContent :global(.tiptap h2:first-child),
+.editorContent :global(.tiptap h3:first-child) {
+  margin-top: 0;
+}
+
+.editorContent :global(.tiptap h1) {
+  font-size: 1.75em;
+}
+
+.editorContent :global(.tiptap h2) {
+  font-size: 1.4em;
+}
+
+.editorContent :global(.tiptap h3) {
+  font-size: 1.15em;
+}
+
+.editorContent :global(.tiptap h4),
+.editorContent :global(.tiptap h5),
+.editorContent :global(.tiptap h6) {
+  font-size: 1em;
+}
+
+/* Lists */
+.editorContent :global(.tiptap ul),
+.editorContent :global(.tiptap ol) {
+  padding-left: 1.5em;
+  margin: 0 0 0.75em 0;
+}
+
+.editorContent :global(.tiptap li) {
+  margin: 0.25em 0;
+}
+
+.editorContent :global(.tiptap li p) {
+  margin: 0;
+}
+
+/* Blockquote */
+.editorContent :global(.tiptap blockquote) {
+  border-left: 3px solid var(--cc-border-strong);
+  padding-left: var(--cc-space-4);
+  margin: 0.75em 0;
+  color: var(--cc-text-secondary);
+  font-style: italic;
+}
+
+/* Code */
+.editorContent :global(.tiptap code) {
+  background: var(--cc-surface-elevated);
+  border-radius: var(--cc-radius-pill);
+  padding: 0.15em 0.4em;
+  font-family: "SF Mono", "Fira Code", "Consolas", monospace;
+  font-size: 0.9em;
+  color: var(--cc-text-primary);
+}
+
+.editorContent :global(.tiptap pre) {
+  background: var(--cc-surface-elevated);
+  border-radius: var(--cc-radius-card);
+  padding: var(--cc-space-3) var(--cc-space-4);
+  margin: 0.75em 0;
+  overflow-x: auto;
+}
+
+.editorContent :global(.tiptap pre code) {
+  background: none;
+  padding: 0;
+  border-radius: 0;
+  font-size: var(--cc-text-sm);
+  line-height: 1.5;
+}
+
+/* Horizontal rule */
+.editorContent :global(.tiptap hr) {
+  border: none;
+  border-top: 1px solid var(--cc-border-soft);
+  margin: 1.5em 0;
+}
+
+/* Links */
+.editorContent :global(.tiptap a) {
+  color: var(--cc-accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.editorContent :global(.tiptap a:hover) {
+  opacity: 0.8;
+}
+
+/* Bold, italic, strikethrough */
+.editorContent :global(.tiptap strong) {
+  font-weight: 600;
+}
+
+.editorContent :global(.tiptap em) {
+  font-style: italic;
+}
+
+.editorContent :global(.tiptap s) {
+  text-decoration: line-through;
+}
+
+/* Selection */
+.editorContent :global(.tiptap ::selection) {
+  background: rgba(213, 216, 222, 0.25);
+}
+
+/* Read-only state */
+.readOnly :global(.tiptap) {
+  cursor: default;
+}

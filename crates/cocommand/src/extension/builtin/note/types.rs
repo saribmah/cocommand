@@ -2,74 +2,74 @@ use serde::Serialize;
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub(super) struct NoteSummaryPayload {
-    pub(super) id: String,
-    pub(super) title: String,
-    pub(super) preview: String,
-    pub(super) path: String,
-    pub(super) modified_at: Option<u64>,
-    pub(super) size: Option<u64>,
+pub struct NoteSummaryPayload {
+    pub id: String,
+    pub title: String,
+    pub preview: String,
+    pub path: String,
+    pub modified_at: Option<u64>,
+    pub size: Option<u64>,
 }
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub(super) struct NotePayload {
-    pub(super) id: String,
-    pub(super) title: String,
-    pub(super) preview: String,
-    pub(super) content: String,
-    pub(super) path: String,
-    pub(super) modified_at: Option<u64>,
-    pub(super) size: Option<u64>,
+pub struct NotePayload {
+    pub id: String,
+    pub title: String,
+    pub preview: String,
+    pub content: String,
+    pub path: String,
+    pub modified_at: Option<u64>,
+    pub size: Option<u64>,
 }
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub(super) struct ListNotesPayload {
-    pub(super) root: String,
-    pub(super) notes: Vec<NoteSummaryPayload>,
-    pub(super) count: usize,
-    pub(super) truncated: bool,
-    pub(super) errors: usize,
+pub struct ListNotesPayload {
+    pub root: String,
+    pub notes: Vec<NoteSummaryPayload>,
+    pub count: usize,
+    pub truncated: bool,
+    pub errors: usize,
 }
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub(super) struct SearchNotesPayload {
-    pub(super) query: String,
-    pub(super) root: String,
-    pub(super) notes: Vec<NoteSummaryPayload>,
-    pub(super) count: usize,
-    pub(super) truncated: bool,
-    pub(super) scanned: usize,
-    pub(super) errors: usize,
-    pub(super) index_state: String,
-    pub(super) index_scanned_files: usize,
-    pub(super) index_scanned_dirs: usize,
-    pub(super) index_started_at: Option<u64>,
-    pub(super) index_last_update_at: Option<u64>,
-    pub(super) index_finished_at: Option<u64>,
-    pub(super) highlight_terms: Vec<String>,
+pub struct SearchNotesPayload {
+    pub query: String,
+    pub root: String,
+    pub notes: Vec<NoteSummaryPayload>,
+    pub count: usize,
+    pub truncated: bool,
+    pub scanned: usize,
+    pub errors: usize,
+    pub index_state: String,
+    pub index_scanned_files: usize,
+    pub index_scanned_dirs: usize,
+    pub index_started_at: Option<u64>,
+    pub index_last_update_at: Option<u64>,
+    pub index_finished_at: Option<u64>,
+    pub highlight_terms: Vec<String>,
 }
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub(super) struct NoteIndexStatusPayload {
-    pub(super) state: String,
-    pub(super) root: String,
-    pub(super) ignored_paths: Vec<String>,
-    pub(super) indexed_entries: usize,
-    pub(super) scanned_files: usize,
-    pub(super) scanned_dirs: usize,
-    pub(super) started_at: Option<u64>,
-    pub(super) last_update_at: Option<u64>,
-    pub(super) finished_at: Option<u64>,
-    pub(super) errors: usize,
-    pub(super) watcher_enabled: bool,
-    pub(super) cache_path: String,
-    pub(super) rescan_count: u64,
+pub struct NoteIndexStatusPayload {
+    pub state: String,
+    pub root: String,
+    pub ignored_paths: Vec<String>,
+    pub indexed_entries: usize,
+    pub scanned_files: usize,
+    pub scanned_dirs: usize,
+    pub started_at: Option<u64>,
+    pub last_update_at: Option<u64>,
+    pub finished_at: Option<u64>,
+    pub errors: usize,
+    pub watcher_enabled: bool,
+    pub cache_path: String,
+    pub rescan_count: u64,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub(super) last_error: Option<String>,
+    pub last_error: Option<String>,
 }
 
 impl From<filesystem::IndexStatus> for NoteIndexStatusPayload {

@@ -11,15 +11,15 @@ const DEFAULT_NOTE_SLUG: &str = "untitled";
 const MAX_TITLE_CHARS: usize = 120;
 const MAX_PREVIEW_CHARS: usize = 200;
 
-pub(super) fn notes_root(workspace_dir: &Path) -> PathBuf {
+pub fn notes_root(workspace_dir: &Path) -> PathBuf {
     workspace_dir.join("notes")
 }
 
-pub(super) fn notes_index_cache_dir(workspace_dir: &Path) -> PathBuf {
+pub fn notes_index_cache_dir(workspace_dir: &Path) -> PathBuf {
     workspace_dir.join("storage/notes-indexes")
 }
 
-pub(super) fn ensure_notes_dir(notes_root: &Path) -> CoreResult<()> {
+pub fn ensure_notes_dir(notes_root: &Path) -> CoreResult<()> {
     fs::create_dir_all(notes_root).map_err(|error| {
         CoreError::Internal(format!(
             "failed to create notes directory {}: {error}",
@@ -29,7 +29,7 @@ pub(super) fn ensure_notes_dir(notes_root: &Path) -> CoreResult<()> {
     Ok(())
 }
 
-pub(super) fn note_id_from_path(notes_root: &Path, file_path: &Path) -> Option<String> {
+pub fn note_id_from_path(notes_root: &Path, file_path: &Path) -> Option<String> {
     let rel = file_path.strip_prefix(notes_root).ok()?;
     if file_path.extension()?.to_str()? != "md" {
         return None;
@@ -56,7 +56,7 @@ pub(super) fn note_id_from_path(notes_root: &Path, file_path: &Path) -> Option<S
     Some(parts.join("/"))
 }
 
-pub(super) fn note_path_from_id(notes_root: &Path, id: &str) -> CoreResult<PathBuf> {
+pub fn note_path_from_id(notes_root: &Path, id: &str) -> CoreResult<PathBuf> {
     let segments = normalize_id_segments(id, "id")?;
     let mut relative = PathBuf::new();
     for segment in segments {
@@ -74,7 +74,7 @@ pub(super) fn note_path_from_id(notes_root: &Path, id: &str) -> CoreResult<PathB
     Ok(file_path)
 }
 
-pub(super) fn list_notes(notes_root: PathBuf, limit: usize) -> CoreResult<ListNotesPayload> {
+pub fn list_notes(notes_root: PathBuf, limit: usize) -> CoreResult<ListNotesPayload> {
     ensure_notes_dir(&notes_root)?;
     let mut stack = vec![notes_root.clone()];
     let mut notes = Vec::new();
@@ -141,7 +141,7 @@ pub(super) fn list_notes(notes_root: PathBuf, limit: usize) -> CoreResult<ListNo
     })
 }
 
-pub(super) fn read_note(notes_root: PathBuf, id: String) -> CoreResult<NotePayload> {
+pub fn read_note(notes_root: PathBuf, id: String) -> CoreResult<NotePayload> {
     ensure_notes_dir(&notes_root)?;
     let path = note_path_from_id(&notes_root, &id)?;
     if !path.exists() {
@@ -171,7 +171,7 @@ pub(super) fn read_note(notes_root: PathBuf, id: String) -> CoreResult<NotePaylo
     })
 }
 
-pub(super) fn create_note(
+pub fn create_note(
     notes_root: PathBuf,
     title: Option<String>,
     content: Option<String>,
@@ -208,11 +208,7 @@ pub(super) fn create_note(
     read_note(notes_root, note_id)
 }
 
-pub(super) fn update_note(
-    notes_root: PathBuf,
-    id: String,
-    content: String,
-) -> CoreResult<NotePayload> {
+pub fn update_note(notes_root: PathBuf, id: String, content: String) -> CoreResult<NotePayload> {
     ensure_notes_dir(&notes_root)?;
     let note_path = note_path_from_id(&notes_root, &id)?;
     if !note_path.exists() {
@@ -230,7 +226,7 @@ pub(super) fn update_note(
     read_note(notes_root, id)
 }
 
-pub(super) fn delete_note(notes_root: PathBuf, id: String) -> CoreResult<bool> {
+pub fn delete_note(notes_root: PathBuf, id: String) -> CoreResult<bool> {
     ensure_notes_dir(&notes_root)?;
     let note_path = note_path_from_id(&notes_root, &id)?;
     if !note_path.exists() {
@@ -246,7 +242,7 @@ pub(super) fn delete_note(notes_root: PathBuf, id: String) -> CoreResult<bool> {
     Ok(true)
 }
 
-pub(super) fn build_search_payload(
+pub fn build_search_payload(
     notes_root: &Path,
     query: String,
     result: Option<filesystem::SearchResult>,
@@ -293,7 +289,7 @@ pub(super) fn build_search_payload(
     }
 }
 
-pub(super) fn sanitize_note_slug(input: &str) -> String {
+pub fn sanitize_note_slug(input: &str) -> String {
     let mut slug = String::new();
     let mut previous_dash = false;
 
