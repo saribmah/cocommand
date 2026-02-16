@@ -73,7 +73,7 @@ impl Server {
                 post(workspace::open_permission),
             )
             .route(
-                "/extension/{extension_id}/invoke/{tool_id}",
+                "/extension/:extension_id/invoke/:tool_id",
                 post(invoke::invoke_tool),
             )
             .route(
