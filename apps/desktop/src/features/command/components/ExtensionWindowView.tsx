@@ -9,8 +9,17 @@ export function ExtensionWindowView() {
   const { extensionId } = useParams<{ extensionId: string }>();
   const invoke = useExtensionContext((s) => s.invoke);
   const dynamicViewsLoaded = useExtensionContext((s) => s.dynamicViewsLoaded);
+  const fetchExtensions = useExtensionContext((s) => s.fetchExtensions);
   // Subscribe to viewLoadVersion so we re-render when dynamic views are loaded
   useExtensionContext((s) => s.viewLoadVersion);
+
+  // Popout windows are fresh page loads with an empty view registry.
+  // Trigger fetchExtensions which in turn runs loadDynamicViews.
+  useEffect(() => {
+    if (!dynamicViewsLoaded) {
+      fetchExtensions();
+    }
+  }, [dynamicViewsLoaded, fetchExtensions]);
 
   useEffect(() => {
     if (!extensionId) return;
