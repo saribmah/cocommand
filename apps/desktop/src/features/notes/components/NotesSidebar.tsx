@@ -1,22 +1,51 @@
 import { useEffect } from "react";
-import { ListItem, ButtonPrimary, Text } from "@cocommand/ui";
+import { Text } from "@cocommand/ui";
 import { useNotesContext } from "../notes.context";
 import type { NoteSummary } from "../notes.types";
 import styles from "./NotesSidebar.module.css";
 
 function formatRelativeTime(timestamp: number | null): string {
   if (!timestamp) return "";
-  const now = Date.now();
-  const diff = now - timestamp * 1000;
-  const seconds = Math.floor(diff / 1000);
-  const minutes = Math.floor(seconds / 60);
-  const hours = Math.floor(minutes / 60);
-  const days = Math.floor(hours / 24);
+  const date = new Date(timestamp * 1000);
+  const now = new Date();
+  const diff = now.getTime() - date.getTime();
+  const days = Math.floor(diff / (1000 * 60 * 60 * 24));
 
-  if (days > 0) return `${days}d ago`;
-  if (hours > 0) return `${hours}h ago`;
-  if (minutes > 0) return `${minutes}m ago`;
-  return "Just now";
+  // Today: show time like "1:30 PM"
+  if (
+    date.getDate() === now.getDate() &&
+    date.getMonth() === now.getMonth() &&
+    date.getFullYear() === now.getFullYear()
+  ) {
+    return date.toLocaleTimeString("en-US", {
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    });
+  }
+
+  // Yesterday
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  if (
+    date.getDate() === yesterday.getDate() &&
+    date.getMonth() === yesterday.getMonth() &&
+    date.getFullYear() === yesterday.getFullYear()
+  ) {
+    return "Yesterday";
+  }
+
+  // Within this week
+  if (days < 7) {
+    return date.toLocaleDateString("en-US", { weekday: "long" });
+  }
+
+  // Older: show date
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: date.getFullYear() !== now.getFullYear() ? "numeric" : undefined,
+  });
 }
 
 export function NotesSidebar() {
@@ -47,9 +76,31 @@ export function NotesSidebar() {
     <div className={styles.sidebar}>
       <div className={styles.header}>
         <Text as="div" size="md" weight="semibold">
-          Notes
+          Notes{" "}
+          <span className={styles.noteCount}>{notes.length}</span>
         </Text>
-        <ButtonPrimary onClick={handleCreateNote}>New</ButtonPrimary>
+        <div className={styles.headerActions}>
+          <button
+            className={styles.iconButton}
+            aria-label="Search notes"
+            type="button"
+          >
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+              <circle cx="7" cy="7" r="5.5" stroke="currentColor" strokeWidth="1.5" />
+              <path d="M11 11L14.5 14.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+            </svg>
+          </button>
+          <button
+            className={styles.iconButton}
+            onClick={handleCreateNote}
+            aria-label="New note"
+            type="button"
+          >
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+              <path d="M8 2V14M2 8H14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+            </svg>
+          </button>
+        </div>
       </div>
       <div className={styles.list}>
         {isLoading && notes.length === 0 ? (
@@ -69,19 +120,28 @@ export function NotesSidebar() {
           </div>
         ) : (
           notes.map((note) => (
-            <ListItem
+            <button
               key={note.id}
-              title={note.title}
-              subtitle={note.preview || undefined}
-              rightMeta={
-                <Text as="span" size="xs" tone="secondary">
-                  {formatRelativeTime(note.modifiedAt)}
-                </Text>
-              }
-              selected={note.id === selectedNoteId}
+              className={`${styles.noteItem} ${
+                note.id === selectedNoteId ? styles.noteItemSelected : ""
+              }`}
               onClick={() => handleSelectNote(note)}
-              className={styles.noteItem}
-            />
+              type="button"
+            >
+              <div className={styles.noteLine1}>
+                <span className={styles.noteTitle}>
+                  {note.title || "Untitled"}
+                </span>
+              </div>
+              <div className={styles.noteLine2}>
+                <span className={styles.noteDate}>
+                  {formatRelativeTime(note.modifiedAt)}
+                </span>
+                {note.preview && (
+                  <span className={styles.notePreview}>{note.preview}</span>
+                )}
+              </div>
+            </button>
           ))
         )}
       </div>

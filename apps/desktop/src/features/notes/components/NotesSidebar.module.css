@@ -1,8 +1,8 @@
 .sidebar {
   display: flex;
   flex-direction: column;
-  width: 280px;
-  min-width: 280px;
+  width: 250px;
+  min-width: 250px;
   height: 100%;
   border-right: 1px solid var(--cc-border-soft);
   background: var(--cc-surface-primary);
@@ -16,21 +16,108 @@
   border-bottom: 1px solid var(--cc-border-soft);
 }
 
+.noteCount {
+  color: var(--cc-text-tertiary);
+  font-weight: 400;
+}
+
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: var(--cc-space-1);
+}
+
+.iconButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: var(--cc-radius-pill);
+  background: transparent;
+  color: var(--cc-text-secondary);
+  cursor: pointer;
+  padding: 0;
+}
+
+.iconButton:hover {
+  background: var(--cc-surface-secondary);
+  color: var(--cc-text-primary);
+}
+
 .list {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: var(--cc-space-2);
+  padding: var(--cc-space-1) var(--cc-space-2);
 }
 
+/* Custom note list items */
 .noteItem {
-  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  text-align: left;
+  padding: var(--cc-space-2) var(--cc-space-3);
+  border: none;
   border-radius: var(--cc-radius-pill);
-  margin-bottom: var(--cc-space-1);
+  background: transparent;
+  cursor: pointer;
+  gap: 2px;
+  font-family: var(--cc-font-sans);
 }
 
 .noteItem:hover {
   background: var(--cc-surface-secondary);
+}
+
+.noteItemSelected {
+  background: var(--cc-surface-elevated);
+}
+
+.noteItemSelected:hover {
+  background: var(--cc-surface-elevated);
+}
+
+.noteLine1 {
+  display: flex;
+  align-items: center;
+  gap: var(--cc-space-1);
+  min-width: 0;
+}
+
+.noteTitle {
+  font-size: var(--cc-text-sm);
+  font-weight: 600;
+  color: var(--cc-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: var(--cc-line-normal);
+}
+
+.noteLine2 {
+  display: flex;
+  align-items: center;
+  gap: var(--cc-space-2);
+  min-width: 0;
+}
+
+.noteDate {
+  font-size: var(--cc-text-xs);
+  color: var(--cc-text-tertiary);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.notePreview {
+  font-size: var(--cc-text-xs);
+  color: var(--cc-text-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
 
 .empty {
