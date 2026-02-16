@@ -376,7 +376,19 @@ export function CommandView() {
       end: segment.end,
     });
     applyComposerParts(next);
+
+    // If removing the extension whose view is currently active, close it
+    if (segment.type === "extension" && activeTab === `ext:${segment.part.extensionId}`) {
+      setActiveTab("recent");
+    }
+
     focusInput();
+  };
+
+  const handleClickSegment = (segment: ComposerTagSegment) => {
+    if (segment.type === "extension" && hasExtensionView(segment.part.extensionId)) {
+      setActiveTab(`ext:${segment.part.extensionId}`);
+    }
   };
 
   const insertSigilAtCursor = (sigil: "@" | "/" | "#" | "*") => {
@@ -475,6 +487,27 @@ export function CommandView() {
         activeTab.startsWith("ext:"))
     ) {
       e.preventDefault();
+
+      // When closing an extension view, also remove its tag from the composer
+      if (activeTab.startsWith("ext:")) {
+        const extId = activeTab.slice(4);
+        const activeIndex = getActiveTextPartIndex(composerParts);
+        // Find the extension part matching this view (search backwards from active text)
+        let removeIdx = -1;
+        for (let i = activeIndex - 1; i >= 0; i--) {
+          const p = composerParts[i];
+          if (p?.type === "extension" && p.extensionId === extId) {
+            removeIdx = i;
+            break;
+          }
+        }
+        if (removeIdx >= 0) {
+          const next = [...composerParts];
+          next.splice(removeIdx, 1);
+          applyComposerParts(next);
+        }
+      }
+
       setActiveTab("recent");
       return;
     }
@@ -627,6 +660,7 @@ export function CommandView() {
           onTextChange={updateComposerText}
           onKeyDown={handleKeyDown}
           onRemoveSegment={removeTaggedSegment}
+          onClickSegment={handleClickSegment}
         />
 
         <PillArea

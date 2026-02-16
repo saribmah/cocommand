@@ -42,6 +42,7 @@ interface ComposerProps {
   onTextChange: (value: string) => void;
   onKeyDown: (e: KeyboardEvent<HTMLInputElement>) => void;
   onRemoveSegment: (segment: ComposerTagSegment) => void;
+  onClickSegment: (segment: ComposerTagSegment) => void;
 }
 
 export function Composer({
@@ -55,6 +56,7 @@ export function Composer({
   onTextChange,
   onKeyDown,
   onRemoveSegment,
+  onClickSegment,
 }: ComposerProps) {
   const inputTargetTags =
     tagSegments.length > 0 ? (
@@ -73,6 +75,8 @@ export function Composer({
                 key={segment.key}
                 className={styles.targetTag}
                 title={`${segment.part.kind ?? "extension"} extension`}
+                onClick={() => onClickSegment(segment)}
+                style={{ cursor: "pointer" }}
               >
                 <Icon size={14}>{ExtensionIcon}</Icon>
                 <span className={styles.targetTagLabel}>@{segment.part.name}</span>
