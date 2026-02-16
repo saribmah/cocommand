@@ -147,6 +147,50 @@ fn schedule_settings_reposition(app: AppHandle) {
     });
 }
 
+#[tauri::command]
+pub fn close_extension_window(
+    app: tauri::AppHandle,
+    extension_id: String,
+) -> Result<(), String> {
+    let label = format!("ext-{}", extension_id);
+    if let Some(window) = app.get_webview_window(&label) {
+        window.close().map_err(|error| error.to_string())?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn open_extension_window(
+    app: tauri::AppHandle,
+    extension_id: String,
+    title: String,
+    width: f64,
+    height: f64,
+) -> Result<(), String> {
+    let label = format!("ext-{}", extension_id);
+    if let Some(window) = app.get_webview_window(&label) {
+        window.show().map_err(|error| error.to_string())?;
+        window.set_focus().map_err(|error| error.to_string())?;
+        position_window_on_active_screen(&window)?;
+        return Ok(());
+    }
+
+    let url = tauri::WebviewUrl::App(format!("extension/{}", extension_id).into());
+    let window = tauri::WebviewWindowBuilder::new(&app, &label, url)
+        .title(&title)
+        .inner_size(width, height)
+        .resizable(true)
+        .decorations(false)
+        .transparent(true)
+        .always_on_top(false)
+        .build()
+        .map_err(|error| error.to_string())?;
+    window.show().map_err(|error| error.to_string())?;
+    window.set_focus().map_err(|error| error.to_string())?;
+    position_window_on_active_screen(&window)?;
+    Ok(())
+}
+
 fn select_monitor_for_cursor(
     app: &AppHandle,
     window: &tauri::WebviewWindow,

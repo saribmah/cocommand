@@ -69,3 +69,21 @@ export async function getWorkspaceDir(): Promise<string> {
 export async function setWorkspaceDir(workspaceDir: string): Promise<string> {
   return invoke("set_workspace_dir_cmd", { workspace_dir: workspaceDir });
 }
+
+export async function closeExtensionWindow(extensionId: string): Promise<void> {
+  return invoke("close_extension_window", { extensionId });
+}
+
+export async function openExtensionWindow(params: {
+  extensionId: string;
+  title: string;
+  width: number;
+  height: number;
+}): Promise<void> {
+  return invoke("open_extension_window", {
+    extensionId: params.extensionId,
+    title: params.title,
+    width: params.width,
+    height: params.height,
+  });
+}

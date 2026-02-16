@@ -56,6 +56,9 @@ import type {
   TextPartInput,
   ToolPart,
 } from "./command.types";
+import { hasExtensionView } from "./extension-views";
+import "./register-builtin-views";
+import { ExtensionViewContainer } from "./components/ExtensionViewContainer";
 import styles from "./command.module.css";
 
 const FileIcon = (
@@ -87,7 +90,7 @@ const ApplicationIcon = (
 );
 
 type ToolCardState = "pending" | "running" | "success" | "error";
-type FilterTab = "recent" | "extensions" | "commands" | "files" | "applications";
+type FilterTab = "recent" | "extensions" | "commands" | "applications" | `ext:${string}`;
 type ComposerTagSegment =
   | { type: "text"; key: string; text: string }
   | { type: "extension"; key: string; part: ExtensionPartInput; start: number; end: number }
@@ -432,7 +435,6 @@ export function CommandView() {
   const [activeTab, setActiveTab] = useState<FilterTab>("recent");
   const [mentionIndex, setMentionIndex] = useState(0);
   const [slashIndex, setSlashIndex] = useState(0);
-  const [fileIndex, setFileIndex] = useState(0);
   const [applicationIndex, setApplicationIndex] = useState(0);
 
   const draftParts = useCommandContext((state) => state.draftParts);
@@ -451,11 +453,8 @@ export function CommandView() {
   const fetchExtensions = useExtensionContext((state) => state.fetchExtensions);
   const openExtension = useExtensionContext((state) => state.openExtension);
 
-  const searchResults = useFileSystemContext((state) => state.searchResults);
-  const isSearching = useFileSystemContext((state) => state.isSearching);
-  const searchError = useFileSystemContext((state) => state.searchError);
-  const searchFiles = useFileSystemContext((state) => state.search);
   const clearSearch = useFileSystemContext((state) => state.clearSearch);
+
   const applications = useApplicationContext((state) => state.applications);
   const applicationsCount = useApplicationContext((state) => state.count);
   const applicationsLoaded = useApplicationContext((state) => state.isLoaded);
@@ -481,6 +480,17 @@ export function CommandView() {
   const tagSegments = useMemo(
     () => buildTagSegments(committedParts),
     [committedParts]
+  );
+
+  const extensionPills = useMemo(
+    () =>
+      composerParts
+        .filter(
+          (p): p is ExtensionPartInput =>
+            p.type === "extension" && hasExtensionView(p.extensionId)
+        )
+        .map((p) => ({ extensionId: p.extensionId, name: p.name })),
+    [composerParts]
   );
 
   const mentionState = useMemo(() => getMentionState(activeText), [activeText]);
@@ -608,17 +618,15 @@ export function CommandView() {
     return ranked.slice(0, 20).map((entry) => entry.application);
   }, [activeTab, activeText, applications, starState]);
 
-  const showExtensionsList = activeTab === "extensions" || !!mentionState;
-  const showCommandsList = !showExtensionsList && (activeTab === "commands" || !!slashState);
+  const showExtensionView = activeTab.startsWith("ext:");
+  const activeExtensionId = showExtensionView ? activeTab.slice(4) : null;
+  const showExtensionsList = !showExtensionView && (activeTab === "extensions" || !!mentionState);
+  const showCommandsList = !showExtensionView && !showExtensionsList && (activeTab === "commands" || !!slashState);
   const showApplicationsList =
+    !showExtensionView &&
     !showExtensionsList &&
     !showCommandsList &&
     (activeTab === "applications" || !!starState);
-  const showFilesList =
-    !showExtensionsList &&
-    !showCommandsList &&
-    !showApplicationsList &&
-    (activeTab === "files" || !!hashState);
 
   useEffect(() => {
     if (!showApplicationsList) return;
@@ -638,35 +646,25 @@ export function CommandView() {
     showApplicationsList,
   ]);
 
-  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
-    if (!hashState && activeTab !== "files") {
-      clearSearch();
-      return;
+    if (!hashState) return;
+    if (activeTab === `ext:filesystem`) return;
+    const alreadyHasFilesystem = composerParts.some(
+      (p) => p.type === "extension" && p.extensionId === "filesystem"
+    );
+    if (!alreadyHasFilesystem) {
+      let nextParts = updateActiveText(composerParts, removeTrailingSigilQuery(activeText, hashState));
+      nextParts = insertPartAfterActiveText(nextParts, {
+        type: "extension",
+        extensionId: "filesystem",
+        name: "Files",
+        kind: "builtin",
+        source: { value: "@filesystem", start: 0, end: 0 },
+      });
+      applyComposerParts(nextParts);
     }
-    const query = hashState?.query ?? activeText;
-    if (!query.trim()) {
-      clearSearch();
-      return;
-    }
-    if (searchDebounceRef.current) {
-      clearTimeout(searchDebounceRef.current);
-    }
-    searchDebounceRef.current = setTimeout(() => {
-      searchFiles({ query: query.trim(), maxResults: 50 });
-    }, 150);
-    return () => {
-      if (searchDebounceRef.current) {
-        clearTimeout(searchDebounceRef.current);
-      }
-    };
-  }, [activeTab, activeText, clearSearch, hashState, searchFiles]);
-
-  useEffect(() => {
-    setFileIndex(0);
-  }, [searchResults]);
-
-  const fileEntries = searchResults?.results ?? [];
+    setActiveTab(`ext:filesystem`);
+  }, [hashState]);
 
   const focusInput = () => {
     requestAnimationFrame(() => {
@@ -714,7 +712,11 @@ export function CommandView() {
       },
     });
     applyComposerParts(nextParts);
-    setActiveTab("recent");
+    if (hasExtensionView(extension.id)) {
+      setActiveTab(`ext:${extension.id}`);
+    } else {
+      setActiveTab("recent");
+    }
     focusInput();
   };
 
@@ -794,8 +796,8 @@ export function CommandView() {
       activeText.length === 0 &&
       (activeTab === "extensions" ||
         activeTab === "commands" ||
-        activeTab === "files" ||
-        activeTab === "applications")
+        activeTab === "applications" ||
+        activeTab.startsWith("ext:"))
     ) {
       e.preventDefault();
       setActiveTab("recent");
@@ -820,29 +822,13 @@ export function CommandView() {
       }
     }
 
-    if (showFilesList && fileEntries.length > 0) {
-      if (e.key === "ArrowDown") {
+    if (showExtensionView) {
+      if (e.key === "Escape") {
         e.preventDefault();
-        setFileIndex((idx) => (idx + 1) % fileEntries.length);
+        setActiveTab("recent");
         return;
       }
-      if (e.key === "ArrowUp") {
-        e.preventDefault();
-        setFileIndex((idx) => (idx <= 0 ? fileEntries.length - 1 : idx - 1));
-        return;
-      }
-      if (e.key === "Enter") {
-        e.preventDefault();
-        const selected = fileEntries[fileIndex];
-        if (selected) {
-          selectFile({
-            path: selected.path,
-            name: selected.name,
-            type: selected.type,
-          });
-        }
-        return;
-      }
+      return;
     }
 
     if (showExtensionsList && filteredExtensions.length > 0) {
@@ -1063,14 +1049,6 @@ export function CommandView() {
                 }}
               />
               <Chip
-                label="Files"
-                active={activeTab === "files" || !!hashState}
-                onClick={() => {
-                  setActiveTab("files");
-                  insertSigilAtCursor("#");
-                }}
-              />
-              <Chip
                 label="Applications"
                 active={activeTab === "applications" || !!starState}
                 onClick={() => {
@@ -1081,12 +1059,30 @@ export function CommandView() {
                   insertSigilAtCursor("*");
                 }}
               />
+              {extensionPills.map((pill) => (
+                <Chip
+                  key={`ext-pill-${pill.extensionId}`}
+                  label={pill.name}
+                  active={activeTab === `ext:${pill.extensionId}`}
+                  onClick={() => setActiveTab(`ext:${pill.extensionId}`)}
+                />
+              ))}
             </ChipGroup>
             {isSubmitting ? <Badge>Working...</Badge> : null}
           </div>
         </FilterArea>
 
         <ContentArea className={styles.content}>
+          {showExtensionView && activeExtensionId ? (
+            <ExtensionViewContainer
+              extensionId={activeExtensionId}
+              extraProps={
+                activeExtensionId === "filesystem"
+                  ? { query: activeText, onSelectFile: selectFile }
+                  : undefined
+              }
+            />
+          ) : (
           <div className={styles.scrollArea} ref={scrollRef}>
             {showExtensionsList ? (
               <ListSection label="Extensions">
@@ -1143,46 +1139,6 @@ export function CommandView() {
               </ListSection>
             ) : null}
 
-            {showFilesList ? (
-              <ListSection label={isSearching ? "Searching..." : `Files${searchResults ? ` (${searchResults.count})` : ""}`}>
-                {searchError ? (
-                  <Text size="sm" tone="secondary">
-                    {searchError}
-                  </Text>
-                ) : fileEntries.length > 0 ? (
-                  fileEntries.map((entry, index) => (
-                    <ListItem
-                      key={entry.path}
-                      title={entry.name}
-                      subtitle={entry.path}
-                      icon={
-                        <IconContainer>
-                          <Icon>{entry.type === "directory" ? FolderIcon : FileIcon}</Icon>
-                        </IconContainer>
-                      }
-                      selected={index === fileIndex}
-                      onMouseDown={(event) => {
-                        event.preventDefault();
-                        selectFile({
-                          path: entry.path,
-                          name: entry.name,
-                          type: entry.type,
-                        });
-                      }}
-                    />
-                  ))
-                ) : hashState?.query ? (
-                  <Text size="sm" tone="secondary">
-                    {isSearching ? "Searching..." : "No files found."}
-                  </Text>
-                ) : (
-                  <Text size="sm" tone="secondary">
-                    Type to search files...
-                  </Text>
-                )}
-              </ListSection>
-            ) : null}
-
             {showApplicationsList ? (
               <ListSection
                 label={
@@ -1236,7 +1192,7 @@ export function CommandView() {
               </ListSection>
             ) : null}
 
-            {(showExtensionsList || showCommandsList || showFilesList || showApplicationsList) && showResponses ? (
+            {(showExtensionsList || showCommandsList || showApplicationsList) && showResponses ? (
               <Divider />
             ) : null}
 
@@ -1282,12 +1238,13 @@ export function CommandView() {
                   }
                 })}
               </ResponseStack>
-            ) : !showExtensionsList && !showCommandsList && !showApplicationsList && !showFilesList ? (
+            ) : !showExtensionsList && !showCommandsList && !showApplicationsList ? (
               <Text size="sm" tone="secondary">
-                Type a command, use @ to target an extension, / for shortcuts, # for files, or * for applications.
+                Type a command, use @ to target an extension, / for shortcuts, or * for applications.
               </Text>
             ) : null}
           </div>
+          )}
         </ContentArea>
 
         <FooterArea>
@@ -1298,7 +1255,6 @@ export function CommandView() {
                 <HintItem label="Enter" keyHint={<KeyHint keys="↵" />} />
                 <HintItem label="Extensions" keyHint={<KeyHint keys="@" />} />
                 <HintItem label="Command" keyHint={<KeyHint keys="/" />} />
-                <HintItem label="Files" keyHint={<KeyHint keys="#" />} />
                 <HintItem label="Applications" keyHint={<KeyHint keys="*" />} />
               </>
             }

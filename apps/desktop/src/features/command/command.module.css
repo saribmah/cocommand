@@ -114,3 +114,42 @@
   flex-direction: column;
   gap: var(--cc-space-2);
 }
+
+.extensionViewContainer {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.extensionViewHeader {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0 0 var(--cc-space-2) 0;
+}
+
+.extensionViewPopout {
+  border: 0;
+  padding: 4px;
+  border-radius: var(--cc-radius-sm);
+  background: transparent;
+  color: var(--cc-text-secondary);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.extensionViewPopout:hover {
+  background: rgba(255, 255, 255, 0.09);
+  color: var(--cc-text-primary);
+}
+
+.extensionViewContent {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
