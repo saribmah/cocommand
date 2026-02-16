@@ -13,7 +13,7 @@ export function ExtensionProvider({ children }: ExtensionProviderProps) {
 
   const storeRef = useRef<ExtensionStore | null>(null);
   if (storeRef.current === null) {
-    storeRef.current = createExtensionStore(() => serverStore.getState().info);
+    storeRef.current = createExtensionStore(() => serverStore.getState().info?.addr ?? null);
   }
 
   return (

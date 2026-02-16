@@ -41,10 +41,11 @@ import {
   Text,
   ToolCallCard,
 } from "@cocommand/ui";
+import { useStore } from "zustand";
 import { useApplicationContext } from "../application/application.context";
 import type { ApplicationInfo } from "../application/application.types";
-import { useExtensionContext } from "../extension/extension.context";
-import { useFileSystemContext } from "../filesystem/filesystem.context";
+import { useExtensionContext, useExtensionStore } from "../extension/extension.context";
+import type { FileSystemState } from "../filesystem/filesystem.store";
 import { useSessionContext } from "../session/session.context";
 import { useServerContext } from "../server/server.context";
 import { useCommandContext } from "./command.context";
@@ -453,7 +454,8 @@ export function CommandView() {
   const fetchExtensions = useExtensionContext((state) => state.fetchExtensions);
   const openExtension = useExtensionContext((state) => state.openExtension);
 
-  const clearSearch = useFileSystemContext((state) => state.clearSearch);
+  const fileSystemStore = useExtensionStore<FileSystemState>("filesystem");
+  const clearSearch = useStore(fileSystemStore, (s) => s.clearSearch);
 
   const applications = useApplicationContext((state) => state.applications);
   const applicationsCount = useApplicationContext((state) => state.count);

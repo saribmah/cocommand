@@ -1,6 +1,8 @@
 import { useEffect } from "react";
 import { Text } from "@cocommand/ui";
-import { useNotesContext } from "../notes.context";
+import { useStore } from "zustand";
+import { useExtensionStore } from "../../extension/extension.context";
+import type { NotesState } from "../notes.store";
 import type { NoteSummary } from "../notes.types";
 import styles from "./NotesSidebar.module.css";
 
@@ -49,12 +51,13 @@ function formatRelativeTime(timestamp: number | null): string {
 }
 
 export function NotesSidebar() {
-  const notes = useNotesContext((state) => state.notes);
-  const selectedNoteId = useNotesContext((state) => state.selectedNoteId);
-  const isLoading = useNotesContext((state) => state.isLoading);
-  const fetchNotes = useNotesContext((state) => state.fetchNotes);
-  const selectNote = useNotesContext((state) => state.selectNote);
-  const createNote = useNotesContext((state) => state.createNote);
+  const notesStore = useExtensionStore<NotesState>("notes");
+  const notes = useStore(notesStore, (s) => s.notes);
+  const selectedNoteId = useStore(notesStore, (s) => s.selectedNoteId);
+  const isLoading = useStore(notesStore, (s) => s.isLoading);
+  const fetchNotes = useStore(notesStore, (s) => s.fetchNotes);
+  const selectNote = useStore(notesStore, (s) => s.selectNote);
+  const createNote = useStore(notesStore, (s) => s.createNote);
 
   useEffect(() => {
     fetchNotes();

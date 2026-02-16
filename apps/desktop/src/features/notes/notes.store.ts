@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { invokeExtensionTool } from "../../lib/extension-client";
+import type { ExtensionInvokeFn } from "../extension/extension.types";
 import type {
   Note,
   NoteSummary,
@@ -38,7 +38,7 @@ export interface NotesState {
 
 export type NotesStore = ReturnType<typeof createNotesStore>;
 
-export const createNotesStore = (getAddr: () => string | null) => {
+export const createNotesStore = (invoke: ExtensionInvokeFn) => {
   return create<NotesState>()((set, get) => ({
     notes: [],
     selectedNoteId: null,
@@ -48,17 +48,10 @@ export const createNotesStore = (getAddr: () => string | null) => {
     error: null,
 
     fetchNotes: async () => {
-      const addr = getAddr();
-      if (!addr) {
-        set({ notes: [], isLoading: false, error: null });
-        return;
-      }
-
       set({ isLoading: true, error: null });
 
       try {
-        const data = await invokeExtensionTool<ListNotesResponse>(
-          addr,
+        const data = await invoke<ListNotesResponse>(
           "notes",
           "list-notes",
           { limit: 500 },
@@ -70,16 +63,10 @@ export const createNotesStore = (getAddr: () => string | null) => {
     },
 
     selectNote: async (id: string) => {
-      const addr = getAddr();
-      if (!addr) {
-        throw new Error("Server unavailable");
-      }
-
       set({ selectedNoteId: id, isLoading: true, error: null });
 
       try {
-        const note = await invokeExtensionTool<Note>(
-          addr,
+        const note = await invoke<Note>(
           "notes",
           "read-note",
           { id },
@@ -95,16 +82,10 @@ export const createNotesStore = (getAddr: () => string | null) => {
     },
 
     createNote: async (request?: CreateNoteRequest) => {
-      const addr = getAddr();
-      if (!addr) {
-        throw new Error("Server unavailable");
-      }
-
       set({ isSaving: true, error: null });
 
       try {
-        const note = await invokeExtensionTool<Note>(
-          addr,
+        const note = await invoke<Note>(
           "notes",
           "create-note",
           (request as Record<string, unknown>) ?? {},
@@ -136,16 +117,10 @@ export const createNotesStore = (getAddr: () => string | null) => {
     },
 
     updateNote: async (id: string, content: string) => {
-      const addr = getAddr();
-      if (!addr) {
-        throw new Error("Server unavailable");
-      }
-
       set({ isSaving: true, error: null });
 
       try {
-        const note = await invokeExtensionTool<Note>(
-          addr,
+        const note = await invoke<Note>(
           "notes",
           "update-note",
           { id, content },
@@ -187,14 +162,8 @@ export const createNotesStore = (getAddr: () => string | null) => {
     },
 
     deleteNote: async (id: string) => {
-      const addr = getAddr();
-      if (!addr) {
-        throw new Error("Server unavailable");
-      }
-
       try {
-        const result = await invokeExtensionTool<DeleteNoteResponse>(
-          addr,
+        const result = await invoke<DeleteNoteResponse>(
           "notes",
           "delete-note",
           { id },

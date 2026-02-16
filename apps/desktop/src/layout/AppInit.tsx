@@ -3,8 +3,6 @@ import { AppPanel, ButtonPrimary, Text } from "@cocommand/ui";
 import { ApplicationProvider } from "../features/application/application.provider";
 import { CommandProvider } from "../features/command/command.provider";
 import { ExtensionProvider } from "../features/extension/extension.provider";
-import { FileSystemProvider } from "../features/filesystem/filesystem.provider";
-import { NotesProvider } from "../features/notes/notes.provider";
 import { OnboardingProvider } from "../features/onboarding/onboarding.provider";
 import { ServerProvider } from "../features/server/server.provider.tsx";
 import { SessionProvider } from "../features/session/session.provider";
@@ -68,19 +66,17 @@ export function AppInit({ children }: AppInitProps) {
     <ServerProvider serverInfo={serverInfo}>
       <WorkspaceProvider>
         <OnboardingProvider>
-          <FileSystemProvider>
-            <ApplicationProvider>
-              <SessionProvider>
-                <CommandProvider>
-                  <SettingsProvider>
-                    <ExtensionProvider>
-                      <NotesProvider>{children}</NotesProvider>
-                    </ExtensionProvider>
-                  </SettingsProvider>
-                </CommandProvider>
-              </SessionProvider>
-            </ApplicationProvider>
-          </FileSystemProvider>
+          <ApplicationProvider>
+            <SessionProvider>
+              <CommandProvider>
+                <SettingsProvider>
+                  <ExtensionProvider>
+                    {children}
+                  </ExtensionProvider>
+                </SettingsProvider>
+              </CommandProvider>
+            </SessionProvider>
+          </ApplicationProvider>
         </OnboardingProvider>
       </WorkspaceProvider>
     </ServerProvider>

@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { invokeExtensionTool } from "../../lib/extension-client";
+import type { ExtensionInvokeFn } from "../extension/extension.types";
 import type {
   IndexStatusRequest,
   IndexStatusResponse,
@@ -28,7 +28,7 @@ export interface FileSystemState {
 
 export type FileSystemStore = ReturnType<typeof createFileSystemStore>;
 
-export const createFileSystemStore = (getAddr: () => string | null) => {
+export const createFileSystemStore = (invoke: ExtensionInvokeFn) => {
   // Monotonic local version counter for stale-result detection
   let currentSearchVersion = 0;
   // Abort in-flight HTTP search when a newer query starts.
@@ -48,15 +48,9 @@ export const createFileSystemStore = (getAddr: () => string | null) => {
     searchError: null,
 
     fetchIndexStatus: async (request?: IndexStatusRequest) => {
-      const addr = getAddr();
-      if (!addr) {
-        set({ indexStatus: null, indexState: "idle", isLoading: false, error: null });
-        return;
-      }
       set({ isLoading: true, error: null });
       try {
-        const data = await invokeExtensionTool<IndexStatusResponse>(
-          addr,
+        const data = await invoke<IndexStatusResponse>(
           "filesystem",
           "index_status",
           (request as Record<string, unknown>) ?? {},
@@ -78,12 +72,6 @@ export const createFileSystemStore = (getAddr: () => string | null) => {
     },
 
     search: async (request: SearchRequest) => {
-      const addr = getAddr();
-      if (!addr) {
-        set({ searchResults: null, isSearching: false, searchError: "Server unavailable" });
-        return;
-      }
-
       const version = ++currentSearchVersion;
       if (activeSearchController) {
         activeSearchController.abort();
@@ -94,8 +82,7 @@ export const createFileSystemStore = (getAddr: () => string | null) => {
       set({ searchQuery: request.query, isSearching: true, searchError: null });
 
       try {
-        const data = await invokeExtensionTool<SearchResponse>(
-          addr,
+        const data = await invoke<SearchResponse>(
           "filesystem",
           "search",
           request as unknown as Record<string, unknown>,

@@ -1,6 +1,8 @@
 import { create } from "zustand";
-import type { ServerInfo } from "../../lib/ipc";
-import {ExtensionInfo} from "./extension.types.ts";
+import type { StoreApi } from "zustand";
+import { invokeExtensionTool } from "../../lib/extension-client";
+import { getRegisteredStoreFactories } from "./extension-stores";
+import type { ExtensionInfo, ExtensionInvokeFn } from "./extension.types";
 
 export interface ExtensionState {
   extensions: ExtensionInfo[];
@@ -9,6 +11,8 @@ export interface ExtensionState {
   fetchExtensions: () => Promise<void>;
   openExtension: (id: string) => Promise<void>;
   getExtensions: () => ExtensionInfo[];
+  invoke: ExtensionInvokeFn;
+  stores: Record<string, StoreApi<unknown>>;
 }
 
 function buildServerUrl(addr: string, path: string): string {
@@ -18,19 +22,37 @@ function buildServerUrl(addr: string, path: string): string {
 
 export type ExtensionStore = ReturnType<typeof createExtensionStore>;
 
-export const createExtensionStore = (getServer: () => ServerInfo | null) => {
+export const createExtensionStore = (getAddr: () => string | null) => {
+  const invoke: ExtensionInvokeFn = <T = unknown>(
+    extensionId: string,
+    toolId: string,
+    input?: Record<string, unknown>,
+    options?: { signal?: AbortSignal },
+  ): Promise<T> => {
+    const addr = getAddr();
+    if (!addr) throw new Error("Server unavailable");
+    return invokeExtensionTool<T>(addr, extensionId, toolId, input ?? {}, options);
+  };
+
+  const stores: Record<string, StoreApi<unknown>> = {};
+  for (const [id, factory] of getRegisteredStoreFactories()) {
+    stores[id] = factory(invoke);
+  }
+
   return create<ExtensionState>()((set, get) => ({
     extensions: [],
     isLoaded: false,
     error: null,
+    invoke,
+    stores,
     fetchExtensions: async () => {
-      const server = getServer();
-      if (!server || !server.addr) {
+      const addr = getAddr();
+      if (!addr) {
         set({ extensions: [], isLoaded: false, error: null });
         return;
       }
 
-      const url = buildServerUrl(server.addr, "/workspace/extensions");
+      const url = buildServerUrl(addr, "/workspace/extensions");
       try {
         const response = await fetch(url);
         if (!response.ok) {
@@ -43,12 +65,12 @@ export const createExtensionStore = (getServer: () => ServerInfo | null) => {
       }
     },
     openExtension: async (id) => {
-      const server = getServer();
-      if (!server || !server.addr) {
+      const addr = getAddr();
+      if (!addr) {
         throw new Error("Server unavailable");
       }
 
-      const url = buildServerUrl(server.addr, "/workspace/extensions/open");
+      const url = buildServerUrl(addr, "/workspace/extensions/open");
       const response = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },

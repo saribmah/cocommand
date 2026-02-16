@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { Text } from "@cocommand/ui";
-import { useFileSystemContext } from "../filesystem.context";
+import { useStore } from "zustand";
+import { useExtensionStore } from "../../extension/extension.context";
+import type { FileSystemState } from "../filesystem.store";
 import type { SearchEntry } from "../filesystem.types";
 import styles from "./file-list.module.css";
 
@@ -23,11 +25,12 @@ interface FileListProps {
 }
 
 export function FileList({ onSelect, onActivate }: FileListProps) {
-  const searchResults = useFileSystemContext((state) => state.searchResults);
-  const isSearching = useFileSystemContext((state) => state.isSearching);
-  const searchError = useFileSystemContext((state) => state.searchError);
-  const searchFiles = useFileSystemContext((state) => state.search);
-  const clearSearch = useFileSystemContext((state) => state.clearSearch);
+  const fileSystemStore = useExtensionStore<FileSystemState>("filesystem");
+  const searchResults = useStore(fileSystemStore, (s) => s.searchResults);
+  const isSearching = useStore(fileSystemStore, (s) => s.isSearching);
+  const searchError = useStore(fileSystemStore, (s) => s.searchError);
+  const searchFiles = useStore(fileSystemStore, (s) => s.search);
+  const clearSearch = useStore(fileSystemStore, (s) => s.clearSearch);
 
   const [query, setQuery] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);

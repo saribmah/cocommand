@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Text } from "@cocommand/ui";
+import { useStore } from "zustand";
 import { Editor, type EditorRef } from "../../editor";
-import { useNotesContext } from "../notes.context";
+import { useExtensionStore } from "../../extension/extension.context";
+import type { NotesState } from "../notes.store";
 import type { Editor as TiptapEditor } from "@tiptap/react";
 import styles from "./NoteEditor.module.css";
 
@@ -137,11 +139,12 @@ function FormatToolbar({ editor }: { editor: TiptapEditor | null }) {
 }
 
 export function NoteEditor() {
-  const selectedNote = useNotesContext((state) => state.selectedNote);
-  const selectedNoteId = useNotesContext((state) => state.selectedNoteId);
-  const isLoading = useNotesContext((state) => state.isLoading);
-  const isSaving = useNotesContext((state) => state.isSaving);
-  const updateNote = useNotesContext((state) => state.updateNote);
+  const notesStore = useExtensionStore<NotesState>("notes");
+  const selectedNote = useStore(notesStore, (s) => s.selectedNote);
+  const selectedNoteId = useStore(notesStore, (s) => s.selectedNoteId);
+  const isLoading = useStore(notesStore, (s) => s.isLoading);
+  const isSaving = useStore(notesStore, (s) => s.isSaving);
+  const updateNote = useStore(notesStore, (s) => s.updateNote);
 
   const editorRef = useRef<EditorRef>(null);
   const saveTimeoutRef = useRef<number | null>(null);
