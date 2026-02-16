@@ -1,6 +1,6 @@
 import { registerExtensionView } from "./extension-views";
 import { NotesView } from "../notes/notes.view";
-import { FilesystemInlineView } from "../filesystem/FilesystemInlineView";
+import { FileSystemView } from "../filesystem/filesystem.view";
 
 registerExtensionView("notes", {
   component: NotesView,
@@ -9,7 +9,7 @@ registerExtensionView("notes", {
 });
 
 registerExtensionView("filesystem", {
-  component: FilesystemInlineView,
+  component: FileSystemView,
   label: "Files",
   popout: { width: 700, height: 500, title: "Files" },
 });

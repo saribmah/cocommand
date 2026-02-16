@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { Text } from "@cocommand/ui";
 import { useFileSystemContext } from "../filesystem.context";
 import type { SearchEntry } from "../filesystem.types";
-import styles from "./FileList.module.css";
+import styles from "./file-list.module.css";
 
 const FileIcon = (
   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

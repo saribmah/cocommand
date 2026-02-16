@@ -1,15 +1,15 @@
 import { useState } from "react";
 import type { ExtensionViewProps } from "../command/extension-views";
 import type { SearchEntry } from "./filesystem.types";
-import { FileList } from "./components/FileList";
-import { FileDetail } from "./components/FileDetail";
+import { FileList } from "./components/file-list";
+import { FileDetail } from "./components/file-detail";
 import styles from "./filesystem.module.css";
 
-interface FilesystemInlineViewProps extends ExtensionViewProps {
+interface FileSystemViewProps extends ExtensionViewProps {
   onSelectFile?: (entry: { path: string; name: string; type: "file" | "directory" | "symlink" | "other" }) => void;
 }
 
-export function FilesystemInlineView({ mode, onSelectFile }: FilesystemInlineViewProps) {
+export function FileSystemView({ mode, onSelectFile }: FileSystemViewProps) {
   const isInline = mode === "inline";
   const [selectedEntry, setSelectedEntry] = useState<SearchEntry | null>(null);
 

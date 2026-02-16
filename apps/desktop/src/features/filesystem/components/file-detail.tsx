@@ -1,6 +1,6 @@
 import { Text } from "@cocommand/ui";
 import type { SearchEntry } from "../filesystem.types";
-import styles from "./FileDetail.module.css";
+import styles from "./file-detail.module.css";
 
 const FileIconLarge = (
   <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
