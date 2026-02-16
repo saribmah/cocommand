@@ -13,7 +13,7 @@ export function NotesProvider({ children }: NotesProviderProps) {
 
   const storeRef = useRef<NotesStore | null>(null);
   if (storeRef.current === null) {
-    storeRef.current = createNotesStore(() => serverStore.getState().info);
+    storeRef.current = createNotesStore(() => serverStore.getState().info?.addr ?? null);
   }
 
   return (

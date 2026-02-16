@@ -14,8 +14,7 @@ use crate::session::SessionManager;
 use crate::workspace::WorkspaceInstance;
 pub mod events;
 pub mod extension;
-pub mod filesystem;
-pub mod notes;
+pub mod invoke;
 pub mod session;
 pub mod system;
 pub mod workspace;
@@ -73,14 +72,9 @@ impl Server {
                 "/workspace/settings/permissions/open",
                 post(workspace::open_permission),
             )
-            .route("/extension/filesystem/search", post(filesystem::search))
             .route(
-                "/extension/filesystem/search/version",
-                get(filesystem::next_search_version),
-            )
-            .route(
-                "/extension/filesystem/status",
-                post(filesystem::index_status),
+                "/extension/{extension_id}/invoke/{tool_id}",
+                post(invoke::invoke_tool),
             )
             .route(
                 "/workspace/extension/system/applications",
@@ -90,11 +84,6 @@ impl Server {
                 "/workspace/extension/system/applications/open",
                 post(system::open_application),
             )
-            .route("/extension/notes/create", post(notes::create))
-            .route("/extension/notes/list", post(notes::list))
-            .route("/extension/notes/get", post(notes::get))
-            .route("/extension/notes/update", post(notes::update))
-            .route("/extension/notes/delete", post(notes::delete))
             .with_state(state.clone())
             .layer(cors);
         let listener = TcpListener::bind("127.0.0.1:0")

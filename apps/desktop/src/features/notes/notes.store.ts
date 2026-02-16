@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { ServerInfo } from "../../lib/ipc";
+import { invokeExtensionTool } from "../../lib/extension-client";
 import type {
   Note,
   NoteSummary,
@@ -36,14 +36,9 @@ export interface NotesState {
   deleteNote: (id: string) => Promise<boolean>;
 }
 
-function buildServerUrl(addr: string, path: string): string {
-  const prefix = addr.startsWith("http") ? addr : `http://${addr}`;
-  return `${prefix}${path}`;
-}
-
 export type NotesStore = ReturnType<typeof createNotesStore>;
 
-export const createNotesStore = (getServer: () => ServerInfo | null) => {
+export const createNotesStore = (getAddr: () => string | null) => {
   return create<NotesState>()((set, get) => ({
     notes: [],
     selectedNoteId: null,
@@ -53,25 +48,21 @@ export const createNotesStore = (getServer: () => ServerInfo | null) => {
     error: null,
 
     fetchNotes: async () => {
-      const server = getServer();
-      if (!server || !server.addr) {
+      const addr = getAddr();
+      if (!addr) {
         set({ notes: [], isLoading: false, error: null });
         return;
       }
 
       set({ isLoading: true, error: null });
 
-      const url = buildServerUrl(server.addr, "/extension/notes/list");
       try {
-        const response = await fetch(url, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ limit: 500 }),
-        });
-        if (!response.ok) {
-          throw new Error(`Server error (${response.status})`);
-        }
-        const data = (await response.json()) as ListNotesResponse;
+        const data = await invokeExtensionTool<ListNotesResponse>(
+          addr,
+          "notes",
+          "list-notes",
+          { limit: 500 },
+        );
         set({ notes: data.notes, isLoading: false, error: null });
       } catch (error) {
         set({ notes: [], isLoading: false, error: String(error) });
@@ -79,25 +70,20 @@ export const createNotesStore = (getServer: () => ServerInfo | null) => {
     },
 
     selectNote: async (id: string) => {
-      const server = getServer();
-      if (!server || !server.addr) {
+      const addr = getAddr();
+      if (!addr) {
         throw new Error("Server unavailable");
       }
 
       set({ selectedNoteId: id, isLoading: true, error: null });
 
-      const url = buildServerUrl(server.addr, "/extension/notes/get");
       try {
-        const response = await fetch(url, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id }),
-        });
-        if (!response.ok) {
-          const errorText = await response.text();
-          throw new Error(errorText || `Server error (${response.status})`);
-        }
-        const note = (await response.json()) as Note;
+        const note = await invokeExtensionTool<Note>(
+          addr,
+          "notes",
+          "read-note",
+          { id },
+        );
         set({ selectedNote: note, isLoading: false, error: null });
       } catch (error) {
         set({ selectedNote: null, isLoading: false, error: String(error) });
@@ -109,25 +95,20 @@ export const createNotesStore = (getServer: () => ServerInfo | null) => {
     },
 
     createNote: async (request?: CreateNoteRequest) => {
-      const server = getServer();
-      if (!server || !server.addr) {
+      const addr = getAddr();
+      if (!addr) {
         throw new Error("Server unavailable");
       }
 
       set({ isSaving: true, error: null });
 
-      const url = buildServerUrl(server.addr, "/extension/notes/create");
       try {
-        const response = await fetch(url, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(request ?? {}),
-        });
-        if (!response.ok) {
-          const errorText = await response.text();
-          throw new Error(errorText || `Server error (${response.status})`);
-        }
-        const note = (await response.json()) as Note;
+        const note = await invokeExtensionTool<Note>(
+          addr,
+          "notes",
+          "create-note",
+          (request as Record<string, unknown>) ?? {},
+        );
 
         // Add to notes list and select it
         const currentNotes = get().notes;
@@ -155,25 +136,20 @@ export const createNotesStore = (getServer: () => ServerInfo | null) => {
     },
 
     updateNote: async (id: string, content: string) => {
-      const server = getServer();
-      if (!server || !server.addr) {
+      const addr = getAddr();
+      if (!addr) {
         throw new Error("Server unavailable");
       }
 
       set({ isSaving: true, error: null });
 
-      const url = buildServerUrl(server.addr, "/extension/notes/update");
       try {
-        const response = await fetch(url, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id, content }),
-        });
-        if (!response.ok) {
-          const errorText = await response.text();
-          throw new Error(errorText || `Server error (${response.status})`);
-        }
-        const note = (await response.json()) as Note;
+        const note = await invokeExtensionTool<Note>(
+          addr,
+          "notes",
+          "update-note",
+          { id, content },
+        );
 
         // Update in notes list
         const currentNotes = get().notes;
@@ -211,23 +187,18 @@ export const createNotesStore = (getServer: () => ServerInfo | null) => {
     },
 
     deleteNote: async (id: string) => {
-      const server = getServer();
-      if (!server || !server.addr) {
+      const addr = getAddr();
+      if (!addr) {
         throw new Error("Server unavailable");
       }
 
-      const url = buildServerUrl(server.addr, "/extension/notes/delete");
       try {
-        const response = await fetch(url, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id }),
-        });
-        if (!response.ok) {
-          const errorText = await response.text();
-          throw new Error(errorText || `Server error (${response.status})`);
-        }
-        const result = (await response.json()) as DeleteNoteResponse;
+        const result = await invokeExtensionTool<DeleteNoteResponse>(
+          addr,
+          "notes",
+          "delete-note",
+          { id },
+        );
 
         if (result.deleted) {
           // Remove from notes list

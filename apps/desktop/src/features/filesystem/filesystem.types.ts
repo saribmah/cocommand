@@ -7,8 +7,6 @@ export interface SearchRequest {
   caseSensitive?: boolean;
   maxResults?: number;
   maxDepth?: number;
-  // Internally assigned by the frontend store for cancellation ordering.
-  searchVersion?: number;
 }
 
 export interface SearchEntry {

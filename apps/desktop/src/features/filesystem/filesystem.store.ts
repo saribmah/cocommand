@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { ServerInfo } from "../../lib/ipc";
+import { invokeExtensionTool } from "../../lib/extension-client";
 import type {
   IndexStatusRequest,
   IndexStatusResponse,
@@ -26,18 +26,11 @@ export interface FileSystemState {
   clearSearch: () => void;
 }
 
-function buildServerUrl(addr: string, path: string): string {
-  const prefix = addr.startsWith("http") ? addr : `http://${addr}`;
-  return `${prefix}${path}`;
-}
-
 export type FileSystemStore = ReturnType<typeof createFileSystemStore>;
 
-export const createFileSystemStore = (getServer: () => ServerInfo | null) => {
-  // Track the current search version for cancellation
-  let currentSearchVersion: number | null = null;
-  // Monotonic local version counter
-  let nextSearchVersion = 0;
+export const createFileSystemStore = (getAddr: () => string | null) => {
+  // Monotonic local version counter for stale-result detection
+  let currentSearchVersion = 0;
   // Abort in-flight HTTP search when a newer query starts.
   let activeSearchController: AbortController | null = null;
 
@@ -55,23 +48,19 @@ export const createFileSystemStore = (getServer: () => ServerInfo | null) => {
     searchError: null,
 
     fetchIndexStatus: async (request?: IndexStatusRequest) => {
-      const server = getServer();
-      if (!server || !server.addr) {
+      const addr = getAddr();
+      if (!addr) {
         set({ indexStatus: null, indexState: "idle", isLoading: false, error: null });
         return;
       }
       set({ isLoading: true, error: null });
-      const url = buildServerUrl(server.addr, "/extension/filesystem/status");
       try {
-        const response = await fetch(url, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(request ?? {}),
-        });
-        if (!response.ok) {
-          throw new Error(`Server error (${response.status})`);
-        }
-        const data = (await response.json()) as IndexStatusResponse;
+        const data = await invokeExtensionTool<IndexStatusResponse>(
+          addr,
+          "filesystem",
+          "index_status",
+          (request as Record<string, unknown>) ?? {},
+        );
         set({
           indexStatus: data,
           indexState: parseIndexState(data.state),
@@ -89,14 +78,13 @@ export const createFileSystemStore = (getServer: () => ServerInfo | null) => {
     },
 
     search: async (request: SearchRequest) => {
-      const server = getServer();
-      if (!server || !server.addr) {
+      const addr = getAddr();
+      if (!addr) {
         set({ searchResults: null, isSearching: false, searchError: "Server unavailable" });
         return;
       }
 
-      const version = ++nextSearchVersion;
-      currentSearchVersion = version;
+      const version = ++currentSearchVersion;
       if (activeSearchController) {
         activeSearchController.abort();
       }
@@ -106,30 +94,13 @@ export const createFileSystemStore = (getServer: () => ServerInfo | null) => {
       set({ searchQuery: request.query, isSearching: true, searchError: null });
 
       try {
-        // Perform the search with the version
-        const searchUrl = buildServerUrl(server.addr, "/extension/filesystem/search");
-        const response = await fetch(searchUrl, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ...request, searchVersion: version }),
-          signal: controller.signal,
-        });
-
-        // 204 No Content means the search was cancelled by a newer search
-        if (response.status === 204) {
-          // Only clear isSearching if this was the latest version
-          if (currentSearchVersion === version) {
-            set({ isSearching: false });
-          }
-          return;
-        }
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          throw new Error(errorText || `Server error (${response.status})`);
-        }
-
-        const data = (await response.json()) as SearchResponse;
+        const data = await invokeExtensionTool<SearchResponse>(
+          addr,
+          "filesystem",
+          "search",
+          request as unknown as Record<string, unknown>,
+          { signal: controller.signal },
+        );
 
         // Only update state if this is still the active search version
         if (currentSearchVersion === version) {
@@ -163,7 +134,7 @@ export const createFileSystemStore = (getServer: () => ServerInfo | null) => {
         activeSearchController.abort();
         activeSearchController = null;
       }
-      currentSearchVersion = null;
+      currentSearchVersion = 0;
       set({
         searchResults: null,
         searchQuery: "",

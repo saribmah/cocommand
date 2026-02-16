@@ -13,7 +13,7 @@ export function FileSystemProvider({ children }: FileSystemProviderProps) {
 
   const storeRef = useRef<FileSystemStore | null>(null);
   if (storeRef.current === null) {
-    storeRef.current = createFileSystemStore(() => serverStore.getState().info);
+    storeRef.current = createFileSystemStore(() => serverStore.getState().info?.addr ?? null);
   }
 
   return (
