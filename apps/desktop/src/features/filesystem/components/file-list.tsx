@@ -90,6 +90,7 @@ export function FileList({ onSelect, onActivate }: FileListProps) {
       e.preventDefault();
       const selected = entries[selectedIndex];
       if (selected) {
+        clearSearch();
         onActivate(selected);
       }
     }
@@ -127,7 +128,7 @@ export function FileList({ onSelect, onActivate }: FileListProps) {
                 setSelectedIndex(index);
                 onSelect(entry);
               }}
-              onDoubleClick={() => onActivate(entry)}
+              onDoubleClick={() => { clearSearch(); onActivate(entry); }}
             >
               <span className={styles.fileItemIcon}>
                 {entry.type === "directory" ? FolderIcon : FileIcon}

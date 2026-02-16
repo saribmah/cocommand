@@ -4,7 +4,7 @@ export type ExtensionViewMode = "inline" | "popout";
 
 export interface ExtensionViewProps {
   mode: ExtensionViewMode;
-  [key: string]: unknown;
+  onSelectFile?: (entry: { path: string; name: string; type: string }) => void;
 }
 
 export interface ExtensionViewConfig {

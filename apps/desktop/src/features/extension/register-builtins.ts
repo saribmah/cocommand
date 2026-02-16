@@ -1,5 +1,5 @@
 import { registerExtensionView } from "./extension-views";
-import { registerExtensionStore } from "../extension/extension-stores";
+import { registerExtensionStore } from "./extension-stores";
 import { NotesView } from "../notes/notes.view";
 import { FileSystemView } from "../filesystem/filesystem.view";
 import { createFileSystemStore } from "../filesystem/filesystem.store";

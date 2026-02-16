@@ -1,8 +1,7 @@
 import { useEffect } from "react";
 import { useParams } from "react-router-dom";
 import { closeExtensionWindow } from "../../../lib/ipc";
-import { getExtensionView } from "../extension-views";
-import "../register-builtin-views";
+import { getExtensionView } from "../../extension/extension-views";
 import { Text } from "@cocommand/ui";
 
 export function ExtensionWindowView() {

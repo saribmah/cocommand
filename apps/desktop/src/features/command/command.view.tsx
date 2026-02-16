@@ -41,11 +41,9 @@ import {
   Text,
   ToolCallCard,
 } from "@cocommand/ui";
-import { useStore } from "zustand";
 import { useApplicationContext } from "../application/application.context";
 import type { ApplicationInfo } from "../application/application.types";
-import { useExtensionContext, useExtensionStore } from "../extension/extension.context";
-import type { FileSystemState } from "../filesystem/filesystem.store";
+import { useExtensionContext } from "../extension/extension.context";
 import { useSessionContext } from "../session/session.context";
 import { useServerContext } from "../server/server.context";
 import { useCommandContext } from "./command.context";
@@ -57,8 +55,7 @@ import type {
   TextPartInput,
   ToolPart,
 } from "./command.types";
-import { hasExtensionView } from "./extension-views";
-import "./register-builtin-views";
+import { hasExtensionView } from "../extension/extension-views";
 import { ExtensionViewContainer } from "./components/ExtensionViewContainer";
 import styles from "./command.module.css";
 
@@ -454,9 +451,6 @@ export function CommandView() {
   const fetchExtensions = useExtensionContext((state) => state.fetchExtensions);
   const openExtension = useExtensionContext((state) => state.openExtension);
 
-  const fileSystemStore = useExtensionStore<FileSystemState>("filesystem");
-  const clearSearch = useStore(fileSystemStore, (s) => s.clearSearch);
-
   const applications = useApplicationContext((state) => state.applications);
   const applicationsCount = useApplicationContext((state) => state.count);
   const applicationsLoaded = useApplicationContext((state) => state.isLoaded);
@@ -747,7 +741,6 @@ export function CommandView() {
     });
     applyComposerParts(nextParts);
     setActiveTab("recent");
-    clearSearch();
     focusInput();
   };
 
@@ -1078,11 +1071,7 @@ export function CommandView() {
           {showExtensionView && activeExtensionId ? (
             <ExtensionViewContainer
               extensionId={activeExtensionId}
-              extraProps={
-                activeExtensionId === "filesystem"
-                  ? { onSelectFile: selectFile }
-                  : undefined
-              }
+              onSelectFile={selectFile}
             />
           ) : (
           <div className={styles.scrollArea} ref={scrollRef}>

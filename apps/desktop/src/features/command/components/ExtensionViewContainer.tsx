@@ -1,11 +1,11 @@
-import { getExtensionView } from "../extension-views";
+import { getExtensionView } from "../../extension/extension-views";
 import { openExtensionWindow } from "../../../lib/ipc";
 import { Text } from "@cocommand/ui";
 import styles from "../command.module.css";
 
 interface ExtensionViewContainerProps {
   extensionId: string;
-  extraProps?: Record<string, unknown>;
+  onSelectFile?: (entry: { path: string; name: string; type: string }) => void;
 }
 
 const PopoutIcon = (
@@ -16,7 +16,7 @@ const PopoutIcon = (
   </svg>
 );
 
-export function ExtensionViewContainer({ extensionId, extraProps }: ExtensionViewContainerProps) {
+export function ExtensionViewContainer({ extensionId, onSelectFile }: ExtensionViewContainerProps) {
   const config = getExtensionView(extensionId);
 
   if (!config) {
@@ -55,7 +55,7 @@ export function ExtensionViewContainer({ extensionId, extraProps }: ExtensionVie
         </button>
       </div>
       <div className={styles.extensionViewContent}>
-        <Component mode="inline" {...extraProps} />
+        <Component mode="inline" onSelectFile={onSelectFile} />
       </div>
     </div>
   );
