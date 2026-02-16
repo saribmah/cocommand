@@ -36,7 +36,7 @@ export type FileSystemStore = ReturnType<typeof createFileSystemStore>;
 export const createFileSystemStore = (getServer: () => ServerInfo | null) => {
   // Track the current search version for cancellation
   let currentSearchVersion: number | null = null;
-  // Monotonic local version counter (Cardinal-style).
+  // Monotonic local version counter
   let nextSearchVersion = 0;
   // Abort in-flight HTTP search when a newer query starts.
   let activeSearchController: AbortController | null = null;

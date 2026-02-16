@@ -1,7 +1,7 @@
 //! Date predicate parsing and matching.
 //!
-//! This module provides date/time filtering capabilities similar to Cardinal's
-//! `dm:` (date modified) and `dc:` (date created) filters.
+//! This module provides date/time filtering capabilities
+//! `dm:` (date modified) `dc:` (date created) filters.
 //!
 //! ## Supported Syntax
 //!

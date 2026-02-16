@@ -16,7 +16,6 @@ use memchr::arch::all::rabinkarp;
 use crate::cancel::CancellationToken;
 
 /// Buffer size for file content reading (64KB).
-/// Matches Cardinal's buffer size for optimal I/O performance.
 pub const CONTENT_BUFFER_BYTES: usize = 64 * 1024;
 
 /// Searches file contents for the given needle.

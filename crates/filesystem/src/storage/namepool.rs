@@ -7,8 +7,6 @@
 //! ## Global NAME_POOL
 //!
 //! A global `NAME_POOL` is provided for use during deserialization of `SlabNode`s.
-//! This matches Cardinal's approach where the namepool is a singleton that outlives
-//! all indexed data, enabling safe `&'static str` references from interned names.
 
 use std::collections::BTreeSet;
 use std::sync::{LazyLock, Mutex};

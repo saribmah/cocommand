@@ -1,7 +1,7 @@
 //! FileNodes - hierarchical tree wrapper for slab-based node storage.
 //!
 //! This module provides `FileNodes` which encapsulates the slab storage along with
-//! the root node index. This matches Cardinal's `file_nodes.rs` structure.
+//! the root node index.
 
 use std::ffi::OsStr;
 use std::ops::{Deref, DerefMut};

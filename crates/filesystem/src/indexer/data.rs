@@ -1,7 +1,7 @@
 //! Core index data structures using memory-mapped slab storage.
 //!
 //! This module contains `RootIndexData` which holds the indexed filesystem entries
-//! using Cardinal's two-structure approach:
+//! using two-structure approach:
 //! 1. `FileNodes` - Hierarchical tree storage backed by `ThinSlab<SlabNode>`
 //! 2. `NameIndex` - Filename to sorted slab indices mapping
 //!
@@ -10,7 +10,7 @@
 //! - Type indexes (file_ids, directory_ids)
 //! - Extension index
 //!
-//! This matches Cardinal's minimalist approach where the slab + name_index
+//! minimalist approach where the slab + name_index
 //! are sufficient for all operations.
 
 use std::path::{Path, PathBuf};
@@ -24,8 +24,6 @@ use crate::storage::{NamePool, SlabIndex, SlabNode, SlabNodeMetadata};
 ///
 /// This struct combines `FileNodes` (the hierarchical tree storage) with
 /// `NameIndex` (filename to indices mapping) for fast searches.
-///
-/// Matches Cardinal's `SearchCache` structure.
 #[derive(Debug)]
 pub struct RootIndexData {
     /// Hierarchical file node tree backed by slab storage.
@@ -57,7 +55,7 @@ impl RootIndexData {
 
     /// Builds index data from a filesystem walk.
     ///
-    /// This is the Cardinal-style two-phase approach:
+    /// This is the two-phase approach:
     /// 1. Walk builds a Node tree (children sorted during walk)
     /// 2. Convert tree to slab + name_index in single recursive pass
     ///

@@ -1,6 +1,6 @@
 //! Filesystem walking that builds a tree structure.
 //!
-//! This module implements Cardinal's `fswalk` approach:
+//! This module implements `fswalk` approach:
 //! - Walk builds a `Node` tree (not a flat list)
 //! - Children are sorted by name during walk (not after)
 //! - Result is wrapped in parent chain back to `/`
@@ -69,7 +69,7 @@ pub struct WalkData<'a> {
     pub progress: Option<&'a IndexBuildProgress>,
     /// Whether metadata should be collected for file nodes.
     ///
-    /// Cardinal skips file metadata during full-index builds for speed and only
+    /// skips file metadata during full-index builds for speed and only
     /// fetches it when needed by specific operations.
     pub need_metadata: bool,
 }
