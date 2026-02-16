@@ -35,8 +35,8 @@ function SampleView({ invoke, extensionId }: SampleViewProps) {
     invoke(extensionId, "sample_view.get_items")
       .then((result: unknown) => {
         if (cancelled) return;
-        const data = result as { items: Item[] };
-        setItems(data.items ?? []);
+        const data = result as { output: { items: Item[] } };
+        setItems(data.output?.items ?? []);
         setLoading(false);
       })
       .catch((err: unknown) => {
