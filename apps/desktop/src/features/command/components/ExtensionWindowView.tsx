@@ -31,7 +31,7 @@ export function ExtensionWindowView() {
 
   const Component = config.component;
   return (
-    <div className="app-shell" style={{ width: "100%", height: "100%" }}>
+    <div className="app-shell" style={{ width: "100%", height: "100%", "--cc-extension-bg": "var(--cc-surface-primary)" } as React.CSSProperties}>
       <Component mode="popout" />
     </div>
   );

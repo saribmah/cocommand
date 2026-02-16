@@ -44,6 +44,7 @@ export function ExtensionViewContainer({ extensionId, extraProps }: ExtensionVie
   return (
     <div className={styles.extensionViewContainer}>
       <div className={styles.extensionViewHeader}>
+        <span className={styles.extensionViewLabel}>{config.label}</span>
         <button
           type="button"
           className={styles.extensionViewPopout}

@@ -120,20 +120,35 @@
   flex-direction: column;
   flex: 1;
   min-height: 0;
+  border: 1px solid var(--cc-border-soft);
+  border-radius: var(--cc-radius-panel);
+  overflow: hidden;
 }
 
 .extensionViewHeader {
   display: flex;
-  justify-content: flex-end;
-  padding: 0 0 var(--cc-space-2) 0;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  padding: var(--cc-space-1) var(--cc-space-3);
+  border-bottom: 1px solid var(--cc-border-soft);
+}
+
+.extensionViewLabel {
+  font-size: var(--cc-text-xs);
+  font-weight: 500;
+  color: var(--cc-text-secondary);
+  letter-spacing: 0.02em;
 }
 
 .extensionViewPopout {
+  position: absolute;
+  right: var(--cc-space-2);
   border: 0;
   padding: 4px;
   border-radius: var(--cc-radius-sm);
   background: transparent;
-  color: var(--cc-text-secondary);
+  color: var(--cc-text-tertiary);
   cursor: pointer;
   display: inline-flex;
   align-items: center;
@@ -147,6 +162,7 @@
 }
 
 .extensionViewContent {
+  --cc-extension-bg: transparent;
   flex: 1;
   min-height: 0;
   overflow: hidden;
