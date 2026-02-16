@@ -9,6 +9,16 @@
 
   <body>
     <div id="root"></div>
+    <script type="importmap">
+    {
+      "imports": {
+        "react": "/ext-modules/react.js",
+        "react/jsx-runtime": "/ext-modules/react-jsx-runtime.js",
+        "zustand": "/ext-modules/zustand.js",
+        "@cocommand/ui": "/ext-modules/cocommand-ui.js"
+      }
+    }
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

@@ -15,6 +15,21 @@ pub struct ExtensionInfo {
     pub kind: String,
     pub tags: Vec<String>,
     pub tools: Vec<ExtensionToolInfo>,
+    pub view: Option<ExtensionViewInfo>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ExtensionViewInfo {
+    pub entry: String,
+    pub label: String,
+    pub popout: Option<ExtensionViewPopoutInfo>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ExtensionViewPopoutInfo {
+    pub width: u32,
+    pub height: u32,
+    pub title: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -101,6 +116,19 @@ fn map_extension(app: &dyn Extension) -> ExtensionInfo {
         kind: map_kind(app.kind()),
         tags: app.tags(),
         tools: app.tools().into_iter().map(map_tool).collect(),
+        view: app.view_config().map(map_view_config),
+    }
+}
+
+fn map_view_config(config: &crate::extension::manifest::ViewConfig) -> ExtensionViewInfo {
+    ExtensionViewInfo {
+        entry: config.entry.clone(),
+        label: config.label.clone(),
+        popout: config.popout.as_ref().map(|p| ExtensionViewPopoutInfo {
+            width: p.width,
+            height: p.height,
+            title: p.title.clone(),
+        }),
     }
 }
 

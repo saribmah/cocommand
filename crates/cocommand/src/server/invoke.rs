@@ -51,7 +51,16 @@ pub(crate) async fn invoke_tool(
         session_id: "http-invoke".to_string(),
     };
 
-    // 4. Execute and return standardised response
+    // 4. Activate extension if needed (starts Deno host for custom extensions)
+    extension.activate(&context).await.map_err(|error| {
+        error_response(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "activation_failed",
+            &format!("Failed to activate extension '{extension_id}': {error}"),
+        )
+    })?;
+
+    // 5. Execute and return standardised response
     match (tool.execute)(input, context).await {
         Ok(data) => Ok(Json(json!({ "ok": true, "data": data }))),
         Err(error) => {

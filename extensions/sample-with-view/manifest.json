@@ -1,0 +1,47 @@
+{
+  "id": "sample-view",
+  "name": "Sample View",
+  "description": "Sample extension demonstrating a custom frontend view",
+  "entrypoint": "main.ts",
+  "routing": {
+    "keywords": ["sample", "view", "demo"],
+    "examples": ["show sample view", "open sample extension"],
+    "verbs": ["show", "open"],
+    "objects": ["sample", "view"]
+  },
+  "tools": [
+    {
+      "id": "sample_view.get_items",
+      "risk_level": "Safe",
+      "input_schema": {
+        "type": "object",
+        "properties": {}
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string" },
+                "title": { "type": "string" },
+                "description": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "view": {
+    "entry": "dist/view.js",
+    "label": "Sample",
+    "popout": {
+      "width": 600,
+      "height": 400,
+      "title": "Sample View"
+    }
+  }
+}

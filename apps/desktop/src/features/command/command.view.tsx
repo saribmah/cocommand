@@ -450,6 +450,8 @@ export function CommandView() {
   const extensionsLoaded = useExtensionContext((state) => state.isLoaded);
   const fetchExtensions = useExtensionContext((state) => state.fetchExtensions);
   const openExtension = useExtensionContext((state) => state.openExtension);
+  // Subscribe to viewLoadVersion so hasExtensionView() re-evaluates after dynamic loads
+  useExtensionContext((state) => state.viewLoadVersion);
 
   const applications = useApplicationContext((state) => state.applications);
   const applicationsCount = useApplicationContext((state) => state.count);

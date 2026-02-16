@@ -12,6 +12,7 @@ use crate::clipboard::spawn_clipboard_watcher;
 use crate::llm::{LlmService, LlmSettings};
 use crate::session::SessionManager;
 use crate::workspace::WorkspaceInstance;
+pub mod assets;
 pub mod events;
 pub mod extension;
 pub mod invoke;
@@ -75,6 +76,10 @@ impl Server {
             .route(
                 "/extension/:extension_id/invoke/:tool_id",
                 post(invoke::invoke_tool),
+            )
+            .route(
+                "/extension/:extension_id/assets/*path",
+                get(assets::serve_extension_asset),
             )
             .route(
                 "/workspace/extension/system/applications",

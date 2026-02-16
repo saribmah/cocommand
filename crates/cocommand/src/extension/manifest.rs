@@ -8,6 +8,21 @@ pub struct ExtensionManifest {
     pub entrypoint: String,
     pub routing: Option<ExtensionRouting>,
     pub tools: Option<Vec<ExtensionTool>>,
+    pub view: Option<ViewConfig>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ViewConfig {
+    pub entry: String,
+    pub label: String,
+    pub popout: Option<ViewPopoutConfig>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ViewPopoutConfig {
+    pub width: u32,
+    pub height: u32,
+    pub title: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

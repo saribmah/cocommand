@@ -46,6 +46,10 @@ impl CustomExtension {
     pub fn manifest(&self) -> &ExtensionManifest {
         &self.manifest
     }
+
+    pub fn extension_dir(&self) -> &std::path::Path {
+        &self.extension_dir
+    }
 }
 
 #[async_trait::async_trait]
@@ -76,6 +80,10 @@ impl Extension for CustomExtension {
 
     fn as_any(&self) -> &dyn Any {
         self
+    }
+
+    fn view_config(&self) -> Option<&crate::extension::manifest::ViewConfig> {
+        self.manifest.view.as_ref()
     }
 
     async fn activate(&self, _context: &ExtensionContext) -> CoreResult<()> {

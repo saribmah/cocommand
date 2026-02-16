@@ -2,15 +2,19 @@ import { create } from "zustand";
 import type { StoreApi } from "zustand";
 import { invokeExtensionTool } from "../../lib/extension-client";
 import { getRegisteredStoreFactories } from "./extension-stores";
+import { loadDynamicExtensionViews } from "./extension-loader";
 import type { ExtensionInfo, ExtensionInvokeFn } from "./extension.types";
 
 export interface ExtensionState {
   extensions: ExtensionInfo[];
   isLoaded: boolean;
   error: string | null;
+  dynamicViewsLoaded: boolean;
+  viewLoadVersion: number;
   fetchExtensions: () => Promise<void>;
   openExtension: (id: string) => Promise<void>;
   getExtensions: () => ExtensionInfo[];
+  loadDynamicViews: (serverAddr: string) => Promise<void>;
   invoke: ExtensionInvokeFn;
   stores: Record<string, StoreApi<unknown>>;
 }
@@ -43,8 +47,30 @@ export const createExtensionStore = (getAddr: () => string | null) => {
     extensions: [],
     isLoaded: false,
     error: null,
+    dynamicViewsLoaded: false,
+    viewLoadVersion: 0,
     invoke,
     stores,
+    loadDynamicViews: async (serverAddr: string) => {
+      const { extensions, viewLoadVersion } = get();
+      try {
+        await loadDynamicExtensionViews(extensions, serverAddr);
+      } catch (err) {
+        console.warn("Failed to load dynamic extension views:", err);
+      }
+      // Create stores for any newly registered factories
+      const newStores: Record<string, StoreApi<unknown>> = { ...get().stores };
+      for (const [id, factory] of getRegisteredStoreFactories()) {
+        if (!newStores[id]) {
+          newStores[id] = factory(invoke);
+        }
+      }
+      set({
+        stores: newStores,
+        dynamicViewsLoaded: true,
+        viewLoadVersion: viewLoadVersion + 1,
+      });
+    },
     fetchExtensions: async () => {
       const addr = getAddr();
       if (!addr) {
@@ -60,6 +86,12 @@ export const createExtensionStore = (getAddr: () => string | null) => {
         }
         const data = (await response.json()) as ExtensionInfo[];
         set({ extensions: data, isLoaded: true, error: null });
+
+        // Fire dynamic view loading if any custom extensions have views
+        const hasDynamicViews = data.some((ext) => ext.view && ext.kind === "custom");
+        if (hasDynamicViews) {
+          get().loadDynamicViews(addr);
+        }
       } catch (error) {
         set({ extensions: [], isLoaded: false, error: String(error) });
       }

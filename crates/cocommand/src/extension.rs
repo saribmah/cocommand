@@ -85,6 +85,11 @@ pub trait Extension: Send + Sync {
         Ok(())
     }
 
+    /// Returns the view configuration if the extension provides a frontend view.
+    fn view_config(&self) -> Option<&manifest::ViewConfig> {
+        None
+    }
+
     /// Called when the extension is activated in a session context.
     async fn activate(&self, _context: &ExtensionContext) -> crate::error::CoreResult<()> {
         Ok(())

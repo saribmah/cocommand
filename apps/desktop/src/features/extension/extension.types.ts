@@ -5,12 +5,19 @@ export interface ExtensionToolInfo {
   input_schema: unknown;
 }
 
+export interface ExtensionViewInfo {
+  entry: string;
+  label: string;
+  popout?: { width: number; height: number; title: string };
+}
+
 export interface ExtensionInfo {
   id: string;
   name: string;
   kind: string;
   tags: string[];
   tools: ExtensionToolInfo[];
+  view?: ExtensionViewInfo;
 }
 
 export type ExtensionInvokeFn = <T = unknown>(

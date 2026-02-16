@@ -1,4 +1,5 @@
 import { getExtensionView } from "../../extension/extension-views";
+import { useExtensionContext } from "../../extension/extension.context";
 import { openExtensionWindow } from "../../../lib/ipc";
 import { Text } from "@cocommand/ui";
 import styles from "../command.module.css";
@@ -17,6 +18,10 @@ const PopoutIcon = (
 );
 
 export function ExtensionViewContainer({ extensionId, onSelectFile }: ExtensionViewContainerProps) {
+  const invoke = useExtensionContext((s) => s.invoke);
+  // Subscribe to viewLoadVersion so we re-render when dynamic views are loaded
+  useExtensionContext((s) => s.viewLoadVersion);
+
   const config = getExtensionView(extensionId);
 
   if (!config) {
@@ -55,7 +60,7 @@ export function ExtensionViewContainer({ extensionId, onSelectFile }: ExtensionV
         </button>
       </div>
       <div className={styles.extensionViewContent}>
-        <Component mode="inline" onSelectFile={onSelectFile} />
+        <Component mode="inline" invoke={invoke} extensionId={extensionId} onSelectFile={onSelectFile} />
       </div>
     </div>
   );
