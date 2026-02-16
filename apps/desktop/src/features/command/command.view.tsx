@@ -9,37 +9,12 @@ import {
 } from "react";
 import { hideWindow, openSettingsWindow } from "../../lib/ipc";
 import {
-  ActionHint,
-  ArrowIcon,
-  Badge,
-  Chip,
-  ChipGroup,
   CloseButton,
-  CommandIcon,
   CommandPaletteShell,
-  ContentArea,
-  Divider,
-  ErrorCard,
-  ExtensionIcon,
-  FileCard,
-  FilterArea,
   FooterArea,
-  HeaderArea,
   HintBar,
   HintItem,
-  Icon,
-  IconContainer,
   KeyHint,
-  ListItem,
-  ListSection,
-  MarkdownResponseCard,
-  ReasoningCard,
-  ResponseStack,
-  SearchIcon,
-  SearchField,
-  StatusBadge,
-  Text,
-  ToolCallCard,
 } from "@cocommand/ui";
 import { useApplicationContext } from "../application/application.context";
 import type { ApplicationInfo } from "../application/application.types";
@@ -49,382 +24,33 @@ import { useServerContext } from "../server/server.context";
 import { useCommandContext } from "./command.context";
 import type {
   ExtensionPartInput,
-  FilePartInput,
   MessagePartInput,
-  SourcePart,
-  TextPartInput,
-  ToolPart,
 } from "./command.types";
 import { hasExtensionView } from "../extension/extension-views";
-import { ExtensionViewContainer } from "./components/ExtensionViewContainer";
+import type { ComposerActions } from "./composer-actions";
+import {
+  buildTagSegments,
+  commitComposerParts,
+  findExactMentionExtensionId,
+  getActiveText,
+  getActiveTextPartIndex,
+  getHashState,
+  getMentionState,
+  getSlashState,
+  getStarState,
+  insertPartAfterActiveText,
+  matchScore,
+  normalizeQuery,
+  removeTaggedPartBySource,
+  removeTrailingSigilQuery,
+  updateActiveText,
+  type ComposerTagSegment,
+  type FilterTab,
+} from "./composer-utils";
+import { Composer } from "./components/Composer";
+import { PillArea } from "./components/PillArea";
+import { RenderingArea } from "./components/RenderingArea";
 import styles from "./command.module.css";
-
-const FileIcon = (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
-    <polyline points="14,2 14,8 20,8" />
-  </svg>
-);
-
-const FolderIcon = (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z" />
-  </svg>
-);
-
-const RemoveIcon = (
-  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M18 6L6 18" />
-    <path d="M6 6L18 18" />
-  </svg>
-);
-
-const ApplicationIcon = (
-  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="3" y="4" width="18" height="14" rx="2" />
-    <path d="M8 20h8" />
-    <path d="M12 18v2" />
-  </svg>
-);
-
-type ToolCardState = "pending" | "running" | "success" | "error";
-type FilterTab = "recent" | "extensions" | "commands" | "applications" | `ext:${string}`;
-type ComposerTagSegment =
-  | { type: "text"; key: string; text: string }
-  | { type: "extension"; key: string; part: ExtensionPartInput; start: number; end: number }
-  | { type: "file"; key: string; part: FilePartInput; start: number; end: number };
-
-function emptyTextPart(): TextPartInput {
-  return { type: "text", text: "" };
-}
-
-function normalizeComposerParts(parts: MessagePartInput[]): MessagePartInput[] {
-  const merged: MessagePartInput[] = [];
-  for (const part of parts) {
-    const previous = merged[merged.length - 1];
-    if (part.type === "text" && previous?.type === "text") {
-      previous.text += part.text;
-      continue;
-    }
-    merged.push(part);
-  }
-
-  const cleaned = merged.filter((part, index) => {
-    if (part.type !== "text") return true;
-    const isLast = index === merged.length - 1;
-    return isLast || part.text.length > 0;
-  });
-
-  if (cleaned.length === 0 || cleaned[cleaned.length - 1]?.type !== "text") {
-    cleaned.push(emptyTextPart());
-  }
-  return cleaned;
-}
-
-function defaultSourceValue(part: ExtensionPartInput | FilePartInput): string {
-  if (part.type === "extension") return `@${part.extensionId}`;
-  return `#${part.name}`;
-}
-
-function resolveComposerSources(parts: MessagePartInput[]): MessagePartInput[] {
-  const resolved: MessagePartInput[] = [];
-  let cursor = 0;
-
-  for (const part of parts) {
-    if (part.type === "text") {
-      cursor += part.text.length;
-      resolved.push(part);
-      continue;
-    }
-
-    const value = part.source?.value ?? defaultSourceValue(part);
-    const source = {
-      value,
-      start: cursor,
-      end: cursor + value.length,
-    };
-    cursor = source.end;
-    resolved.push({ ...part, source });
-  }
-
-  return resolved;
-}
-
-function commitComposerParts(parts: MessagePartInput[]): MessagePartInput[] {
-  return resolveComposerSources(normalizeComposerParts(parts));
-}
-
-function getActiveTextPartIndex(parts: MessagePartInput[]): number {
-  for (let index = parts.length - 1; index >= 0; index -= 1) {
-    if (parts[index]?.type === "text") return index;
-  }
-  return -1;
-}
-
-function getActiveText(parts: MessagePartInput[]): string {
-  const activeIndex = getActiveTextPartIndex(parts);
-  if (activeIndex < 0) return "";
-  const part = parts[activeIndex];
-  return part?.type === "text" ? part.text : "";
-}
-
-function updateActiveText(parts: MessagePartInput[], text: string): MessagePartInput[] {
-  const next = [...parts];
-  const activeIndex = getActiveTextPartIndex(next);
-  if (activeIndex < 0) {
-    next.push({ type: "text", text });
-    return next;
-  }
-  const current = next[activeIndex];
-  if (current?.type !== "text") return next;
-  next[activeIndex] = { ...current, text };
-  return next;
-}
-
-function insertPartAfterActiveText(
-  parts: MessagePartInput[],
-  part: ExtensionPartInput | FilePartInput
-): MessagePartInput[] {
-  const next = [...parts];
-  const activeIndex = getActiveTextPartIndex(next);
-  if (activeIndex < 0) {
-    next.push(emptyTextPart(), part, emptyTextPart());
-    return next;
-  }
-  next.splice(activeIndex + 1, 0, part, emptyTextPart());
-  return next;
-}
-
-function removeTaggedPartBySource(
-  parts: MessagePartInput[],
-  match: { type: "extension" | "file"; start: number; end: number }
-): MessagePartInput[] {
-  const resolved = resolveComposerSources(parts);
-  const index = resolved.findIndex((part) => {
-    if (part.type !== match.type) return false;
-    if (!part.source) return false;
-    return part.source.start === match.start && part.source.end === match.end;
-  });
-  if (index < 0) return parts;
-  const next = [...parts];
-  next.splice(index, 1);
-  return next;
-}
-
-function buildTagSegments(parts: MessagePartInput[]): ComposerTagSegment[] {
-  const resolved = resolveComposerSources(parts);
-  const composedText = resolved
-    .map((part) => {
-      if (part.type === "text") return part.text;
-      return part.source?.value ?? defaultSourceValue(part);
-    })
-    .join("");
-
-  const ranges = resolved
-    .filter((part): part is ExtensionPartInput | FilePartInput => part.type !== "text")
-    .map((part) => {
-      const source = part.source;
-      return source
-        ? {
-            type: part.type,
-            start: source.start,
-            end: source.end,
-            part,
-          }
-        : null;
-    })
-    .filter((value): value is { type: "extension" | "file"; start: number; end: number; part: ExtensionPartInput | FilePartInput } => value !== null)
-    .sort((left, right) => left.start - right.start);
-
-  const segments: ComposerTagSegment[] = [];
-  let cursor = 0;
-  for (const range of ranges) {
-    if (range.start > cursor) {
-      const text = composedText.slice(cursor, range.start);
-      if (text.length > 0) {
-        segments.push({
-          type: "text",
-          key: `text-${cursor}`,
-          text,
-        });
-      }
-    }
-
-    if (range.type === "extension" && range.part.type === "extension") {
-      segments.push({
-        type: "extension",
-        key: `ext-${range.start}-${range.end}-${range.part.extensionId}`,
-        part: range.part,
-        start: range.start,
-        end: range.end,
-      });
-    }
-    if (range.type === "file" && range.part.type === "file") {
-      segments.push({
-        type: "file",
-        key: `file-${range.start}-${range.end}-${range.part.path}`,
-        part: range.part,
-        start: range.start,
-        end: range.end,
-      });
-    }
-
-    cursor = range.end;
-  }
-
-  if (cursor < composedText.length) {
-    const text = composedText.slice(cursor);
-    if (text.length > 0) {
-      segments.push({
-        type: "text",
-        key: `text-${cursor}-tail`,
-        text,
-      });
-    }
-  }
-
-  return segments;
-}
-
-function getMentionState(text: string): { query: string; start: number } | null {
-  const match = /(^|\s)@([^\s@]*)$/.exec(text);
-  if (!match) return null;
-  const start = match.index + match[1].length;
-  return { query: match[2], start };
-}
-
-function getSlashState(text: string): { query: string; start: number } | null {
-  const match = /(^|\s)\/([^\s/]*)$/.exec(text);
-  if (!match) return null;
-  const start = match.index + match[1].length;
-  return { query: match[2], start };
-}
-
-function getHashState(text: string): { query: string; start: number } | null {
-  const match = /(^|\s)#(.*)$/.exec(text);
-  if (!match) return null;
-  const start = match.index + match[1].length;
-  return { query: match[2], start };
-}
-
-function getStarState(text: string): { query: string; start: number } | null {
-  const match = /(^|\s)\*(.*)$/.exec(text);
-  if (!match) return null;
-  const start = match.index + match[1].length;
-  return { query: match[2], start };
-}
-
-function findExactMentionExtensionId(
-  text: string,
-  extensions: { id: string; name: string }[]
-): string | null {
-  const trimmed = text.trim();
-  if (!trimmed.startsWith("@")) return null;
-  const mention = trimmed.slice(1).trim();
-  const normalized = mention.toLowerCase();
-  const match = extensions.find(
-    (extension) =>
-      extension.id.toLowerCase() === normalized ||
-      extension.name.toLowerCase() === normalized
-  );
-  return match ? match.id : null;
-}
-
-function normalizeQuery(value: string): string {
-  return value.trim().toLowerCase();
-}
-
-function subsequenceScore(query: string, target: string): number {
-  if (!query) return 0;
-  let score = 0;
-  let ti = 0;
-  for (let qi = 0; qi < query.length; qi += 1) {
-    const q = query[qi];
-    const found = target.indexOf(q, ti);
-    if (found === -1) return -1;
-    score += found === ti ? 2 : 1;
-    ti = found + 1;
-  }
-  return score;
-}
-
-function matchScore(query: string, name: string, id: string, kind: string): number {
-  if (!query) return 0;
-  const nameLower = name.toLowerCase();
-  const idLower = id.toLowerCase();
-  const kindLower = kind.toLowerCase();
-  if (nameLower.includes(query) || idLower.includes(query) || kindLower.includes(query)) {
-    return 100 + query.length;
-  }
-  const compactQuery = query.replace(/\s+/g, "");
-  const nameScore = subsequenceScore(compactQuery, nameLower.replace(/\s+/g, ""));
-  const idScore = subsequenceScore(compactQuery, idLower.replace(/\s+/g, ""));
-  const kindScore = subsequenceScore(compactQuery, kindLower.replace(/\s+/g, ""));
-  const best = Math.max(nameScore, idScore, kindScore);
-  return best > 0 ? best : -1;
-}
-
-function formatPayload(value: unknown): string | undefined {
-  if (value === undefined) return undefined;
-  if (value === null) return "null";
-  if (typeof value === "string") return value;
-  try {
-    return JSON.stringify(value, null, 2);
-  } catch {
-    return String(value);
-  }
-}
-
-function formatSourceBody(part: SourcePart): string {
-  const lines = [part.title, part.url, part.filename].filter(Boolean) as string[];
-  return lines.length > 0 ? lines.join("\n") : part.sourceType;
-}
-
-function mapToolStateToCard(state: ToolPart["state"]): ToolCardState {
-  switch (state.status) {
-    case "pending":
-      return "pending";
-    case "running":
-      return "running";
-    case "completed":
-      return "success";
-    case "error":
-      return "error";
-    default:
-      return "pending";
-  }
-}
-
-function getToolParams(state: ToolPart["state"]): string | undefined {
-  return formatPayload(state.input);
-}
-
-function getToolResult(state: ToolPart["state"]): string | undefined {
-  if (state.status !== "completed") return undefined;
-  return state.output;
-}
-
-function getToolError(state: ToolPart["state"]): string | undefined {
-  if (state.status !== "error") return undefined;
-  return state.error;
-}
-
-function formatFileType(mediaType?: string | null): string | undefined {
-  if (!mediaType) return undefined;
-  const bits = mediaType.split("/");
-  if (bits.length < 2) return mediaType.toUpperCase();
-  return bits[1].toUpperCase();
-}
-
-function removeTrailingSigilQuery(
-  text: string,
-  sigilState: { start: number } | null
-): string {
-  if (sigilState) {
-    return text.slice(0, sigilState.start);
-  }
-  return text;
-}
 
 export function CommandView() {
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -461,6 +87,10 @@ export function CommandView() {
   const fetchApplications = useApplicationContext((state) => state.fetchApplications);
   const openApplication = useApplicationContext((state) => state.openApplication);
   const clearApplications = useApplicationContext((state) => state.clear);
+
+  // ---------------------------------------------------------------------------
+  // Derived state
+  // ---------------------------------------------------------------------------
 
   const composerParts = useMemo(
     () => commitComposerParts(draftParts),
@@ -500,6 +130,10 @@ export function CommandView() {
     []
   );
 
+  // ---------------------------------------------------------------------------
+  // Composer helpers
+  // ---------------------------------------------------------------------------
+
   const applyComposerParts = (next: MessagePartInput[]) => {
     setDraftParts(commitComposerParts(next));
   };
@@ -507,6 +141,16 @@ export function CommandView() {
   const updateComposerText = (value: string) => {
     applyComposerParts(updateActiveText(composerParts, value));
   };
+
+  const focusInput = () => {
+    requestAnimationFrame(() => {
+      inputRef.current?.focus();
+    });
+  };
+
+  // ---------------------------------------------------------------------------
+  // Effects
+  // ---------------------------------------------------------------------------
 
   useEffect(() => {
     if (!serverInfo) return;
@@ -535,6 +179,10 @@ export function CommandView() {
       node.scrollTop = node.scrollHeight;
     });
   }, [parts]);
+
+  // ---------------------------------------------------------------------------
+  // Filtered lists
+  // ---------------------------------------------------------------------------
 
   const filteredExtensions = useMemo(() => {
     const query = mentionState
@@ -616,6 +264,10 @@ export function CommandView() {
     return ranked.slice(0, 20).map((entry) => entry.application);
   }, [activeTab, activeText, applications, starState]);
 
+  // ---------------------------------------------------------------------------
+  // View routing flags
+  // ---------------------------------------------------------------------------
+
   const showExtensionView = activeTab.startsWith("ext:");
   const activeExtensionId = showExtensionView ? activeTab.slice(4) : null;
   const showExtensionsList = !showExtensionView && (activeTab === "extensions" || !!mentionState);
@@ -664,11 +316,9 @@ export function CommandView() {
     setActiveTab(`ext:filesystem`);
   }, [hashState]);
 
-  const focusInput = () => {
-    requestAnimationFrame(() => {
-      inputRef.current?.focus();
-    });
-  };
+  // ---------------------------------------------------------------------------
+  // Callbacks
+  // ---------------------------------------------------------------------------
 
   const executeSlashCommand = (id: string) => {
     if (id !== "settings") return;
@@ -718,34 +368,6 @@ export function CommandView() {
     focusInput();
   };
 
-  const selectFile = (entry: {
-    path: string;
-    name: string;
-    type: "file" | "directory" | "symlink" | "other";
-  }) => {
-    const normalizedName =
-      entry.name.trim().length > 0
-        ? entry.name
-        : entry.path.split("/").filter(Boolean).pop() ?? entry.path;
-
-    const nextText = removeTrailingSigilQuery(activeText, hashState);
-    let nextParts = updateActiveText(composerParts, nextText);
-    nextParts = insertPartAfterActiveText(nextParts, {
-      type: "file",
-      path: entry.path,
-      name: normalizedName,
-      entryType: entry.type,
-      source: {
-        value: `#${normalizedName}`,
-        start: 0,
-        end: 0,
-      },
-    });
-    applyComposerParts(nextParts);
-    setActiveTab("recent");
-    focusInput();
-  };
-
   const removeTaggedSegment = (segment: ComposerTagSegment) => {
     if (segment.type !== "extension" && segment.type !== "file") return;
     const next = removeTaggedPartBySource(composerParts, {
@@ -786,6 +408,62 @@ export function CommandView() {
       current.setSelectionRange(caret, caret);
     });
   };
+
+  // ---------------------------------------------------------------------------
+  // ComposerActions (for extensions)
+  // ---------------------------------------------------------------------------
+
+  const stateRef = useRef({ activeText, composerParts, hashState, mentionState });
+  stateRef.current = { activeText, composerParts, hashState, mentionState };
+
+  const composerActions: ComposerActions = useMemo(() => ({
+    addPart: (part) => {
+      const { activeText: text, composerParts: parts, hashState: hash } = stateRef.current;
+      const normalizedName =
+        part.type === "file"
+          ? (part.name.trim().length > 0
+              ? part.name
+              : part.path.split("/").filter(Boolean).pop() ?? part.path)
+          : part.name;
+
+      const nextText = removeTrailingSigilQuery(text, hash);
+      let nextParts = updateActiveText(parts, nextText);
+      const partWithSource = {
+        ...part,
+        name: normalizedName,
+        source: {
+          value: part.type === "file" ? `#${normalizedName}` : `@${part.extensionId}`,
+          start: 0,
+          end: 0,
+        },
+      };
+      nextParts = insertPartAfterActiveText(nextParts, partWithSource);
+      setDraftParts(commitComposerParts(nextParts));
+      setActiveTab("recent");
+      requestAnimationFrame(() => {
+        inputRef.current?.focus();
+      });
+    },
+    removePart: (match) => {
+      const { composerParts: parts } = stateRef.current;
+      const index = parts.findIndex((p) => {
+        if (p.type !== match.type) return false;
+        if (p.type === "file" && match.type === "file") return p.name === match.name;
+        if (p.type === "extension" && match.type === "extension") return p.name === match.name;
+        return false;
+      });
+      if (index < 0) return;
+      const next = [...parts];
+      next.splice(index, 1);
+      setDraftParts(commitComposerParts(next));
+    },
+    setActiveTab: (tab) => setActiveTab(tab as FilterTab),
+    focusInput,
+  }), []);
+
+  // ---------------------------------------------------------------------------
+  // Keyboard handler
+  // ---------------------------------------------------------------------------
 
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (
@@ -926,319 +604,84 @@ export function CommandView() {
     }
   };
 
-  const inputTargetTags =
-    tagSegments.length > 0 ? (
-      <div className={styles.targetTagRow}>
-        {tagSegments.map((segment) => {
-          if (segment.type === "text") {
-            return (
-              <span key={segment.key} className={styles.targetTextChunk}>
-                {segment.text}
-              </span>
-            );
-          }
-          if (segment.type === "extension") {
-            return (
-              <span
-                key={segment.key}
-                className={styles.targetTag}
-                title={`${segment.part.kind ?? "extension"} extension`}
-              >
-                <Icon size={14}>{ExtensionIcon}</Icon>
-                <span className={styles.targetTagLabel}>@{segment.part.name}</span>
-                <button
-                  type="button"
-                  className={styles.targetTagRemove}
-                  onMouseDown={(event) => event.preventDefault()}
-                  onClick={() => removeTaggedSegment(segment)}
-                  aria-label={`Remove @${segment.part.name}`}
-                >
-                  <Icon size={12}>{RemoveIcon}</Icon>
-                </button>
-              </span>
-            );
-          }
-          return (
-            <span key={segment.key} className={styles.targetTag} title={segment.part.path}>
-              <Icon size={14}>
-                {segment.part.entryType === "directory" ? FolderIcon : FileIcon}
-              </Icon>
-              <span className={styles.targetTagLabel}>{segment.part.name}</span>
-              <button
-                type="button"
-                className={styles.targetTagRemove}
-                onMouseDown={(event) => event.preventDefault()}
-                onClick={() => removeTaggedSegment(segment)}
-                aria-label={`Remove ${segment.part.name}`}
-              >
-                <Icon size={12}>{RemoveIcon}</Icon>
-              </button>
-            </span>
-          );
-        })}
-      </div>
-    ) : undefined;
+  // ---------------------------------------------------------------------------
+  // Render
+  // ---------------------------------------------------------------------------
+
   const placeholder =
     activeText.length === 0 && tagSegments.length === 0
       ? "How can I help..."
       : "";
 
-  const showResponses = parts.length > 0 || !!error;
-
   return (
     <main className="app-shell">
       <CommandPaletteShell className={`app-shell-panel ${styles.shell}`}>
-        <HeaderArea>
-          <div className={styles.headerRow}>
-            <SearchField
-              className={styles.searchField}
-              icon={<Icon>{SearchIcon}</Icon>}
-              beforeInput={inputTargetTags}
-              placeholder={placeholder}
-              inputRef={inputRef}
-              inputProps={{
-                id: inputId,
-                value: activeText,
-                onChange: (e) => updateComposerText(e.target.value),
-                onKeyDown: handleKeyDown,
-                disabled: isSubmitting,
-                spellCheck: false,
-                autoComplete: "off",
-              }}
-            />
-            <StatusBadge
-              status={serverInfo ? "good" : "warn"}
-              label={serverInfo ? "online" : "offline"}
-            />
-          </div>
-          <Divider />
-        </HeaderArea>
+        <Composer
+          inputId={inputId}
+          inputRef={inputRef}
+          activeText={activeText}
+          tagSegments={tagSegments}
+          isSubmitting={isSubmitting}
+          serverOnline={!!serverInfo}
+          placeholder={placeholder}
+          onTextChange={updateComposerText}
+          onKeyDown={handleKeyDown}
+          onRemoveSegment={removeTaggedSegment}
+        />
 
-        <FilterArea>
-          <div className={styles.filterRow}>
-            <ChipGroup>
-              <Chip
-                label="Recent"
-                active={
-                  activeTab === "recent" &&
-                  !mentionState &&
-                  !slashState &&
-                  !hashState &&
-                  !starState
-                }
-                onClick={() => setActiveTab("recent")}
-              />
-              <Chip
-                label="Extensions"
-                active={activeTab === "extensions" || !!mentionState}
-                onClick={() => {
-                  setActiveTab("extensions");
-                  fetchExtensions();
-                  insertSigilAtCursor("@");
-                }}
-              />
-              <Chip
-                label="Commands"
-                active={activeTab === "commands" || (!!slashState && !mentionState)}
-                onClick={() => {
-                  setActiveTab("commands");
-                  insertSigilAtCursor("/");
-                }}
-              />
-              <Chip
-                label="Applications"
-                active={activeTab === "applications" || !!starState}
-                onClick={() => {
-                  setActiveTab("applications");
-                  fetchApplications().catch(() => {
-                    // application store already tracks error state
-                  });
-                  insertSigilAtCursor("*");
-                }}
-              />
-              {extensionPills.map((pill) => (
-                <Chip
-                  key={`ext-pill-${pill.extensionId}`}
-                  label={pill.name}
-                  active={activeTab === `ext:${pill.extensionId}`}
-                  onClick={() => setActiveTab(`ext:${pill.extensionId}`)}
-                />
-              ))}
-            </ChipGroup>
-            {isSubmitting ? <Badge>Working...</Badge> : null}
-          </div>
-        </FilterArea>
+        <PillArea
+          activeTab={activeTab}
+          isSubmitting={isSubmitting}
+          mentionActive={!!mentionState}
+          slashActive={!!slashState}
+          hashActive={!!hashState}
+          starActive={!!starState}
+          extensionPills={extensionPills}
+          onTabChange={setActiveTab}
+          onExtensionsClick={() => {
+            setActiveTab("extensions");
+            fetchExtensions();
+            insertSigilAtCursor("@");
+          }}
+          onCommandsClick={() => {
+            setActiveTab("commands");
+            insertSigilAtCursor("/");
+          }}
+          onApplicationsClick={() => {
+            setActiveTab("applications");
+            fetchApplications().catch(() => {
+              // application store already tracks error state
+            });
+            insertSigilAtCursor("*");
+          }}
+        />
 
-        <ContentArea className={styles.content}>
-          {showExtensionView && activeExtensionId ? (
-            <ExtensionViewContainer
-              extensionId={activeExtensionId}
-              onSelectFile={selectFile}
-            />
-          ) : (
-          <div className={styles.scrollArea} ref={scrollRef}>
-            {showExtensionsList ? (
-              <ListSection label="Extensions">
-                {filteredExtensions.length > 0 ? (
-                  filteredExtensions.map((extension, index) => (
-                    <ListItem
-                      key={extension.id}
-                      title={extension.name}
-                      subtitle={`${extension.kind} / ${extension.id}`}
-                      icon={
-                        <IconContainer>
-                          <Icon>{ExtensionIcon}</Icon>
-                        </IconContainer>
-                      }
-                      selected={index === mentionIndex}
-                      onMouseDown={(event) => {
-                        event.preventDefault();
-                        selectExtension({
-                          id: extension.id,
-                          name: extension.name,
-                          kind: extension.kind,
-                        });
-                      }}
-                    />
-                  ))
-                ) : (
-                  <Text size="sm" tone="secondary">
-                    {extensionsLoaded ? "No extensions found." : "Loading extensions..."}
-                  </Text>
-                )}
-              </ListSection>
-            ) : null}
-
-            {showCommandsList ? (
-              <ListSection label="Commands">
-                {filteredSlashCommands.map((command, index) => (
-                  <ListItem
-                    key={command.id}
-                    title={`/${command.id}`}
-                    subtitle={command.description}
-                    icon={
-                      <IconContainer>
-                        <Icon>{CommandIcon}</Icon>
-                      </IconContainer>
-                    }
-                    rightMeta={<ActionHint label="Enter" icon={<Icon>{ArrowIcon}</Icon>} />}
-                    selected={index === slashIndex}
-                    onMouseDown={(event) => {
-                      event.preventDefault();
-                      executeSlashCommand(command.id);
-                    }}
-                  />
-                ))}
-              </ListSection>
-            ) : null}
-
-            {showApplicationsList ? (
-              <ListSection
-                label={
-                  applicationsLoading
-                    ? "Loading applications..."
-                    : `Applications${applicationsLoaded ? ` (${applicationsCount})` : ""}`
-                }
-              >
-                {applicationsError ? (
-                  <Text size="sm" tone="secondary">
-                    {applicationsError}
-                  </Text>
-                ) : filteredApplications.length > 0 ? (
-                  filteredApplications.map((application, index) => (
-                    <ListItem
-                      key={application.id}
-                      title={application.name}
-                      subtitle={application.bundleId ?? application.path}
-                      icon={
-                        <IconContainer>
-                          {application.icon ? (
-                            <img
-                              src={application.icon}
-                              alt=""
-                              width={18}
-                              height={18}
-                              style={{ borderRadius: 4, objectFit: "contain" }}
-                            />
-                          ) : (
-                            <Icon>{ApplicationIcon}</Icon>
-                          )}
-                        </IconContainer>
-                      }
-                      rightMeta={<ActionHint label="Open" icon={<Icon>{ArrowIcon}</Icon>} />}
-                      selected={index === applicationIndex}
-                      onMouseDown={(event) => {
-                        event.preventDefault();
-                        openApplicationById(application);
-                      }}
-                    />
-                  ))
-                ) : starState?.query ? (
-                  <Text size="sm" tone="secondary">
-                    {applicationsLoading ? "Loading applications..." : "No applications found."}
-                  </Text>
-                ) : (
-                  <Text size="sm" tone="secondary">
-                    Type to search applications...
-                  </Text>
-                )}
-              </ListSection>
-            ) : null}
-
-            {(showExtensionsList || showCommandsList || showApplicationsList) && showResponses ? (
-              <Divider />
-            ) : null}
-
-            {showResponses ? (
-              <ResponseStack>
-                {error ? <ErrorCard message={error} /> : null}
-                {parts.map((part) => {
-                  switch (part.type) {
-                    case "text":
-                      return <MarkdownResponseCard key={part.id} body={part.text} />;
-                    case "reasoning":
-                      return <ReasoningCard key={part.id} reasoning={part.text} />;
-                    case "tool":
-                      return (
-                        <ToolCallCard
-                          key={part.id}
-                          toolName={part.tool}
-                          toolId={part.callId}
-                          state={mapToolStateToCard(part.state)}
-                          params={getToolParams(part.state)}
-                          result={getToolResult(part.state)}
-                          errorMessage={getToolError(part.state)}
-                        />
-                      );
-                    case "file":
-                      return (
-                        <FileCard
-                          key={part.id}
-                          fileName={part.name ?? "Untitled file"}
-                          fileType={formatFileType(part.mediaType)}
-                        />
-                      );
-                    case "source":
-                      return (
-                        <MarkdownResponseCard
-                          key={part.id}
-                          label="Source"
-                          body={formatSourceBody(part)}
-                        />
-                      );
-                    default:
-                      return null;
-                  }
-                })}
-              </ResponseStack>
-            ) : !showExtensionsList && !showCommandsList && !showApplicationsList ? (
-              <Text size="sm" tone="secondary">
-                Type a command, use @ to target an extension, / for shortcuts, or * for applications.
-              </Text>
-            ) : null}
-          </div>
-          )}
-        </ContentArea>
+        <RenderingArea
+          showExtensionView={showExtensionView}
+          activeExtensionId={activeExtensionId}
+          showExtensionsList={showExtensionsList}
+          showCommandsList={showCommandsList}
+          showApplicationsList={showApplicationsList}
+          filteredExtensions={filteredExtensions}
+          extensionsLoaded={extensionsLoaded}
+          mentionIndex={mentionIndex}
+          onSelectExtension={selectExtension}
+          filteredSlashCommands={filteredSlashCommands}
+          slashIndex={slashIndex}
+          onExecuteCommand={executeSlashCommand}
+          filteredApplications={filteredApplications}
+          applicationsLoaded={applicationsLoaded}
+          applicationsLoading={applicationsLoading}
+          applicationsCount={applicationsCount}
+          applicationsError={applicationsError}
+          applicationIndex={applicationIndex}
+          starQuery={starState?.query ?? null}
+          onOpenApplication={openApplicationById}
+          parts={parts}
+          error={error}
+          composerActions={composerActions}
+          scrollRef={scrollRef}
+        />
 
         <FooterArea>
           <HintBar

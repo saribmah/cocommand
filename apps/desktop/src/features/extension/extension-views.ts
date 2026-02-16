@@ -1,5 +1,6 @@
 import type { ComponentType } from "react";
 import type { ExtensionInvokeFn } from "./extension.types";
+import type { ComposerActions } from "../command/composer-actions";
 
 export type ExtensionViewMode = "inline" | "popout";
 
@@ -7,7 +8,7 @@ export interface ExtensionViewProps {
   mode: ExtensionViewMode;
   invoke?: ExtensionInvokeFn;
   extensionId?: string;
-  onSelectFile?: (entry: { path: string; name: string; type: string }) => void;
+  actions?: ComposerActions;
 }
 
 export interface ExtensionViewConfig {
