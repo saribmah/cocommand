@@ -1,0 +1,116 @@
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  width: 250px;
+  min-width: 250px;
+  height: 100%;
+  border-right: 1px solid var(--cc-border-soft);
+  background: var(--cc-extension-bg, var(--cc-surface-primary));
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--cc-space-3) var(--cc-space-4);
+  border-bottom: 1px solid var(--cc-border-soft);
+}
+
+.entryCount {
+  color: var(--cc-text-tertiary);
+  font-weight: 400;
+}
+
+.list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--cc-space-1) var(--cc-space-2);
+}
+
+.entryItem {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  width: 100%;
+  text-align: left;
+  padding: var(--cc-space-2) var(--cc-space-3);
+  border: none;
+  border-radius: var(--cc-radius-pill);
+  background: transparent;
+  cursor: pointer;
+  gap: var(--cc-space-2);
+  font-family: var(--cc-font-sans);
+}
+
+.entryItem:hover {
+  background: var(--cc-surface-secondary);
+}
+
+.entryItemSelected {
+  background: var(--cc-surface-elevated);
+}
+
+.entryItemSelected:hover {
+  background: var(--cc-surface-elevated);
+}
+
+.thumbnail {
+  flex-shrink: 0;
+  width: 40px;
+  height: 30px;
+  object-fit: cover;
+  border-radius: var(--cc-radius-sm, 4px);
+  background: var(--cc-surface-secondary);
+}
+
+.entryContent {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 2px;
+}
+
+.entryFilename {
+  font-size: var(--cc-text-sm);
+  font-weight: 500;
+  color: var(--cc-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: var(--cc-line-normal);
+}
+
+.entryMeta {
+  display: flex;
+  align-items: center;
+  gap: var(--cc-space-1);
+}
+
+.entryDate {
+  font-size: var(--cc-text-xs);
+  color: var(--cc-text-tertiary);
+  white-space: nowrap;
+}
+
+.formatBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 var(--cc-space-1);
+  border-radius: var(--cc-radius-pill);
+  background: var(--cc-surface-secondary);
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--cc-text-tertiary);
+  text-transform: uppercase;
+}
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--cc-space-6);
+  text-align: center;
+  gap: var(--cc-space-2);
+}

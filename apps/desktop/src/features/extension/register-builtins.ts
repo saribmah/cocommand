@@ -3,9 +3,11 @@ import { registerExtensionStore } from "./extension-stores";
 import { NotesView } from "../notes/notes.view";
 import { FileSystemView } from "../filesystem/filesystem.view";
 import { ClipboardView } from "../clipboard/clipboard.view";
+import { ScreenshotView } from "../screenshot/screenshot.view";
 import { createFileSystemStore } from "../filesystem/filesystem.store";
 import { createNotesStore } from "../notes/notes.store";
 import { createClipboardStore } from "../clipboard/clipboard.store";
+import { createScreenshotStore } from "../screenshot/screenshot.store";
 
 registerExtensionView("notes", {
   component: NotesView,
@@ -27,3 +29,10 @@ registerExtensionView("clipboard", {
   popout: { width: 750, height: 500, title: "Clipboard History" },
 });
 registerExtensionStore("clipboard", createClipboardStore);
+
+registerExtensionView("screenshot", {
+  component: ScreenshotView,
+  label: "Screenshots",
+  popout: { width: 900, height: 600, title: "Screenshots" },
+});
+registerExtensionStore("screenshot", createScreenshotStore);

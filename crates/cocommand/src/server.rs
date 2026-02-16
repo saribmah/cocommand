@@ -16,6 +16,7 @@ pub mod assets;
 pub mod events;
 pub mod extension;
 pub mod invoke;
+pub mod screenshots;
 pub mod session;
 pub mod system;
 pub mod workspace;
@@ -80,6 +81,10 @@ impl Server {
             .route(
                 "/extension/:extension_id/assets/*path",
                 get(assets::serve_extension_asset),
+            )
+            .route(
+                "/workspace/screenshots/:filename",
+                get(screenshots::serve_screenshot),
             )
             .route(
                 "/workspace/extension/system/applications",
