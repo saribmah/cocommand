@@ -1078,7 +1078,7 @@ export function CommandView() {
               extensionId={activeExtensionId}
               extraProps={
                 activeExtensionId === "filesystem"
-                  ? { query: activeText, onSelectFile: selectFile }
+                  ? { onSelectFile: selectFile }
                   : undefined
               }
             />
