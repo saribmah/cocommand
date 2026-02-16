@@ -134,8 +134,6 @@ impl Default for OptionSlabIndex {
 /// - Memory efficiency: Empty collections use only a single null pointer (8 bytes)
 ///   compared to `Vec<T>` which uses 24 bytes even when empty.
 /// - Sorted order: Indices are maintained in sorted order for deterministic results.
-///
-/// Mirrors Cardinal's `SortedSlabIndices` from `name_index.rs`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[repr(transparent)]
 #[serde(transparent)]

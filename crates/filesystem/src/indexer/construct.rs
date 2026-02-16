@@ -1,6 +1,6 @@
 //! Slab and name index construction from Node tree.
 //!
-//! This module implements Cardinal's approach of converting the `Node` tree
+//! This module implements converting the `Node` tree
 //! (built by fswalk) into a slab + name_index in a single recursive pass.
 //!
 //! Key insight: Because `fswalk` sorts children by name during walk,
@@ -14,8 +14,6 @@ use super::walk::Node;
 use crate::storage::{SlabIndex, SlabNode, SortedSlabIndices, ThinSlab, NAME_POOL};
 
 /// Name index mapping filenames to sorted slab indices.
-///
-/// This matches Cardinal's `NameIndex` structure.
 pub type NameIndex = BTreeMap<&'static str, SortedSlabIndices>;
 
 /// Constructs the slab and name index from a Node tree.
@@ -36,8 +34,6 @@ pub fn construct_slab_and_name_index(root: &Node) -> (SlabIndex, ThinSlab<SlabNo
 }
 
 /// Recursively constructs slab nodes from the Node tree.
-///
-/// This is the core of Cardinal's `construct_node_slab_name_index` function.
 fn construct_node_recursive(
     parent: Option<SlabIndex>,
     node: &Node,

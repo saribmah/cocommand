@@ -1,7 +1,7 @@
 //! macOS Finder tags support.
 //!
 //! This module provides functionality to read and search for macOS Finder tags
-//! (user tags). It mirrors Cardinal's `file-tags` crate implementation.
+//! (user tags).
 //!
 //! ## Features
 //!

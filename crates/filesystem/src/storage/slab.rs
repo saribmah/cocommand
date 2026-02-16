@@ -4,8 +4,6 @@
 //! memory-mapped temporary file. This allows the OS to page large indexes in
 //! and out of memory, enabling efficient handling of millions of filesystem
 //! entries without exhausting heap memory.
-//!
-//! The design mirrors Cardinal's `slab-mmap` crate for compatibility.
 
 use std::fmt;
 use std::io;
@@ -30,8 +28,6 @@ const INITIAL_SLOTS: NonZeroUsize = match NonZeroUsize::new(1024) {
 
 /// Disk-backed slab that keeps node payloads in a temporary mmap file so the OS
 /// can page the largest structure in and out of memory.
-///
-/// This is modeled after Cardinal's `slab-mmap` crate.
 pub struct Slab<T> {
     /// Anonymous temporary file that owns the on-disk backing storage.
     file: NamedTempFile,

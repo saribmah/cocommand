@@ -19,8 +19,6 @@ use crate::types::{FileEntry, FileType, KindFilter, SearchResult};
 /// Threshold for switching from iterating file metadata to using Spotlight (mdfind).
 /// When the candidate set exceeds this size, Spotlight's indexed search is faster than
 /// reading xattr metadata for each file individually.
-///
-/// This matches Cardinal's `TAG_FILTER_MDFIND_THRESHOLD` constant.
 const TAG_FILTER_MDFIND_THRESHOLD: usize = 10000;
 
 /// A candidate entry for search matching.
@@ -790,8 +788,6 @@ fn evaluate_content_filter(
 /// - **Large sets (> TAG_FILTER_MDFIND_THRESHOLD)**: Use Spotlight's `mdfind` command to quickly
 ///   find all files with matching tags, then intersect with the candidate set. This leverages
 ///   Spotlight's pre-indexed tag data for better performance on large datasets.
-///
-/// This matches Cardinal's adaptive tag filter strategy.
 fn evaluate_tag_filter(
     data: &RootIndexData,
     tags: &[String],

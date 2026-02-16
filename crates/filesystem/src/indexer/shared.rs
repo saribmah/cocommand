@@ -38,7 +38,6 @@ pub struct SharedRootIndex {
     pub last_event_id: AtomicU64,
     /// Count of full rescans performed. Incremented when FS events trigger a full rescan.
     /// Used by the UI to detect when search results may be stale and need refresh.
-    /// Matches Cardinal's `rescan_count` field in SearchCache.
     pub rescan_count: AtomicU64,
 }
 

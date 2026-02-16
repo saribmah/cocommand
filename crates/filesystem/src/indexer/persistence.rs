@@ -1,6 +1,6 @@
 //! Index persistence - cache read/write operations.
 //!
-//! This module implements Cardinal-style persistence using direct slab serialization
+//! This module implements persistence using direct slab serialization
 //! with postcard encoding and zstd compression. The format stores the slab directly
 //! without converting to intermediate node representations, making both read and
 //! write operations significantly faster.
@@ -23,7 +23,7 @@ use crate::error::{FilesystemError, Result};
 use crate::storage::{SlabIndex, SlabNode, SortedSlabIndices, ThinSlab, NAME_POOL};
 
 /// Cache format version - increment when changing the format.
-/// Version 7: Cardinal-style direct slab persistence with postcard encoding.
+/// Version 7: direct slab persistence with postcard encoding.
 pub const INDEX_CACHE_VERSION: u32 = 7;
 
 /// Maximum age of cache before it's considered stale (non-macOS only).
@@ -31,13 +31,8 @@ pub const INDEX_CACHE_VERSION: u32 = 7;
 /// This is kept for non-macOS platforms where we can't rely on event replay.
 pub const INDEX_CACHE_MAX_AGE_SECS: u64 = 60 * 60;
 
-// ---------------------------------------------------------------------------
-// Persistent storage format (matches Cardinal's PersistentStorage)
-// ---------------------------------------------------------------------------
-
 /// Persistent storage format for the filesystem index.
 ///
-/// This matches Cardinal's `PersistentStorage` struct from `search-cache/src/persistent.rs`.
 /// The slab and name_index are serialized directly without conversion to intermediate types.
 #[derive(Serialize, Deserialize)]
 pub struct PersistentStorage {
@@ -100,7 +95,7 @@ impl RootIndexKey {
 
 /// Writes an index snapshot to the cache file.
 ///
-/// Uses Cardinal's approach:
+/// approach:
 /// - Postcard encoding (compact binary format)
 /// - Zstd compression (level 6, multi-threaded)
 /// - Atomic write (temp file + rename)
@@ -151,7 +146,7 @@ pub fn write_index_snapshot(shared: &SharedRootIndex, data: &RootIndexData) -> R
             ))
         })?;
 
-        // Zstd encoder with level 6 and multi-threading (matching Cardinal)
+        // Zstd encoder with level 6 and multi-threading
         let mut encoder = zstd::Encoder::new(output, 6).map_err(|error| {
             FilesystemError::Internal(format!("failed to create zstd encoder: {error}"))
         })?;
@@ -304,7 +299,7 @@ pub fn load_index_snapshot(
     let last_event_id = storage.last_event_id;
     let saved_at = storage.saved_at;
 
-    // Cardinal approach: On macOS with a saved event ID, trust FSEvents to replay
+    // On macOS with a saved event ID, trust FSEvents to replay
     // any missed events since last_event_id. This allows the cache to be used
     // regardless of age - FSEvents will bring it up to date incrementally.
     //
@@ -334,7 +329,7 @@ pub fn load_index_snapshot(
 
 /// Restores RootIndexData from PersistentStorage.
 ///
-/// This matches Cardinal's approach - only file_nodes and name_index are stored,
+/// only file_nodes and name_index are stored,
 /// no secondary indexes need to be rebuilt.
 fn restore_from_storage(storage: PersistentStorage, _root: &Path) -> RootIndexData {
     // Create FileNodes from the deserialized slab

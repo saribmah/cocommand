@@ -1,7 +1,7 @@
 //! Highlight term extraction for search results.
 //!
 //! Extracts terms from a query expression that should be highlighted in search results.
-//! This follows Cardinal's `derive_highlight_terms` approach:
+//! `derive_highlight_terms` approach:
 //! - Collects text terms and filter arguments
 //! - Splits on wildcards (* and ?) to get literal chunks
 //! - Lowercases all terms for case-insensitive matching

@@ -1,7 +1,7 @@
 //! Slab node types for filesystem index entries.
 //!
 //! This module provides compact node representations for the filesystem index,
-//! mirroring Cardinal's `slab_node.rs` and `type_and_size.rs` for memory efficiency.
+//! `slab_node.rs` and `type_and_size.rs` for memory efficiency.
 
 use serde::{Deserialize, Serialize};
 use thin_vec::ThinVec;
@@ -12,7 +12,7 @@ use super::index_types::{OptionSlabIndex, SlabIndex};
 // Compact metadata encoding
 // ---------------------------------------------------------------------------
 
-/// File type enumeration, matching Cardinal's `fswalk::NodeFileType`.
+/// File type enumeration, `fswalk::NodeFileType`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[repr(u8)]
 pub enum NodeFileType {

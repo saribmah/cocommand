@@ -21,8 +21,6 @@ pub fn path_is_ignored(ignored_roots: &[PathBuf], candidate: &Path) -> bool {
 
 /// Computes the minimal set of paths that must be rescanned for a batch of filesystem events.
 ///
-/// This function implements Cardinal's efficient path coalescing algorithm:
-///
 /// 1. Sort paths by depth (shallowest first), then lexicographically
 /// 2. Use a HashSet for O(1) ancestor lookup
 /// 3. For each path, walk up the parent chain to check if any ancestor is already selected

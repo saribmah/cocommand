@@ -745,7 +745,7 @@ fn progress_snapshot(shared: &SharedRootIndex) -> (&'static str, crate::indexer:
     (state, progress)
 }
 
-/// Builds index using Cardinal's two-phase approach with progress tracking.
+/// Builds index using two-phase approach with progress tracking.
 ///
 /// Phase 1: Walk filesystem to build Node tree (children sorted during walk)
 /// Phase 2: Convert tree to slab + name_index in single recursive pass
@@ -765,7 +765,7 @@ fn build_index_snapshot_with_ignored_paths_progress(
         )));
     }
 
-    // Cardinal-style two-phase build
+    // two-phase build
     let walk_data = WalkData::new(root, ignored_roots)
         .with_cancel(cancel)
         .with_progress(progress)
@@ -794,7 +794,7 @@ fn build_index_snapshot_with_ignored_paths(
         )));
     }
 
-    // Cardinal-style two-phase build (no cancellation for sync builds)
+    // two-phase build (no cancellation for sync builds)
     let walk_data = WalkData::new(root, ignored_roots).with_file_metadata(false);
 
     RootIndexData::from_walk(&walk_data).ok_or_else(|| {

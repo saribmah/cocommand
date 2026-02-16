@@ -299,7 +299,7 @@ fn remove_path_and_descendants(data: &mut RootIndexData, target: &std::path::Pat
 fn build_snapshot_for_rescan(shared: &SharedRootIndex) -> crate::error::Result<RootIndexData> {
     use crate::indexer::WalkData as FsWalkData;
 
-    // Use the new Cardinal-style two-phase approach
+    // Use the two-phase approach
     let walk_data = FsWalkData::new(&shared.root, &shared.ignored_roots);
 
     // Build using from_walk which does two-phase: walk -> tree -> slab

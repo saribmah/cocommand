@@ -4,8 +4,6 @@
 //! - Flattens nested AND/OR expressions
 //! - Removes empty operands from conjunctions
 //! - Reorders filters by cost (scope filters first, tag filters last)
-//!
-//! This follows Cardinal's `optimize_query` approach.
 
 use super::expression::{QueryExpression, QueryFilter, QueryTerm};
 
