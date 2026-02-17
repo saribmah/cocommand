@@ -37,6 +37,9 @@ export type { LocalStorageApi } from "./modules/local-storage";
 export { createWindowManagement } from "./modules/window";
 export type { ToastOptions, WindowManagementApi } from "./modules/window";
 
+export { createTools } from "./modules/tools";
+export type { ToolsApi } from "./modules/tools";
+
 export { createApi } from "./create-api";
 export type { CocommandApi, CreateApiOptions } from "./create-api";
 

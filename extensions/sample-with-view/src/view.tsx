@@ -1,15 +1,11 @@
 import { useState, useEffect } from "react";
 import { ListSection, ListItem, Text, IconContainer, Icon } from "@cocommand/ui";
+import { useApi } from "@cocommand/api";
 
 interface Item {
   id: string;
   title: string;
   description: string;
-}
-
-interface SampleViewProps {
-  invoke?: (extensionId: string, toolId: string, input?: Record<string, unknown>) => Promise<unknown>;
-  extensionId?: string;
 }
 
 const ItemIcon = (
@@ -19,24 +15,19 @@ const ItemIcon = (
   </svg>
 );
 
-function SampleView({ invoke, extensionId }: SampleViewProps) {
+function SampleView() {
+  const { tools } = useApi();
   const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!invoke || !extensionId) {
-      setLoading(false);
-      setError("Missing invoke or extensionId");
-      return;
-    }
-
     let cancelled = false;
-    invoke(extensionId, "sample_view.get_items")
-      .then((result: unknown) => {
+
+    tools.invoke<{ output: { items: Item[] } }>("sample_view.get_items")
+      .then((result) => {
         if (cancelled) return;
-        const data = result as { output: { items: Item[] } };
-        setItems(data.output?.items ?? []);
+        setItems(result.output?.items ?? []);
         setLoading(false);
       })
       .catch((err: unknown) => {
@@ -46,7 +37,7 @@ function SampleView({ invoke, extensionId }: SampleViewProps) {
       });
 
     return () => { cancelled = true; };
-  }, [invoke, extensionId]);
+  }, [tools]);
 
   if (loading) {
     return <Text size="sm" tone="secondary">Loading items...</Text>;

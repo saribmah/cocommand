@@ -7,9 +7,11 @@ import { createComposer, type ComposerApi } from "./modules/composer";
 import { createAI, type AIApi } from "./modules/ai";
 import { createLocalStorage, type LocalStorageApi } from "./modules/local-storage";
 import { createWindowManagement, type WindowManagementApi, type ToastOptions } from "./modules/window";
+import { createTools, type ToolsApi } from "./modules/tools";
 import { Cache } from "./modules/cache";
 
 export interface CocommandApi {
+  tools: ToolsApi;
   clipboard: ClipboardApi;
   applications: ApplicationsApi;
   workspace: WorkspaceApi;
@@ -32,6 +34,7 @@ export function createApi(opts: CreateApiOptions): CocommandApi {
   const win = createWindowManagement(transport);
 
   return {
+    tools: createTools(transport, extensionId),
     clipboard: createClipboard(transport),
     applications: createApplications(transport),
     workspace: createWorkspace(transport),
