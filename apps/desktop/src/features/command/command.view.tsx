@@ -125,6 +125,15 @@ export function CommandView() {
   const slashState = useMemo(() => getSlashState(activeText), [activeText]);
   const hashState = useMemo(() => getHashState(activeText), [activeText]);
   const starState = useMemo(() => getStarState(activeText), [activeText]);
+
+  const activeView: FilterTab = useMemo(() => {
+    if (mentionState) return "extensions";
+    if (slashState) return "commands";
+    if (starState) return "applications";
+    if (hashState) return "ext:filesystem";
+    return activeTab;
+  }, [mentionState, slashState, starState, hashState, activeTab]);
+
   const slashCommands = useMemo(
     () => [{ id: "settings", name: "Settings", description: "Open the settings window" }],
     []
@@ -268,20 +277,16 @@ export function CommandView() {
   // View routing flags
   // ---------------------------------------------------------------------------
 
-  const showExtensionView = activeTab.startsWith("ext:");
-  const activeExtensionId = showExtensionView ? activeTab.slice(4) : null;
-  const showExtensionsList = !showExtensionView && (activeTab === "extensions" || !!mentionState);
-  const showCommandsList = !showExtensionView && !showExtensionsList && (activeTab === "commands" || !!slashState);
-  const showApplicationsList =
-    !showExtensionView &&
-    !showExtensionsList &&
-    !showCommandsList &&
-    (activeTab === "applications" || !!starState);
+  const showExtensionView = activeView.startsWith("ext:");
+  const activeExtensionId = showExtensionView ? activeView.slice(4) : null;
+  const showExtensionsList = activeView === "extensions";
+  const showCommandsList = activeView === "commands";
+  const showApplicationsList = activeView === "applications";
 
   useEffect(() => {
     if (!showApplicationsList) return;
     setApplicationIndex(0);
-  }, [showApplicationsList, starState?.query, starState?.start, activeTab]);
+  }, [showApplicationsList, starState?.query, starState?.start, activeView]);
 
   useEffect(() => {
     if (!showApplicationsList) return;
@@ -664,12 +669,8 @@ export function CommandView() {
         />
 
         <PillArea
-          activeTab={activeTab}
+          activeView={activeView}
           isSubmitting={isSubmitting}
-          mentionActive={!!mentionState}
-          slashActive={!!slashState}
-          hashActive={!!hashState}
-          starActive={!!starState}
           extensionPills={extensionPills}
           onTabChange={setActiveTab}
           onExtensionsClick={() => {

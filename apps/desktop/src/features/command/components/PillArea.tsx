@@ -3,12 +3,8 @@ import type { FilterTab } from "../composer-utils";
 import styles from "../command.module.css";
 
 interface PillAreaProps {
-  activeTab: FilterTab;
+  activeView: FilterTab;
   isSubmitting: boolean;
-  mentionActive: boolean;
-  slashActive: boolean;
-  hashActive: boolean;
-  starActive: boolean;
   extensionPills: Array<{ extensionId: string; name: string }>;
   onTabChange: (tab: FilterTab) => void;
   onExtensionsClick: () => void;
@@ -17,12 +13,8 @@ interface PillAreaProps {
 }
 
 export function PillArea({
-  activeTab,
+  activeView,
   isSubmitting,
-  mentionActive,
-  slashActive,
-  hashActive,
-  starActive,
   extensionPills,
   onTabChange,
   onExtensionsClick,
@@ -35,35 +27,29 @@ export function PillArea({
         <ChipGroup>
           <Chip
             label="Recent"
-            active={
-              activeTab === "recent" &&
-              !mentionActive &&
-              !slashActive &&
-              !hashActive &&
-              !starActive
-            }
+            active={activeView === "recent"}
             onClick={() => onTabChange("recent")}
           />
           <Chip
             label="Extensions"
-            active={activeTab === "extensions" || mentionActive}
+            active={activeView === "extensions"}
             onClick={onExtensionsClick}
           />
           <Chip
             label="Commands"
-            active={activeTab === "commands" || (slashActive && !mentionActive)}
+            active={activeView === "commands"}
             onClick={onCommandsClick}
           />
           <Chip
             label="Applications"
-            active={activeTab === "applications" || starActive}
+            active={activeView === "applications"}
             onClick={onApplicationsClick}
           />
           {extensionPills.map((pill) => (
             <Chip
               key={`ext-pill-${pill.extensionId}`}
               label={pill.name}
-              active={activeTab === `ext:${pill.extensionId}`}
+              active={activeView === `ext:${pill.extensionId}`}
               onClick={() => onTabChange(`ext:${pill.extensionId}`)}
             />
           ))}

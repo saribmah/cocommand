@@ -84,7 +84,10 @@ export function Composer({
                   type="button"
                   className={styles.targetTagRemove}
                   onMouseDown={(event) => event.preventDefault()}
-                  onClick={() => onRemoveSegment(segment)}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onRemoveSegment(segment);
+                  }}
                   aria-label={`Remove @${segment.part.name}`}
                 >
                   <Icon size={12}>{RemoveIcon}</Icon>
