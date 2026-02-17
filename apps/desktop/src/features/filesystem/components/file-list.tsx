@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { Text } from "@cocommand/ui";
 import { useStore } from "zustand";
 import { useExtensionStore } from "../../extension/extension.context";
@@ -73,6 +73,10 @@ export function FileList({ onSelect, onActivate }: FileListProps) {
     }
   }, [selectedIndex, entries]);
 
+  const selectedRef = useCallback((node: HTMLButtonElement | null) => {
+    node?.scrollIntoView({ block: "nearest" });
+  }, [selectedIndex]);
+
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (entries.length === 0) return;
 
@@ -122,6 +126,7 @@ export function FileList({ onSelect, onActivate }: FileListProps) {
           entries.map((entry, index) => (
             <button
               key={entry.path}
+              ref={index === selectedIndex ? selectedRef : undefined}
               type="button"
               className={`${styles.fileItem} ${index === selectedIndex ? styles.fileItemSelected : ""}`}
               onClick={() => {

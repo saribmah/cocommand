@@ -1,4 +1,4 @@
-import type { HTMLAttributes, ReactNode } from "react";
+import { useEffect, useRef, type HTMLAttributes, type ReactNode } from "react";
 import { cx } from "../../utils/classNames";
 import { Text } from "../Text/Text";
 import styles from "./ListItem.module.css";
@@ -20,8 +20,17 @@ export function ListItem({
   className,
   ...props
 }: ListItemProps) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (selected && ref.current) {
+      ref.current.scrollIntoView({ block: "nearest" });
+    }
+  }, [selected]);
+
   return (
     <div
+      ref={ref}
       className={cx(styles.item, selected && styles.selected, className)}
       {...props}
     >
