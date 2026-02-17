@@ -5,6 +5,7 @@ pub mod error;
 pub mod extension;
 pub mod llm;
 pub mod message;
+pub mod oauth;
 pub mod server;
 pub mod session;
 pub mod storage;

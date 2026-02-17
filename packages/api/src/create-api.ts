@@ -8,6 +8,7 @@ import { createAI, type AIApi } from "./modules/ai";
 import { createLocalStorage, type LocalStorageApi } from "./modules/local-storage";
 import { createWindowManagement, type WindowManagementApi, type ToastOptions } from "./modules/window";
 import { createTools, type ToolsApi } from "./modules/tools";
+import { createOAuth, type OAuthApi } from "./modules/oauth";
 import { Cache } from "./modules/cache";
 
 export interface CocommandApi {
@@ -18,6 +19,7 @@ export interface CocommandApi {
   composer: ComposerApi;
   ai: AIApi;
   localStorage: LocalStorageApi;
+  oauth: OAuthApi;
   showToast: (options: ToastOptions) => Promise<void>;
   windowManagement: WindowManagementApi;
   cache: Cache;
@@ -41,6 +43,7 @@ export function createApi(opts: CreateApiOptions): CocommandApi {
     composer: createComposer(composer),
     ai: createAI(transport),
     localStorage: createLocalStorage(transport, extensionId),
+    oauth: createOAuth(transport, extensionId),
     showToast: win.showToast,
     windowManagement: win.windowManagement,
     cache: new Cache(extensionId),

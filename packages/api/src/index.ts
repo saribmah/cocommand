@@ -40,6 +40,17 @@ export type { ToastOptions, WindowManagementApi } from "./modules/window";
 export { createTools } from "./modules/tools";
 export type { ToolsApi } from "./modules/tools";
 
+export { createOAuth, isTokenExpired, PKCEClient } from "./modules/oauth";
+export type {
+  OAuthApi,
+  PKCEClientOptions,
+  AuthorizationRequest,
+  AuthorizationRequestOptions,
+  AuthorizationResponse,
+  TokenSet,
+  TokenSetOptions,
+} from "./modules/oauth";
+
 export { createApi } from "./create-api";
 export type { CocommandApi, CreateApiOptions } from "./create-api";
 

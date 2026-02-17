@@ -3,6 +3,7 @@ use axum::Router;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::net::TcpListener;
 use tokio::sync::{oneshot, watch};
 use tower_http::cors::{Any, CorsLayer};
@@ -10,12 +11,14 @@ use tower_http::cors::{Any, CorsLayer};
 use crate::bus::Bus;
 use crate::clipboard::spawn_clipboard_watcher;
 use crate::llm::{LlmService, LlmSettings};
+use crate::oauth::OAuthManager;
 use crate::session::SessionManager;
 use crate::workspace::WorkspaceInstance;
 pub mod assets;
 pub mod events;
 pub mod extension;
 pub mod invoke;
+pub mod oauth;
 pub mod screenshots;
 pub mod session;
 pub mod system;
@@ -41,11 +44,18 @@ impl Server {
             LlmSettings::from_workspace(&config.llm)
         };
         let llm = LlmService::new(settings).map_err(|e| e.to_string())?;
+        let oauth = OAuthManager::new(Duration::from_secs(300));
+        let listener = TcpListener::bind("127.0.0.1:0")
+            .await
+            .map_err(|error| error.to_string())?;
+        let addr = listener.local_addr().map_err(|error| error.to_string())?;
         let state = Arc::new(ServerState {
             workspace,
             sessions,
             bus,
             llm,
+            oauth,
+            addr,
         });
         let cors = CorsLayer::new()
             .allow_origin(Any)
@@ -94,12 +104,17 @@ impl Server {
                 "/workspace/extension/system/applications/open",
                 post(system::open_application),
             )
+            .route("/oauth/start", post(oauth::start_flow))
+            .route("/oauth/callback", get(oauth::callback))
+            .route("/oauth/poll", get(oauth::poll_flow))
+            .route(
+                "/oauth/tokens/:ext/:provider",
+                post(oauth::set_tokens)
+                    .get(oauth::get_tokens)
+                    .delete(oauth::delete_tokens),
+            )
             .with_state(state.clone())
             .layer(cors);
-        let listener = TcpListener::bind("127.0.0.1:0")
-            .await
-            .map_err(|error| error.to_string())?;
-        let addr = listener.local_addr().map_err(|error| error.to_string())?;
         let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
         let (clipboard_shutdown_tx, clipboard_shutdown_rx) = watch::channel(false);
 
@@ -111,6 +126,17 @@ impl Server {
                 .await;
         });
         spawn_clipboard_watcher(state.workspace.clone(), clipboard_shutdown_rx, 500);
+
+        {
+            let oauth = state.clone();
+            tokio::spawn(async move {
+                let mut interval = tokio::time::interval(Duration::from_secs(60));
+                loop {
+                    interval.tick().await;
+                    oauth.oauth.cleanup().await;
+                }
+            });
+        }
 
         Ok(Server {
             addr,
@@ -157,6 +183,8 @@ pub(crate) struct ServerState {
     pub(crate) sessions: Arc<SessionManager>,
     pub(crate) bus: Bus,
     pub(crate) llm: LlmService,
+    pub(crate) oauth: OAuthManager,
+    pub(crate) addr: SocketAddr,
 }
 
 #[cfg(test)]

@@ -3,6 +3,7 @@ import type { InvokeResponse } from "./types";
 export interface Transport {
   apiGet<T>(path: string): Promise<T>;
   apiPost<T>(path: string, body?: unknown): Promise<T>;
+  apiDelete<T>(path: string): Promise<T>;
   invokeTool<T>(
     extensionId: string,
     toolId: string,
@@ -36,6 +37,15 @@ export function createTransport(baseUrl: string): Transport {
       });
       if (!response.ok) {
         throw new Error(`POST ${path} failed (${response.status})`);
+      }
+      return response.json() as Promise<T>;
+    },
+
+    async apiDelete<T>(path: string): Promise<T> {
+      const url = `${base}${path}`;
+      const response = await fetch(url, { method: "DELETE" });
+      if (!response.ok) {
+        throw new Error(`DELETE ${path} failed (${response.status})`);
       }
       return response.json() as Promise<T>;
     },
