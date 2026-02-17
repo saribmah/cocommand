@@ -3,6 +3,8 @@ import { useParams } from "react-router-dom";
 import { closeExtensionWindow } from "../../../lib/ipc";
 import { getExtensionView } from "../../extension/extension-views";
 import { useExtensionContext } from "../../extension/extension.context";
+import { useServerContext } from "../../server/server.context";
+import { ApiProvider } from "@cocommand/api";
 import { Text } from "@cocommand/ui";
 
 export function ExtensionWindowView() {
@@ -12,6 +14,10 @@ export function ExtensionWindowView() {
   const fetchExtensions = useExtensionContext((s) => s.fetchExtensions);
   // Subscribe to viewLoadVersion so we re-render when dynamic views are loaded
   useExtensionContext((s) => s.viewLoadVersion);
+
+  const serverInfo = useServerContext((s) => s.info);
+  const addr = serverInfo?.addr ?? "";
+  const baseUrl = addr.startsWith("http") ? addr : `http://${addr}`;
 
   // Popout windows are fresh page loads with an empty view registry.
   // Trigger fetchExtensions which in turn runs loadDynamicViews.
@@ -48,7 +54,9 @@ export function ExtensionWindowView() {
   const Component = config.component;
   return (
     <div className="app-shell" style={{ width: "100%", height: "100%", "--cc-extension-bg": "var(--cc-surface-primary)" } as React.CSSProperties}>
-      <Component mode="popout" invoke={invoke} extensionId={extensionId} />
+      <ApiProvider baseUrl={baseUrl} extensionId={extensionId}>
+        <Component mode="popout" invoke={invoke} extensionId={extensionId} />
+      </ApiProvider>
     </div>
   );
 }

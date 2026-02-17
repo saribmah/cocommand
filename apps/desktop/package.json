@@ -10,6 +10,7 @@
     "tauri": "tauri"
   },
   "dependencies": {
+    "@cocommand/api": "workspace:*",
     "@cocommand/demo": "workspace:*",
     "@cocommand/ui": "workspace:*",
     "@tauri-apps/api": "^2",

@@ -1,6 +1,8 @@
 import { getExtensionView } from "../../extension/extension-views";
 import { useExtensionContext } from "../../extension/extension.context";
+import { useServerContext } from "../../server/server.context";
 import { openExtensionWindow } from "../../../lib/ipc";
+import { ApiProvider } from "@cocommand/api";
 import { Text } from "@cocommand/ui";
 import type { ComposerActions } from "../composer-actions";
 import styles from "../command.module.css";
@@ -22,6 +24,10 @@ export function ExtensionViewContainer({ extensionId, actions }: ExtensionViewCo
   const invoke = useExtensionContext((s) => s.invoke);
   // Subscribe to viewLoadVersion so we re-render when dynamic views are loaded
   useExtensionContext((s) => s.viewLoadVersion);
+
+  const serverInfo = useServerContext((s) => s.info);
+  const addr = serverInfo?.addr ?? "";
+  const baseUrl = addr.startsWith("http") ? addr : `http://${addr}`;
 
   const config = getExtensionView(extensionId);
 
@@ -61,7 +67,9 @@ export function ExtensionViewContainer({ extensionId, actions }: ExtensionViewCo
         </button>
       </div>
       <div className={styles.extensionViewContent}>
-        <Component mode="inline" invoke={invoke} extensionId={extensionId} actions={actions} />
+        <ApiProvider baseUrl={baseUrl} extensionId={extensionId} composer={actions}>
+          <Component mode="inline" invoke={invoke} extensionId={extensionId} actions={actions} />
+        </ApiProvider>
       </div>
     </div>
   );
