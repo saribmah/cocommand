@@ -9,7 +9,6 @@ import { Text } from "@cocommand/ui";
 
 export function ExtensionWindowView() {
   const { extensionId } = useParams<{ extensionId: string }>();
-  const invoke = useExtensionContext((s) => s.invoke);
   const dynamicViewsLoaded = useExtensionContext((s) => s.dynamicViewsLoaded);
   const fetchExtensions = useExtensionContext((s) => s.fetchExtensions);
   // Subscribe to viewLoadVersion so we re-render when dynamic views are loaded
@@ -55,7 +54,7 @@ export function ExtensionWindowView() {
   return (
     <div className="app-shell" style={{ width: "100%", height: "100%", "--cc-extension-bg": "var(--cc-surface-primary)" } as React.CSSProperties}>
       <ApiProvider baseUrl={baseUrl} extensionId={extensionId}>
-        <Component mode="popout" invoke={invoke} extensionId={extensionId} />
+        <Component mode="popout" />
       </ApiProvider>
     </div>
   );

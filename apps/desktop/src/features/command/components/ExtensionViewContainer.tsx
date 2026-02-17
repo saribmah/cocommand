@@ -21,7 +21,6 @@ const PopoutIcon = (
 );
 
 export function ExtensionViewContainer({ extensionId, actions }: ExtensionViewContainerProps) {
-  const invoke = useExtensionContext((s) => s.invoke);
   // Subscribe to viewLoadVersion so we re-render when dynamic views are loaded
   useExtensionContext((s) => s.viewLoadVersion);
 
@@ -68,7 +67,7 @@ export function ExtensionViewContainer({ extensionId, actions }: ExtensionViewCo
       </div>
       <div className={styles.extensionViewContent}>
         <ApiProvider baseUrl={baseUrl} extensionId={extensionId} composer={actions}>
-          <Component mode="inline" invoke={invoke} extensionId={extensionId} actions={actions} />
+          <Component mode="inline" />
         </ApiProvider>
       </div>
     </div>
