@@ -6,7 +6,7 @@
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, AtomicU64, AtomicU8, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicU8, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Instant;
@@ -51,10 +51,6 @@ struct SearchJob {
     reply: Sender<Result<Option<SearchResult>>>,
 }
 
-struct StatusJob {
-    reply: Sender<Result<IndexStatus>>,
-}
-
 struct RescanJob {
     reply: Sender<Result<IndexStatus>>,
 }
@@ -67,18 +63,22 @@ struct RescanJob {
 struct RootIndex {
     /// Channels for communicating with the index thread.
     search_tx: Sender<SearchJob>,
-    status_tx: Sender<StatusJob>,
     rescan_tx: Sender<RescanJob>,
 
     /// Lock-free state reads (written by index thread, read by anyone).
     build_state: Arc<AtomicU8>,
     build_progress: Arc<IndexBuildProgress>,
+    indexed_entries: Arc<AtomicUsize>,
+    errors: Arc<AtomicUsize>,
 
     /// Config for status reporting.
     config: RootIndexConfig,
     watcher_enabled: Arc<AtomicBool>,
     last_error: Arc<Mutex<Option<String>>>,
     rescan_count: Arc<AtomicU64>,
+
+    /// Keeps the watcher (FsEventStream on macOS) alive for the lifetime of this index.
+    _watcher_slot: Arc<Mutex<Option<WatcherHandle>>>,
 
     first_status_timing_logged: AtomicBool,
 }
@@ -127,14 +127,9 @@ impl RootIndex {
             };
         let cached_entries = initial_data.len();
 
-        #[cfg(target_os = "macos")]
-        let build_state_val =
-            if matches!(initial_state, IndexBuildState::Ready) && cached_event_id > 0 {
-                IndexBuildState::Updating
-            } else {
-                initial_state
-            };
-        #[cfg(not(target_os = "macos"))]
+        // Match Cardinal: report Ready immediately when we have a valid cache.
+        // FSEvents history replay applies incremental updates in the background
+        // without changing the visible state.
         let build_state_val = initial_state;
 
         #[cfg(target_os = "macos")]
@@ -164,16 +159,18 @@ impl RootIndex {
         #[cfg(not(target_os = "macos"))]
         let last_event_id = Arc::new(AtomicU64::new(0));
 
+        // Shared atomics for indexed_entries and errors (non-blocking status reads)
+        let indexed_entries = Arc::new(AtomicUsize::new(initial_data.len()));
+        let errors = Arc::new(AtomicUsize::new(0));
+
         // Create channels
         let (search_tx, search_rx) = channel::unbounded::<SearchJob>();
-        let (status_tx, status_rx) = channel::unbounded::<StatusJob>();
         let (rescan_tx, rescan_rx) = channel::unbounded::<RescanJob>();
         let (event_tx, event_rx) = channel::unbounded::<WatcherEvent>();
 
         // Spawn watcher (sends events through event_tx)
         let watcher_enabled_clone = watcher_enabled.clone();
         let last_error_clone = last_error.clone();
-        let build_state_clone = build_state.clone();
         let watcher_root = config.root.clone();
         let watcher_ignored = config.ignored_roots.clone();
         #[cfg(not(target_os = "macos"))]
@@ -199,10 +196,6 @@ impl RootIndex {
                 Ok(watcher) => Some(watcher),
                 Err(error) => {
                     let _ = last_error_clone.lock().map(|mut e| *e = Some(error.to_string()));
-                    if IndexBuildState::load(&build_state_clone) == IndexBuildState::Updating {
-                        build_state_clone
-                            .store(IndexBuildState::Ready as u8, Ordering::Relaxed);
-                    }
                     log::warn!(
                         "filesystem watcher disabled for {}: {}",
                         watcher_root.display(),
@@ -221,10 +214,6 @@ impl RootIndex {
                 Ok(watcher) => Some(watcher),
                 Err(error) => {
                     let _ = last_error_clone.lock().map(|mut e| *e = Some(error.to_string()));
-                    if IndexBuildState::load(&build_state_clone) == IndexBuildState::Updating {
-                        build_state_clone
-                            .store(IndexBuildState::Ready as u8, Ordering::Relaxed);
-                    }
                     log::warn!(
                         "filesystem watcher disabled for {}: {}",
                         watcher_root.display(),
@@ -247,6 +236,8 @@ impl RootIndex {
         let idx_last_error = last_error.clone();
         let idx_rescan_count = rescan_count.clone();
         let idx_last_event_id = last_event_id;
+        let idx_indexed_entries = indexed_entries.clone();
+        let idx_errors = errors.clone();
 
         thread::spawn(move || {
             // Hold event_tx_keepalive so the channel stays open for the thread's lifetime.
@@ -256,7 +247,6 @@ impl RootIndex {
                 initial_data,
                 build_state_val,
                 search_rx,
-                status_rx,
                 rescan_rx,
                 event_rx,
                 idx_build_state,
@@ -264,6 +254,8 @@ impl RootIndex {
                 idx_last_error,
                 idx_rescan_count,
                 idx_last_event_id,
+                idx_indexed_entries,
+                idx_errors,
             );
         });
 
@@ -279,14 +271,16 @@ impl RootIndex {
 
         Ok(Self {
             search_tx,
-            status_tx,
             rescan_tx,
             build_state,
             build_progress,
+            indexed_entries,
+            errors,
             config,
             watcher_enabled,
             last_error,
             rescan_count,
+            _watcher_slot: watcher_slot,
             first_status_timing_logged: AtomicBool::new(false),
         })
     }
@@ -301,7 +295,6 @@ fn run_index_thread(
     mut data: RootIndexData,
     initial_state: IndexBuildState,
     search_rx: Receiver<SearchJob>,
-    status_rx: Receiver<StatusJob>,
     rescan_rx: Receiver<RescanJob>,
     event_rx: Receiver<WatcherEvent>,
     build_state: Arc<AtomicU8>,
@@ -309,6 +302,8 @@ fn run_index_thread(
     last_error: Arc<Mutex<Option<String>>>,
     rescan_count: Arc<AtomicU64>,
     last_event_id: Arc<AtomicU64>,
+    indexed_entries: Arc<AtomicUsize>,
+    errors: Arc<AtomicUsize>,
 ) {
     let flush_tick = channel::tick(INDEX_FLUSH_POLL);
     let mut dirty = false;
@@ -333,6 +328,10 @@ fn run_index_thread(
         );
     }
 
+    // Cardinal-style event loop: process one batch per select iteration inline.
+    // FSEvents delivers batches at ~100ms intervals. coalesce_event_paths reduces
+    // each batch to a minimal set of root paths, then we walk each. After one
+    // batch, the select loop goes around and search/rescan can be serviced.
     loop {
         channel::select! {
             recv(search_rx) -> job => {
@@ -341,18 +340,11 @@ fn run_index_thread(
                 let result = execute_search(&config, &data, &build_state, &build_progress, job.query, job.kind, job.include_hidden, job.case_sensitive, job.max_results, job.max_depth, job.cancel_token);
                 let _ = job.reply.send(result);
             }
-            recv(status_rx) -> job => {
-                let Ok(job) = job else { break };
-                let result = build_status_payload(&config, &data, &build_state, &build_progress, &last_error, &rescan_count);
-                let _ = job.reply.send(result);
-            }
             recv(rescan_rx) -> job => {
                 let Ok(job) = job else { break };
-                // If already building, queue the reply for when build completes
                 if IndexBuildState::load(&build_state) == IndexBuildState::Building {
                     pending_rescan_replies.push(job.reply);
                 } else {
-                    // Kick off async build and queue reply
                     start_async_build(
                         &config,
                         &build_state,
@@ -368,6 +360,7 @@ fn run_index_thread(
                 match result {
                     Some(snapshot) => {
                         data = snapshot;
+                        indexed_entries.store(data.len(), Ordering::Relaxed);
                         let finished_at = unix_now_secs();
                         build_progress.finished_at.store(finished_at, Ordering::Relaxed);
                         build_progress.last_update_at.store(finished_at, Ordering::Relaxed);
@@ -389,11 +382,12 @@ fn run_index_thread(
                 // Apply any events that arrived during the build
                 drain_pending_events(&event_rx, &mut pending_during_build);
                 apply_pending_paths(&config, &mut data, &mut pending_during_build);
+                indexed_entries.store(data.len(), Ordering::Relaxed);
                 mark_dirty(&mut dirty, &mut first_dirty_at);
 
                 // Reply to any queued rescan requests
                 for reply in pending_rescan_replies.drain(..) {
-                    let status = build_status_payload(&config, &data, &build_state, &build_progress, &last_error, &rescan_count);
+                    let status = build_status_payload_from_atomics(&config, &build_state, &build_progress, &last_error, &rescan_count, &indexed_entries, &errors);
                     let _ = reply.send(status);
                 }
             }
@@ -404,15 +398,19 @@ fn run_index_thread(
                         if IndexBuildState::load(&build_state) == IndexBuildState::Building {
                             pending_during_build.extend(paths);
                         } else {
+                            // Coalesce this batch to a minimal cover set (identical
+                            // to Cardinal's scan_paths), then apply inline. Each
+                            // FSEvents batch is ~100ms of events so the coalesced
+                            // set is small — the select loop stays responsive.
                             for changed_path in coalesce_event_paths(paths) {
                                 apply_path_change(&config.root, config.root_is_dir, &config.ignored_roots, &mut data, &changed_path);
                             }
+                            indexed_entries.store(data.len(), Ordering::Relaxed);
                             mark_dirty(&mut dirty, &mut first_dirty_at);
                         }
                     }
                     WatcherEvent::RescanRequired => {
                         rescan_count.fetch_add(1, Ordering::Relaxed);
-                        // Kick off a rebuild if not already building
                         if IndexBuildState::load(&build_state) != IndexBuildState::Building {
                             start_async_build(
                                 &config,
@@ -424,15 +422,13 @@ fn run_index_thread(
                         }
                     }
                     WatcherEvent::HistoryDone => {
-                        if IndexBuildState::load(&build_state) == IndexBuildState::Updating {
-                            let now = unix_now_secs();
-                            build_state.store(IndexBuildState::Ready as u8, Ordering::Relaxed);
-                            build_progress.last_update_at.store(now, Ordering::Relaxed);
-                            build_progress.finished_at.store(now, Ordering::Relaxed);
-                        }
+                        log::info!(
+                            "filesystem history replay complete root={}",
+                            config.root.display(),
+                        );
                     }
                     WatcherEvent::Error(msg) => {
-                        data.errors += 1;
+                        errors.fetch_add(1, Ordering::Relaxed);
                         if let Ok(mut e) = last_error.lock() {
                             *e = Some(msg);
                         }
@@ -442,11 +438,9 @@ fn run_index_thread(
             recv(flush_tick) -> _ => {
                 if dirty {
                     let now = Instant::now();
-                    // Idle flush: only flush if no search activity for INDEX_FLUSH_IDLE
                     let search_idle = last_search_at
                         .map(|t| now.duration_since(t) >= INDEX_FLUSH_IDLE)
-                        .unwrap_or(true); // no searches yet = idle
-                    // Safety net: flush if dirty for too long, even with active searches
+                        .unwrap_or(true);
                     let max_delay_ok = first_dirty_at
                         .map(|t| now.duration_since(t) >= INDEX_FLUSH_MAX_DELAY)
                         .unwrap_or(false);
@@ -595,17 +589,17 @@ fn execute_search(
     )
 }
 
-fn build_status_payload(
+fn build_status_payload_from_atomics(
     config: &RootIndexConfig,
-    data: &RootIndexData,
     build_state: &AtomicU8,
     build_progress: &IndexBuildProgress,
     last_error: &Mutex<Option<String>>,
     rescan_count: &AtomicU64,
+    indexed_entries: &AtomicUsize,
+    errors: &AtomicUsize,
 ) -> Result<IndexStatus> {
     let state = IndexBuildState::load(build_state);
     let progress = build_progress.snapshot();
-    let watcher_enabled = true; // Simplified: watcher is always attempted
 
     let last_error_msg = last_error
         .lock()
@@ -620,14 +614,14 @@ fn build_status_payload(
             .iter()
             .map(|path| path.to_string_lossy().to_string())
             .collect(),
-        indexed_entries: data.len(),
+        indexed_entries: indexed_entries.load(Ordering::Relaxed),
         scanned_files: progress.scanned_files,
         scanned_dirs: progress.scanned_dirs,
         started_at: progress.started_at,
         last_update_at: progress.last_update_at,
         finished_at: progress.finished_at,
-        errors: data.errors,
-        watcher_enabled,
+        errors: errors.load(Ordering::Relaxed),
+        watcher_enabled: true,
         cache_path: config.cache_path.to_string_lossy().to_string(),
         rescan_count: rescan_count.load(Ordering::Relaxed),
         last_error: last_error_msg,
@@ -643,11 +637,24 @@ fn build_status_payload(
 /// This is the public API consumed by extensions. All operations are non-blocking
 /// from the caller's perspective — they send a message to the index thread and
 /// wait for a reply on a bounded channel.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct FileSystemIndexManager {
     indexes: Mutex<HashMap<RootIndexKey, Arc<RootIndex>>>,
+    /// Serializes `RootIndex::new()` calls so only one thread pays the cache-load cost.
+    creation_lock: Mutex<()>,
     search_version_tracker: SearchVersionTracker,
     unversioned_search_tracker: SearchVersionTracker,
+}
+
+impl Default for FileSystemIndexManager {
+    fn default() -> Self {
+        Self {
+            indexes: Mutex::new(HashMap::new()),
+            creation_lock: Mutex::new(()),
+            search_version_tracker: SearchVersionTracker::default(),
+            unversioned_search_tracker: SearchVersionTracker::default(),
+        }
+    }
 }
 
 impl FileSystemIndexManager {
@@ -742,6 +749,9 @@ impl FileSystemIndexManager {
     }
 
     /// Returns the index status, triggering a build if needed.
+    ///
+    /// This is fully non-blocking — reads shared atomics directly without
+    /// sending a message to the index thread.
     pub fn index_status(
         &self,
         root: PathBuf,
@@ -752,14 +762,15 @@ impl FileSystemIndexManager {
         let key = self.build_key(root, ignored_roots)?;
         let index = self.get_or_create_index(key.clone(), cache_dir)?;
 
-        let (reply_tx, reply_rx) = channel::bounded(1);
-        index.status_tx.send(StatusJob { reply: reply_tx }).map_err(|_| {
-            FilesystemError::Internal("index thread has shut down".to_string())
-        })?;
-
-        let status = reply_rx.recv().map_err(|_| {
-            FilesystemError::Internal("index thread did not reply".to_string())
-        })??;
+        let status = build_status_payload_from_atomics(
+            &index.config,
+            &index.build_state,
+            &index.build_progress,
+            &index.last_error,
+            &index.rescan_count,
+            &index.indexed_entries,
+            &index.errors,
+        )?;
 
         if !index
             .first_status_timing_logged
@@ -810,16 +821,28 @@ impl FileSystemIndexManager {
                 return Ok(existing);
             }
         }
-        // Lock released — create index outside the lock (cache load can be slow).
+
+        // Serialize creation — only one thread pays the cache-load cost.
+        let _creation_guard = self.creation_lock.lock().map_err(|_| {
+            FilesystemError::Internal("filesystem index creation lock poisoned".to_string())
+        })?;
+
+        // Re-check under creation lock — another thread may have created it while we waited.
+        {
+            let indexes = self.indexes.lock().map_err(|_| {
+                FilesystemError::Internal("filesystem index registry lock poisoned".to_string())
+            })?;
+            if let Some(existing) = indexes.get(&key).cloned() {
+                return Ok(existing);
+            }
+        }
+
+        // Create index outside the indexes lock (cache load can be slow).
         let index = Arc::new(RootIndex::new(key.clone(), cache_dir)?);
 
-        // Re-acquire and insert (double-check in case another thread raced us).
         let mut indexes = self.indexes.lock().map_err(|_| {
             FilesystemError::Internal("filesystem index registry lock poisoned".to_string())
         })?;
-        if let Some(existing) = indexes.get(&key).cloned() {
-            return Ok(existing);
-        }
         indexes.insert(key, index.clone());
         Ok(index)
     }

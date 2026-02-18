@@ -301,14 +301,6 @@ pub fn load_index_snapshot(
         return None;
     }
 
-    if !storage_graph_is_consistent(&storage) {
-        log::warn!(
-            "filesystem cache graph validation failed for {}, rebuilding",
-            cache_path.display()
-        );
-        return None;
-    }
-
     let last_event_id = storage.last_event_id;
     let saved_at = storage.saved_at;
 
@@ -362,66 +354,6 @@ fn restore_from_storage(storage: PersistentStorage, _root: &Path) -> RootIndexDa
         name_index,
         errors: storage.errors,
     }
-}
-
-/// Validates that all slab references are internally consistent.
-///
-/// This guards against corrupted cache snapshots where node indices were
-/// compacted without remapping parent/child/name-index references.
-fn storage_graph_is_consistent(storage: &PersistentStorage) -> bool {
-    // Root must exist.
-    if storage.slab.get(storage.slab_root).is_none() {
-        return false;
-    }
-
-    // Name-index entries must point to existing slab nodes.
-    for indices in storage.name_index.values() {
-        if indices.iter().any(|idx| storage.slab.get(*idx).is_none()) {
-            return false;
-        }
-    }
-
-    // Validate reachable tree from root:
-    // - every child index exists
-    // - child parent points back to current node
-    // - no cycles in child graph
-    let mut visited = std::collections::BTreeSet::new();
-    let mut on_stack = std::collections::BTreeSet::new();
-    let mut stack = vec![(storage.slab_root, 0usize)];
-    on_stack.insert(storage.slab_root);
-
-    while let Some((current_id, child_idx)) = stack.last_mut() {
-        let Some(current_node) = storage.slab.get(*current_id) else {
-            return false;
-        };
-
-        if *child_idx >= current_node.children.len() {
-            on_stack.remove(current_id);
-            visited.insert(*current_id);
-            stack.pop();
-            continue;
-        }
-
-        let child_id = current_node.children[*child_idx];
-        *child_idx += 1;
-
-        let Some(child_node) = storage.slab.get(child_id) else {
-            return false;
-        };
-        if child_node.parent() != Some(*current_id) {
-            return false;
-        }
-        if on_stack.contains(&child_id) {
-            return false;
-        }
-        if !visited.contains(&child_id) {
-            on_stack.insert(child_id);
-            stack.push((child_id, 0));
-        }
-    }
-
-    // All slab nodes should be reachable from the declared root.
-    visited.len() == storage.slab.len()
 }
 
 // ---------------------------------------------------------------------------
@@ -553,50 +485,4 @@ mod tests {
         );
     }
 
-    #[test]
-    fn storage_graph_validation_rejects_missing_child_reference() {
-        let temp = tempfile::TempDir::new().expect("tempdir");
-        let root = temp.path();
-        fs::write(root.join("a.txt"), b"a").expect("write a");
-        fs::write(root.join("b.txt"), b"b").expect("write b");
-
-        let walk_data = WalkData::new(root, &[]);
-        let mut data = crate::indexer::RootIndexData::from_walk(&walk_data).expect("walk");
-        data.remove_entry(&root.join("a.txt"));
-
-        let mut cloned = clone_slab_for_persistence(&data.file_nodes).expect("clone slab");
-
-        // Corrupt the root chain by deleting one referenced child index.
-        let root_id = data.file_nodes.root();
-        let missing_child = cloned
-            .get(root_id)
-            .and_then(|node| node.children.first().copied())
-            .expect("root should have a child");
-        let _ = cloned.try_remove(missing_child);
-
-        let name_index: BTreeMap<Box<str>, SortedSlabIndices> = data
-            .name_index
-            .iter()
-            .map(|(name, indices)| ((*name).into(), indices.clone()))
-            .collect();
-
-        let storage = PersistentStorage {
-            version: INDEX_CACHE_VERSION,
-            last_event_id: 1,
-            path: root.to_path_buf(),
-            root_is_dir: true,
-            ignore_paths: Vec::new(),
-            slab_root: root_id,
-            slab: cloned,
-            name_index,
-            rescan_count: 0,
-            saved_at: 0,
-            errors: 0,
-        };
-
-        assert!(
-            !storage_graph_is_consistent(&storage),
-            "validation should reject missing child references"
-        );
-    }
 }

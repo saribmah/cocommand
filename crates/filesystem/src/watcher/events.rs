@@ -29,7 +29,6 @@ pub enum WatcherEvent {
     /// A full rescan is required (root was directly modified, kernel dropped events, etc.).
     RescanRequired,
     /// FSEvents history replay is complete (macOS only).
-    /// The index thread should transition from Updating to Ready.
     HistoryDone,
     /// The watcher encountered an error.
     Error(String),
@@ -52,7 +51,7 @@ pub fn create_fsevent_watcher(
         root,
         ignored_roots,
         since_event_id,
-        0.05,
+        0.1,
         move |events| {
             process_fsevent_batch(
                 &callback_root,
@@ -207,35 +206,15 @@ pub fn apply_path_change(
     }
 
     if changed_path.exists() {
+        // Remove stale entry (and descendants if it was a directory that changed type).
         remove_path_and_descendants(data, changed_path);
-        // Recursively upsert the path and its descendants
-        upsert_path_recursive(data, changed_path, ignored_roots);
+        // Upsert just this single node. With kFSEventStreamCreateFlagFileEvents,
+        // FSEvents reports every individual file — children arrive as their own
+        // events, so recursive directory walks are unnecessary (and catastrophically
+        // slow for large directories like node_modules or .cargo).
+        data.upsert_entry(changed_path, &NAME_POOL);
     } else {
         remove_path_and_descendants(data, changed_path);
-    }
-}
-
-/// Recursively upserts a path and its descendants into the index.
-fn upsert_path_recursive(data: &mut RootIndexData, path: &std::path::Path, ignored: &[PathBuf]) {
-    // Check if path should be ignored
-    if ignored.iter().any(|ig| path == ig || path.starts_with(ig)) {
-        return;
-    }
-
-    // Upsert this path
-    data.upsert_entry(path, &NAME_POOL);
-
-    // If it's a directory, recurse into children
-    if path.is_dir() {
-        if let Ok(entries) = std::fs::read_dir(path) {
-            // Collect and sort entries by name for deterministic order
-            let mut children: Vec<_> = entries.filter_map(|e| e.ok()).map(|e| e.path()).collect();
-            children.sort();
-
-            for child_path in children {
-                upsert_path_recursive(data, &child_path, ignored);
-            }
-        }
     }
 }
 
