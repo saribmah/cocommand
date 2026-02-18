@@ -39,11 +39,6 @@ pub enum FilesystemError {
 
 pub type Result<T> = std::result::Result<T, FilesystemError>;
 
-/// Creates an error for a poisoned lock.
-pub fn lock_poisoned_error(lock_name: &str) -> FilesystemError {
-    FilesystemError::Internal(format!("{lock_name} lock poisoned"))
-}
-
 /// Canonicalizes a path, returning the original if canonicalization fails.
 pub fn canonicalize_existing_path(path: PathBuf) -> PathBuf {
     fs::canonicalize(&path).unwrap_or(path)

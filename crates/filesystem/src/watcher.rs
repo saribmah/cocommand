@@ -14,7 +14,7 @@ mod walker;
 mod fsevent;
 
 // Re-export event handling
-pub use events::{apply_path_change, mark_index_dirty};
+pub use events::{apply_path_change, WatcherEvent};
 
 #[cfg(target_os = "macos")]
 pub use events::create_fsevent_watcher;

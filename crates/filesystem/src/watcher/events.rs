@@ -1,14 +1,18 @@
 //! Filesystem watching - FSEvents (macOS) and notify (cross-platform).
+//!
+//! Watcher callbacks send events through a crossbeam channel instead of
+//! directly mutating shared index state. The index thread is the sole
+//! consumer and applies changes to its owned data.
 
 use std::path::PathBuf;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
-use super::walker::{coalesce_event_paths, path_in_scope, path_is_ignored};
+use crossbeam_channel::Sender;
+
+use super::walker::{path_in_scope, path_is_ignored};
 use crate::error::{FilesystemError, Result};
-#[cfg(target_os = "macos")]
-use crate::indexer::unix_now_secs;
-use crate::indexer::{IndexBuildState, RootIndexData, SharedRootIndex};
+use crate::indexer::RootIndexData;
 use crate::storage::NAME_POOL;
 
 #[cfg(target_os = "macos")]
@@ -17,34 +21,66 @@ use super::fsevent::{FsEvent, FsEventFlags, FsEventScanType, FsEventStream};
 #[cfg(not(target_os = "macos"))]
 use notify::{recommended_watcher, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 
+/// An event sent from the watcher to the index thread.
+#[derive(Debug)]
+pub enum WatcherEvent {
+    /// Incremental path changes to apply.
+    PathsChanged(Vec<PathBuf>),
+    /// A full rescan is required (root was directly modified, kernel dropped events, etc.).
+    RescanRequired,
+    /// FSEvents history replay is complete (macOS only).
+    /// The index thread should transition from Updating to Ready.
+    HistoryDone,
+    /// The watcher encountered an error.
+    Error(String),
+}
+
 /// Creates an FSEvents watcher on macOS.
+///
+/// Events are sent through `event_tx` to the index thread.
 #[cfg(target_os = "macos")]
 pub fn create_fsevent_watcher(
-    shared: Arc<SharedRootIndex>,
+    root: &PathBuf,
+    ignored_roots: &[PathBuf],
     since_event_id: u64,
+    event_tx: Sender<WatcherEvent>,
+    last_event_id: Arc<std::sync::atomic::AtomicU64>,
 ) -> Result<FsEventStream> {
-    let callback_shared = shared.clone();
+    let callback_root = root.clone();
+    let callback_ignored = ignored_roots.to_vec();
     let stream = FsEventStream::new(
-        &shared.root,
-        &shared.ignored_roots,
+        root,
+        ignored_roots,
         since_event_id,
         0.05,
         move |events| {
-            apply_fsevent_batch(callback_shared.as_ref(), events);
+            process_fsevent_batch(
+                &callback_root,
+                &callback_ignored,
+                events,
+                &event_tx,
+                &last_event_id,
+            );
         },
     )
     .map_err(|error| {
         FilesystemError::Internal(format!(
             "failed to start FSEvents watcher for {}: {error}",
-            shared.root.display()
+            root.display()
         ))
     })?;
     Ok(stream)
 }
 
-/// Applies a batch of FSEvents.
+/// Processes a batch of FSEvents and sends them to the index thread.
 #[cfg(target_os = "macos")]
-fn apply_fsevent_batch(shared: &SharedRootIndex, events: Vec<FsEvent>) {
+fn process_fsevent_batch(
+    root: &PathBuf,
+    _ignored_roots: &[PathBuf],
+    events: Vec<FsEvent>,
+    event_tx: &Sender<WatcherEvent>,
+    last_event_id: &std::sync::atomic::AtomicU64,
+) {
     if events.is_empty() {
         return;
     }
@@ -56,119 +92,80 @@ fn apply_fsevent_batch(shared: &SharedRootIndex, events: Vec<FsEvent>) {
     // Update last_event_id to the maximum in this batch
     let max_event_id = events.iter().map(|e| e.event_id).max().unwrap_or(0);
     if max_event_id > 0 {
-        shared
-            .last_event_id
-            .fetch_max(max_event_id, Ordering::Relaxed);
+        last_event_id.fetch_max(max_event_id, Ordering::Relaxed);
     }
 
-    if saw_history_done && IndexBuildState::load(&shared.build_state) == IndexBuildState::Updating {
-        let now = unix_now_secs();
-        shared
-            .build_state
-            .store(IndexBuildState::Ready as u8, Ordering::Relaxed);
-        shared
-            .build_progress
-            .last_update_at
-            .store(now, Ordering::Relaxed);
-        shared
-            .build_progress
-            .finished_at
-            .store(now, Ordering::Relaxed);
+    if saw_history_done {
+        let _ = event_tx.send(WatcherEvent::HistoryDone);
     }
 
-    // If we're still building the index, queue paths for later
-    if IndexBuildState::load(&shared.build_state) == IndexBuildState::Building {
-        let paths: Vec<PathBuf> = events
-            .into_iter()
-            .filter(|e| e.scan_type != FsEventScanType::Nop)
-            .map(|e| e.path)
-            .collect();
-        if !paths.is_empty() {
-            enqueue_pending_paths(shared, paths);
-        }
-        return;
-    }
-
-    // Check if any event requires a full rescan.
-    // Cardinal triggers rescan on explicit rescan events and on direct root hits.
+    // Check if any event requires a full rescan
     let needs_rescan = events.iter().any(|event| {
         event.scan_type == FsEventScanType::ReScan
             || (matches!(
                 event.scan_type,
                 FsEventScanType::SingleNode | FsEventScanType::Folder
-            ) && event.path == shared.root)
+            ) && event.path == *root)
     });
 
     if needs_rescan {
-        // Signal that a rescan is required. We avoid synchronous rebuild in the
-        // watcher callback; instead, move build state back to Idle so the next
-        // search/status call will start a fresh background rebuild.
-        shared.increment_rescan_count();
-        if IndexBuildState::load(&shared.build_state) != IndexBuildState::Building {
-            shared
-                .build_state
-                .store(IndexBuildState::Idle as u8, Ordering::Relaxed);
-        }
-        mark_index_dirty(shared);
+        let _ = event_tx.send(WatcherEvent::RescanRequired);
         return;
     }
 
-    // Collect non-Nop paths, coalesce, and apply incrementally
+    // Collect non-Nop paths and send
     let paths: Vec<PathBuf> = events
         .into_iter()
         .filter(|e| e.scan_type != FsEventScanType::Nop)
         .map(|e| e.path)
         .collect();
 
-    if paths.is_empty() {
-        return;
+    if !paths.is_empty() {
+        let _ = event_tx.send(WatcherEvent::PathsChanged(paths));
     }
-
-    let mut data = match shared.data.write() {
-        Ok(data) => data,
-        Err(_) => return,
-    };
-
-    for changed_path in coalesce_event_paths(paths) {
-        apply_path_change(shared, &mut data, &changed_path);
-    }
-    drop(data);
-    mark_index_dirty(shared);
 }
 
 /// Creates a notify watcher on non-macOS platforms.
+///
+/// Events are sent through `event_tx` to the index thread.
 #[cfg(not(target_os = "macos"))]
-pub fn create_index_watcher(shared: Arc<SharedRootIndex>) -> Result<RecommendedWatcher> {
+pub fn create_index_watcher(
+    root: PathBuf,
+    root_is_dir: bool,
+    event_tx: Sender<WatcherEvent>,
+) -> Result<RecommendedWatcher> {
     use std::path::Path;
 
-    let callback_shared = shared.clone();
     let mut watcher =
-        recommended_watcher(
-            move |event_result: notify::Result<Event>| match event_result {
-                Ok(event) => apply_notify_event(callback_shared.as_ref(), event),
-                Err(_) => {
-                    if let Ok(mut data) = callback_shared.data.write() {
-                        data.errors += 1;
-                    }
+        recommended_watcher(move |event_result: notify::Result<Event>| match event_result {
+            Ok(event) => {
+                if matches!(event.kind, EventKind::Access(_)) {
+                    return;
                 }
-            },
-        )
+                if event.paths.is_empty() {
+                    let _ = event_tx.send(WatcherEvent::RescanRequired);
+                } else {
+                    let _ = event_tx.send(WatcherEvent::PathsChanged(event.paths));
+                }
+            }
+            Err(error) => {
+                let _ = event_tx.send(WatcherEvent::Error(error.to_string()));
+            }
+        })
         .map_err(|error| {
             FilesystemError::Internal(format!(
                 "failed to create filesystem watcher for {}: {error}",
-                shared.root.display()
+                root.display()
             ))
         })?;
 
-    let (watch_target, recursive_mode) = if shared.root_is_dir {
-        (shared.root.clone(), RecursiveMode::Recursive)
+    let (watch_target, recursive_mode) = if root_is_dir {
+        (root.clone(), RecursiveMode::Recursive)
     } else {
         (
-            shared
-                .root
-                .parent()
+            root.parent()
                 .map(Path::to_path_buf)
-                .unwrap_or_else(|| shared.root.clone()),
+                .unwrap_or_else(|| root.clone()),
             RecursiveMode::NonRecursive,
         )
     };
@@ -185,81 +182,34 @@ pub fn create_index_watcher(shared: Arc<SharedRootIndex>) -> Result<RecommendedW
     Ok(watcher)
 }
 
-/// Applies a notify event on non-macOS platforms.
-#[cfg(not(target_os = "macos"))]
-fn apply_notify_event(shared: &SharedRootIndex, event: Event) {
-    if matches!(event.kind, EventKind::Access(_)) {
-        return;
-    }
-
-    if IndexBuildState::load(&shared.build_state) == IndexBuildState::Building {
-        enqueue_pending_paths(shared, event.paths);
-        return;
-    }
-
-    let mut data = match shared.data.write() {
-        Ok(data) => data,
-        Err(_) => return,
-    };
-
-    if event.paths.is_empty() {
-        match build_snapshot_for_rescan(shared) {
-            Ok(snapshot) => *data = snapshot,
-            Err(_) => data.errors += 1,
-        }
-        drop(data);
-        mark_index_dirty(shared);
-        return;
-    }
-
-    for changed_path in coalesce_event_paths(event.paths) {
-        apply_path_change(shared, &mut data, &changed_path);
-    }
-    drop(data);
-    mark_index_dirty(shared);
-}
-
-/// Enqueues pending paths for processing after build completes.
-pub fn enqueue_pending_paths(shared: &SharedRootIndex, mut paths: Vec<PathBuf>) {
-    if paths.is_empty() {
-        paths.push(shared.root.clone());
-    }
-    if let Ok(mut pending) = shared.pending_changes.lock() {
-        pending.extend(paths);
-        if pending.len() > 4096 {
-            let drained = std::mem::take(&mut *pending);
-            *pending = coalesce_event_paths(drained);
-        }
-    }
-}
-
 /// Applies a single path change to the index.
+///
+/// Called by the index thread on its owned data — no locks needed.
 pub fn apply_path_change(
-    shared: &SharedRootIndex,
+    root: &PathBuf,
+    root_is_dir: bool,
+    ignored_roots: &[PathBuf],
     data: &mut RootIndexData,
     changed_path: &std::path::Path,
 ) {
-    if !path_in_scope(&shared.root, shared.root_is_dir, changed_path) {
+    if !path_in_scope(root, root_is_dir, changed_path) {
         return;
     }
 
-    if path_is_ignored(&shared.ignored_roots, changed_path) {
+    if path_is_ignored(ignored_roots, changed_path) {
         remove_path_and_descendants(data, changed_path);
         return;
     }
 
-    if changed_path == shared.root {
-        match build_snapshot_for_rescan(shared) {
-            Ok(snapshot) => *data = snapshot,
-            Err(_) => data.errors += 1,
-        }
+    if changed_path == root.as_path() {
+        // Root itself changed — caller should handle rescan
         return;
     }
 
     if changed_path.exists() {
         remove_path_and_descendants(data, changed_path);
         // Recursively upsert the path and its descendants
-        upsert_path_recursive(data, changed_path, &shared.ignored_roots);
+        upsert_path_recursive(data, changed_path, ignored_roots);
     } else {
         remove_path_and_descendants(data, changed_path);
     }
@@ -295,24 +245,3 @@ fn remove_path_and_descendants(data: &mut RootIndexData, target: &std::path::Pat
     data.remove_entry(target);
 }
 
-/// Builds a fresh snapshot for rescan.
-fn build_snapshot_for_rescan(shared: &SharedRootIndex) -> crate::error::Result<RootIndexData> {
-    use crate::indexer::WalkData as FsWalkData;
-
-    // Use the two-phase approach
-    let walk_data = FsWalkData::new(&shared.root, &shared.ignored_roots);
-
-    // Build using from_walk which does two-phase: walk -> tree -> slab
-    match RootIndexData::from_walk(&walk_data) {
-        Some(snapshot) => Ok(snapshot),
-        None => {
-            // Walk was cancelled (shouldn't happen with no cancel flag)
-            Ok(RootIndexData::new())
-        }
-    }
-}
-
-/// Marks the index as dirty (needs flushing).
-pub fn mark_index_dirty(shared: &SharedRootIndex) {
-    shared.flush_signal.mark_dirty();
-}

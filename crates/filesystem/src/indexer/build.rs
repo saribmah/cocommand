@@ -1,9 +1,7 @@
 //! Index build state and progress tracking.
 
 use std::sync::atomic::{AtomicU64, AtomicU8, AtomicUsize, Ordering};
-use std::sync::{Arc, Condvar, Mutex};
-use std::thread::JoinHandle;
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 /// Index build state.
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
@@ -96,134 +94,15 @@ pub struct ProgressSnapshot {
     pub finished_at: Option<u64>,
 }
 
-/// Flush signal for the background worker.
-#[derive(Debug, Default)]
-pub struct FlushSignal {
-    state: Mutex<FlushState>,
-    condvar: Condvar,
-}
+/// Flush poll interval — how often we check whether a flush is due.
+pub const INDEX_FLUSH_POLL: Duration = Duration::from_secs(10);
 
-#[derive(Debug, Default)]
-struct FlushState {
-    dirty: bool,
-    shutdown: bool,
-    first_dirty_at: Option<Instant>,
-    last_dirty_at: Option<Instant>,
-}
+/// Idle flush threshold — flush only after this long with no search activity.
+/// Matches Cardinal's IDLE_FLUSH_INTERVAL (5 minutes).
+pub const INDEX_FLUSH_IDLE: Duration = Duration::from_secs(5 * 60);
 
-/// Decision returned by the flush worker.
-#[derive(Debug)]
-pub enum FlushDecision {
-    Flush,
-    Shutdown,
-}
-
-/// Debounce and max delay constants for flushing.
-pub const INDEX_FLUSH_DEBOUNCE_MS: u64 = 1200;
-pub const INDEX_FLUSH_MAX_DELAY_SECS: u64 = 20;
-
-impl FlushSignal {
-    /// Marks the index as dirty, triggering a future flush.
-    pub fn mark_dirty(&self) {
-        let now = Instant::now();
-        let mut state = match self.state.lock() {
-            Ok(state) => state,
-            Err(_) => return,
-        };
-        if !state.dirty {
-            state.first_dirty_at = Some(now);
-        }
-        state.dirty = true;
-        state.last_dirty_at = Some(now);
-        self.condvar.notify_all();
-    }
-
-    /// Requests shutdown of the flush worker.
-    pub fn request_shutdown(&self) {
-        let mut state = match self.state.lock() {
-            Ok(state) => state,
-            Err(_) => return,
-        };
-        state.shutdown = true;
-        self.condvar.notify_all();
-    }
-
-    /// Waits for a flush or shutdown decision.
-    pub fn wait_for_flush(&self) -> FlushDecision {
-        let mut state = match self.state.lock() {
-            Ok(state) => state,
-            Err(_) => return FlushDecision::Shutdown,
-        };
-
-        loop {
-            if !state.dirty {
-                if state.shutdown {
-                    return FlushDecision::Shutdown;
-                }
-                state = match self.condvar.wait(state) {
-                    Ok(guard) => guard,
-                    Err(_) => return FlushDecision::Shutdown,
-                };
-                continue;
-            }
-
-            let now = Instant::now();
-            let debounce_deadline = state
-                .last_dirty_at
-                .unwrap_or(now)
-                .checked_add(Duration::from_millis(INDEX_FLUSH_DEBOUNCE_MS))
-                .unwrap_or(now);
-            let max_deadline = state
-                .first_dirty_at
-                .unwrap_or(now)
-                .checked_add(Duration::from_secs(INDEX_FLUSH_MAX_DELAY_SECS))
-                .unwrap_or(now);
-            let next_deadline = debounce_deadline.min(max_deadline);
-
-            if state.shutdown || now >= next_deadline {
-                state.dirty = false;
-                state.first_dirty_at = None;
-                state.last_dirty_at = None;
-                return FlushDecision::Flush;
-            }
-
-            let wait_for = next_deadline
-                .checked_duration_since(now)
-                .unwrap_or_else(|| Duration::from_millis(1));
-            let (next_state, _) = match self.condvar.wait_timeout(state, wait_for) {
-                Ok(value) => value,
-                Err(_) => return FlushDecision::Shutdown,
-            };
-            state = next_state;
-        }
-    }
-}
-
-/// Handle for the background flush worker thread.
-#[derive(Debug)]
-pub struct FlushWorkerHandle {
-    pub signal: Arc<FlushSignal>,
-    join_handle: Option<JoinHandle<()>>,
-}
-
-impl FlushWorkerHandle {
-    /// Creates a new flush worker handle.
-    pub fn new(signal: Arc<FlushSignal>, join_handle: JoinHandle<()>) -> Self {
-        Self {
-            signal,
-            join_handle: Some(join_handle),
-        }
-    }
-}
-
-impl Drop for FlushWorkerHandle {
-    fn drop(&mut self) {
-        self.signal.request_shutdown();
-        if let Some(handle) = self.join_handle.take() {
-            let _ = handle.join();
-        }
-    }
-}
+/// Safety-net max delay — flush even if searches keep coming, to avoid data loss.
+pub const INDEX_FLUSH_MAX_DELAY: Duration = Duration::from_secs(10 * 60);
 
 /// Returns the current Unix timestamp in seconds.
 pub fn unix_now_secs() -> u64 {

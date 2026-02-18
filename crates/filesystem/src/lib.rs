@@ -6,6 +6,13 @@
 //! - Persistent cache with compression
 //! - Filesystem indexing with watch support
 //!
+//! ## Architecture
+//!
+//! Each indexed root gets its own **index thread** that exclusively owns
+//! the `RootIndexData`. All communication (search, status, watcher events)
+//! happens through crossbeam channels — no shared mutable state, no locks
+//! on the hot path, no deadlocks.
+//!
 //! ## Module Structure
 //!
 //! - `storage` - Low-level storage primitives (slab, namepool)

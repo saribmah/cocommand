@@ -9,7 +9,6 @@ use std::collections::BTreeMap;
 use std::fs::{self, File};
 use std::io::{BufReader, BufWriter, ErrorKind};
 use std::path::{Path, PathBuf};
-use std::sync::atomic::Ordering;
 use std::thread::available_parallelism;
 use std::time::UNIX_EPOCH;
 
@@ -18,7 +17,6 @@ use serde::{Deserialize, Serialize};
 use super::build::unix_now_secs;
 use super::data::RootIndexData;
 use super::file_nodes::FileNodes;
-use super::shared::SharedRootIndex;
 use crate::error::{FilesystemError, Result};
 use crate::storage::{SlabIndex, SlabNode, SortedSlabIndices, ThinSlab, NAME_POOL};
 
@@ -90,6 +88,21 @@ impl RootIndexKey {
 }
 
 // ---------------------------------------------------------------------------
+// Snapshot context for writing (replaces SharedRootIndex dependency)
+// ---------------------------------------------------------------------------
+
+/// All the metadata needed to write an index snapshot.
+/// Passed by the index thread to the flush logic.
+pub struct FlushContext<'a> {
+    pub root: &'a Path,
+    pub root_is_dir: bool,
+    pub ignored_roots: &'a [PathBuf],
+    pub cache_path: &'a Path,
+    pub last_event_id: u64,
+    pub rescan_count: u64,
+}
+
+// ---------------------------------------------------------------------------
 // Write operations
 // ---------------------------------------------------------------------------
 
@@ -99,7 +112,7 @@ impl RootIndexKey {
 /// - Postcard encoding (compact binary format)
 /// - Zstd compression (level 6, multi-threaded)
 /// - Atomic write (temp file + rename)
-pub fn write_index_snapshot(shared: &SharedRootIndex, data: &RootIndexData) -> Result<()> {
+pub fn write_index_snapshot(ctx: &FlushContext, data: &RootIndexData) -> Result<()> {
     // Convert name_index keys to Box<str> for serialization
     // (can't serialize &'static str directly)
     let name_index: BTreeMap<Box<str>, SortedSlabIndices> = data
@@ -110,23 +123,23 @@ pub fn write_index_snapshot(shared: &SharedRootIndex, data: &RootIndexData) -> R
 
     let storage = PersistentStorage {
         version: INDEX_CACHE_VERSION,
-        last_event_id: shared.last_event_id.load(Ordering::Relaxed),
-        path: shared.root.clone(),
-        root_is_dir: shared.root_is_dir,
-        ignore_paths: shared.ignored_roots.clone(),
+        last_event_id: ctx.last_event_id,
+        path: ctx.root.to_path_buf(),
+        root_is_dir: ctx.root_is_dir,
+        ignore_paths: ctx.ignored_roots.to_vec(),
         slab_root: data.file_nodes.root(),
         // Clone the slab while preserving sparse indices. Cardinal keeps slab
         // indices stable across updates; compacting would corrupt parent/child
         // links and name-index references after deletions.
         slab: clone_slab_for_persistence(&data.file_nodes)?,
         name_index,
-        rescan_count: shared.rescan_count(),
+        rescan_count: ctx.rescan_count,
         saved_at: unix_now_secs(),
         errors: data.errors,
     };
 
     // Ensure cache directory exists
-    if let Some(parent) = shared.cache_path.parent() {
+    if let Some(parent) = ctx.cache_path.parent() {
         fs::create_dir_all(parent).map_err(|error| {
             FilesystemError::Internal(format!(
                 "failed to create filesystem cache directory {}: {error}",
@@ -136,7 +149,7 @@ pub fn write_index_snapshot(shared: &SharedRootIndex, data: &RootIndexData) -> R
     }
 
     // Write to temp file first for atomic operation
-    let tmp_path = shared.cache_path.with_extension("tmp");
+    let tmp_path = ctx.cache_path.with_extension("tmp");
 
     {
         let output = File::create(&tmp_path).map_err(|error| {
@@ -167,16 +180,16 @@ pub fn write_index_snapshot(shared: &SharedRootIndex, data: &RootIndexData) -> R
     }
 
     // Atomic rename
-    fs::rename(&tmp_path, &shared.cache_path).map_err(|error| {
+    fs::rename(&tmp_path, ctx.cache_path).map_err(|error| {
         FilesystemError::Internal(format!(
             "failed to finalize filesystem cache file {}: {error}",
-            shared.cache_path.display()
+            ctx.cache_path.display()
         ))
     })?;
 
     log::debug!(
         "wrote filesystem cache to {} ({} nodes)",
-        shared.cache_path.display(),
+        ctx.cache_path.display(),
         data.file_nodes.len()
     );
 

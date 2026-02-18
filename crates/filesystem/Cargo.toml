@@ -10,9 +10,7 @@ parking_lot = "0.12"
 fnv = "1.0"
 bitflags = "2"
 log = "0.4"
-
-# Async
-tokio = { version = "1", features = ["sync", "time", "fs"] }
+crossbeam-channel = "0.5"
 
 # Serialization
 serde = { version = "1", features = ["derive"] }
