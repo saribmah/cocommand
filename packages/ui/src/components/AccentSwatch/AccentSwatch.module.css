@@ -1,27 +1,28 @@
 .swatch {
   display: inline-flex;
   align-items: center;
-  gap: var(--cc-space-2);
-  padding: 6px 10px;
+  gap: var(--cc-space-1);
+  padding: 3px 10px;
   border-radius: var(--cc-radius-pill);
   border: 1px solid var(--cc-border-soft);
   background: rgba(255, 255, 255, 0.03);
   cursor: pointer;
+  transition: border-color 120ms ease, background 120ms ease;
 }
 
 .swatch:hover {
   border-color: var(--cc-border-strong);
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.05);
 }
 
 .selected {
   border-color: var(--cc-border-strong);
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .color {
-  width: 16px;
-  height: 16px;
+  width: 12px;
+  height: 12px;
   border-radius: 999px;
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.2);
 }

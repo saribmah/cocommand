@@ -22,11 +22,11 @@ export function ChoiceCard({
       className={cx(styles.card, selected && styles.selected, className)}
       {...props}
     >
-      <Text as="div" size="md" weight="medium">
+      <Text as="span" size="xs" tone={selected ? "primary" : "secondary"}>
         {title}
       </Text>
       {description ? (
-        <Text as="div" size="sm" tone="secondary" className={styles.description}>
+        <Text as="span" size="xs" tone="secondary" className={styles.description}>
           {description}
         </Text>
       ) : null}

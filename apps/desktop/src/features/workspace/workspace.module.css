@@ -111,7 +111,9 @@
 
 /* Form-specific styles */
 .modeGrid {
-  grid-template-columns: repeat(3, 1fr);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--cc-space-2);
 }
 
 .accentRow {
@@ -143,4 +145,25 @@
   display: inline-flex;
   align-items: center;
   gap: var(--cc-space-2);
+}
+
+.openButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--cc-border-soft);
+  border-radius: var(--cc-radius-pill);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--cc-text-secondary);
+  cursor: pointer;
+  transition: border-color 120ms ease, background 120ms ease, color 120ms ease;
+}
+
+.openButton:hover {
+  border-color: var(--cc-border-strong);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--cc-text-primary);
 }

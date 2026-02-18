@@ -8,7 +8,6 @@ import styles from "./workspace.module.css";
 import {
   AccentSwatch,
   ButtonPrimary,
-  ButtonSecondary,
   ChoiceCard,
   Divider,
   ErrorBanner,
@@ -387,9 +386,18 @@ export function WorkspaceView({ mode }: ExtensionViewProps) {
                           status={p.granted ? "good" : "warn"}
                           label={p.granted ? "Granted" : "Not granted"}
                         />
-                        <ButtonSecondary onClick={() => handleOpenPermission(p.id)}>
-                          Open Settings
-                        </ButtonSecondary>
+                        <button
+                          type="button"
+                          className={styles.openButton}
+                          onClick={() => handleOpenPermission(p.id)}
+                          aria-label="Open system settings"
+                        >
+                          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M6 3H3.5A1.5 1.5 0 0 0 2 4.5v8A1.5 1.5 0 0 0 3.5 14h8a1.5 1.5 0 0 0 1.5-1.5V10" />
+                            <path d="M9.5 2H14v4.5" />
+                            <path d="M14 2 7.5 8.5" />
+                          </svg>
+                        </button>
                       </div>
                     </div>
                   ))

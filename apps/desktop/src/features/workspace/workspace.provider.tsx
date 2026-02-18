@@ -2,12 +2,12 @@ import { AppPanel, ButtonPrimary, Text } from "@cocommand/ui";
 import { type PropsWithChildren, useEffect } from "react";
 import { useStore } from "zustand";
 import { useExtensionStore } from "../extension/extension.context";
-import type { WorkspaceExtensionState } from "../workspace/workspace.extension-store";
-import { WorkspaceView } from "../workspace/workspace.view";
+import type { WorkspaceExtensionState } from "./workspace.extension-store";
+import { WorkspaceView } from "./workspace.view";
 
 type OnboardingProviderProps = PropsWithChildren;
 
-export function OnboardingProvider({ children }: OnboardingProviderProps) {
+export function WorkspaceProvider({ children }: OnboardingProviderProps) {
   const store = useExtensionStore<WorkspaceExtensionState>("workspace");
   const config = useStore(store, (s) => s.config);
   const isLoading = useStore(store, (s) => s.isLoading);

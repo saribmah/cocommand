@@ -3,7 +3,7 @@ import { AppPanel, ButtonPrimary, Text } from "@cocommand/ui";
 import { ApplicationProvider } from "../features/application/application.provider";
 import { CommandProvider } from "../features/command/command.provider";
 import { ExtensionProvider } from "../features/extension/extension.provider";
-import { OnboardingProvider } from "../features/onboarding/onboarding.provider";
+import { WorkspaceProvider } from "../features/workspace/workspace.provider.tsx";
 import { ServerProvider } from "../features/server/server.provider.tsx";
 import { SessionProvider } from "../features/session/session.provider";
 import { getServerInfo, ServerInfo } from "../lib/ipc.ts";
@@ -63,7 +63,7 @@ export function AppInit({ children }: AppInitProps) {
   return (
     <ServerProvider serverInfo={serverInfo}>
       <ExtensionProvider>
-        <OnboardingProvider>
+        <WorkspaceProvider>
           <ApplicationProvider>
             <SessionProvider>
               <CommandProvider>
@@ -71,7 +71,7 @@ export function AppInit({ children }: AppInitProps) {
               </CommandProvider>
             </SessionProvider>
           </ApplicationProvider>
-        </OnboardingProvider>
+        </WorkspaceProvider>
       </ExtensionProvider>
     </ServerProvider>
   );

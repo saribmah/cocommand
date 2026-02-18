@@ -17,7 +17,7 @@ export function AccentSwatch({ color, label, selected = false, className, ...pro
       {...props}
     >
       <span className={styles.color} style={{ background: color }} />
-      <Text as="span" size="sm" tone={selected ? "primary" : "secondary"}>
+      <Text as="span" size="xs" tone={selected ? "primary" : "secondary"}>
         {label}
       </Text>
     </button>
