@@ -1,6 +1,6 @@
 .button {
-  padding: 10px 16px;
-  border-radius: var(--cc-radius-card);
+  padding: 6px 14px;
+  border-radius: var(--cc-radius-pill);
   border: 1px solid var(--cc-border-strong);
   background: rgba(255, 255, 255, 0.12);
   color: var(--cc-text-primary);

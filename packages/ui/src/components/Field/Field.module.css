@@ -5,8 +5,8 @@
 }
 
 .label {
-  text-transform: uppercase;
-  letter-spacing: 0.14em;
+  text-transform: none;
+  letter-spacing: normal;
 }
 
 .control {

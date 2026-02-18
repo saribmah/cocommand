@@ -7,12 +7,6 @@ import type { ExtensionViewProps } from "../extension/extension-views";
 import styles from "./workspace.module.css";
 import {
   AccentSwatch,
-  AppContent,
-  AppFooter,
-  AppHeader,
-  AppNav,
-  AppPanel,
-  ButtonGroup,
   ButtonPrimary,
   ButtonSecondary,
   ChoiceCard,
@@ -20,10 +14,7 @@ import {
   ErrorBanner,
   Field,
   FieldRow,
-  InfoCard,
   InlineHelp,
-  NavTab,
-  NavTabs,
   OptionGroup,
   StatusBadge,
   Text,
@@ -45,6 +36,12 @@ const themeModes = [
   { id: "system", label: "System" },
   { id: "light", label: "Light" },
   { id: "dark", label: "Dark" },
+];
+
+const tabs: { id: SettingsTab; label: string }[] = [
+  { id: "general", label: "General" },
+  { id: "ai", label: "AI" },
+  { id: "permissions", label: "Permissions" },
 ];
 
 export function WorkspaceView({ mode }: ExtensionViewProps) {
@@ -82,6 +79,7 @@ export function WorkspaceView({ mode }: ExtensionViewProps) {
   });
 
   const isSetup = config ? !config.onboarding.completed : false;
+  const isInline = mode === "inline";
 
   // Fetch config on mount
   useEffect(() => {
@@ -195,54 +193,47 @@ export function WorkspaceView({ mode }: ExtensionViewProps) {
 
   if (!config) {
     return (
-      <AppPanel style={{ minHeight: 360, maxWidth: 620 }}>
-        <Text as="div" size="lg" weight="semibold">
-          {storeError ? "Failed to load workspace config" : "Loading workspace..."}
-        </Text>
-        {storeError ? (
-          <Text as="div" size="sm" tone="secondary">{storeError}</Text>
-        ) : null}
-      </AppPanel>
+      <div className={`${isInline ? "" : "app-shell "}${styles.container}${isInline ? ` ${styles.inline}` : ""}`}>
+        <div className={styles.loading}>
+          <Text as="div" size="lg" weight="semibold">
+            {storeError ? "Failed to load workspace config" : "Loading workspace..."}
+          </Text>
+          {storeError ? (
+            <Text as="div" size="sm" tone="secondary">{storeError}</Text>
+          ) : null}
+        </div>
+      </div>
     );
   }
 
   return (
-    <main className="app-shell">
-      <AppPanel className="app-shell-panel">
-        <AppHeader
-          title={isSetup ? "Setup" : "Settings"}
-          subtitle={
-            isSetup
-              ? "Configure your workspace, AI provider, and permissions."
-              : "Manage workspace configuration."
-          }
-          brand={<img className={styles.brand} src="/logo_dark.png" alt="Cocommand" />}
-          kicker={null}
-        />
+    <div className={`${isInline ? "" : "app-shell "}${styles.container}${isInline ? ` ${styles.inline}` : ""}`}>
+      {/* Sidebar */}
+      <div className={styles.sidebar}>
+        <div className={styles.sidebarHeader}>
+          <Text as="div" size="md" weight="semibold">
+            {isSetup ? "Setup" : "Settings"}
+          </Text>
+        </div>
+        <div className={styles.tabList}>
+          {tabs.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              className={`${styles.tabItem}${tab === t.id ? ` ${styles.tabItemSelected}` : ""}`}
+              onClick={() => setTab(t.id)}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+      </div>
 
-        <AppNav>
-          <NavTabs>
-            <NavTab
-              label="General"
-              active={tab === "general"}
-              onClick={() => setTab("general")}
-            />
-            <NavTab
-              label="AI"
-              active={tab === "ai"}
-              onClick={() => setTab("ai")}
-            />
-            <NavTab
-              label="Permissions"
-              active={tab === "permissions"}
-              onClick={() => setTab("permissions")}
-            />
-          </NavTabs>
-        </AppNav>
-
-        <AppContent className={`app-shell-content ${styles.content}`}>
+      {/* Detail panel */}
+      <div className={styles.detail}>
+        <div className={styles.detailContent}>
           {tab === "general" && (
-            <InfoCard>
+            <>
               <Text as="h3" size="lg" weight="semibold">
                 General
               </Text>
@@ -279,11 +270,11 @@ export function WorkspaceView({ mode }: ExtensionViewProps) {
                   ))}
                 </div>
               </Field>
-            </InfoCard>
+            </>
           )}
 
           {tab === "ai" && (
-            <InfoCard>
+            <>
               <Text as="h3" size="lg" weight="semibold">
                 AI configuration
               </Text>
@@ -360,11 +351,11 @@ export function WorkspaceView({ mode }: ExtensionViewProps) {
                 />
                 <InlineHelp text="Leave blank to keep the current key." />
               </Field>
-            </InfoCard>
+            </>
           )}
 
           {tab === "permissions" && (
-            <InfoCard>
+            <>
               <Text as="h3" size="lg" weight="semibold">
                 Permissions
               </Text>
@@ -404,22 +395,20 @@ export function WorkspaceView({ mode }: ExtensionViewProps) {
                   ))
                 )}
               </div>
-            </InfoCard>
+            </>
           )}
 
           {error ? <ErrorBanner message={error} /> : null}
-        </AppContent>
+        </div>
 
-        <AppFooter>
-          <ButtonGroup>
-            <ButtonPrimary onClick={handleSave} disabled={busy || isSaving}>
-              {busy || isSaving
-                ? "Saving..."
-                : isSetup
-                  ? "Complete Setup"
-                  : "Save"}
-            </ButtonPrimary>
-          </ButtonGroup>
+        <div className={styles.detailFooter}>
+          <ButtonPrimary onClick={handleSave} disabled={busy || isSaving}>
+            {busy || isSaving
+              ? "Saving..."
+              : isSetup
+                ? "Complete Setup"
+                : "Save"}
+          </ButtonPrimary>
           {toast === "success" ? (
             <StatusBadge status="good" label={isSetup ? "Setup complete" : "Settings saved"} />
           ) : toast === "error" ? (
@@ -433,8 +422,8 @@ export function WorkspaceView({ mode }: ExtensionViewProps) {
                   : ""}
             </Text>
           )}
-        </AppFooter>
-      </AppPanel>
-    </main>
+        </div>
+      </div>
+    </div>
   );
 }
