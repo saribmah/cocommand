@@ -6,7 +6,7 @@ use crate::error::CoreResult;
 use crate::extension::host::ExtensionHost;
 use crate::extension::manifest::{ExtensionManifest, ExtensionTool as ManifestTool};
 use crate::extension::{
-    boxed_tool_future, Extension, ExtensionContext, ExtensionKind, ExtensionTool,
+    boxed_tool_future, Extension, ExtensionContext, ExtensionKind, ExtensionStatus, ExtensionTool,
 };
 use tokio::sync::Mutex;
 use tokio::time::{timeout, Duration};
@@ -80,6 +80,15 @@ impl Extension for CustomExtension {
 
     fn as_any(&self) -> &dyn Any {
         self
+    }
+
+    fn status(&self) -> ExtensionStatus {
+        match self.initialized.try_lock() {
+            // Not yet activated or already activated — either way, usable
+            Ok(_) => ExtensionStatus::Ready,
+            // Lock held means activate() is currently running
+            Err(_) => ExtensionStatus::Building,
+        }
     }
 
     fn view_config(&self) -> Option<&crate::extension::manifest::ViewConfig> {

@@ -1,7 +1,7 @@
 import "@cocommand/ui";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useStore } from "zustand";
-import { useExtensionStore } from "../extension/extension.context";
+import { useExtensionContext, useExtensionStore } from "../extension/extension.context";
 import type { WorkspaceExtensionState } from "./workspace.extension-store";
 import type { ExtensionViewProps } from "../extension/extension-views";
 import styles from "./workspace.module.css";
@@ -21,7 +21,7 @@ import {
   TextInput,
 } from "@cocommand/ui";
 
-type SettingsTab = "general" | "ai" | "permissions";
+type SettingsTab = "general" | "ai" | "permissions" | "extensions";
 
 const accentOptions = [
   { id: "copper", label: "Copper", color: "#f46a4b" },
@@ -40,6 +40,7 @@ const themeModes = [
 const tabs: { id: SettingsTab; label: string }[] = [
   { id: "general", label: "General" },
   { id: "ai", label: "AI" },
+  { id: "extensions", label: "Extensions" },
   { id: "permissions", label: "Permissions" },
 ];
 
@@ -54,6 +55,15 @@ export function WorkspaceView({ mode }: ExtensionViewProps) {
   const updateConfig = useStore(store, (s) => s.updateConfig);
   const fetchPermissions = useStore(store, (s) => s.fetchPermissions);
   const openPermission = useStore(store, (s) => s.openPermission);
+
+  const allExtensions = useExtensionContext((s) => s.extensions);
+  const fetchExtensions = useExtensionContext((s) => s.fetchExtensions);
+
+  // Filter out system extensions for the Extensions tab
+  const visibleExtensions = useMemo(
+    () => allExtensions.filter((ext) => ext.kind !== "system"),
+    [allExtensions],
+  );
 
   const [tab, setTab] = useState<SettingsTab>("general");
   const [busy, setBusy] = useState(false);
@@ -107,6 +117,16 @@ export function WorkspaceView({ mode }: ExtensionViewProps) {
     });
   }, [config]);
 
+  // Refresh extension list when extensions tab is selected
+  useEffect(() => {
+    if (tab !== "extensions") return;
+    void fetchExtensions();
+    const timer = window.setInterval(() => {
+      void fetchExtensions();
+    }, 5000);
+    return () => window.clearInterval(timer);
+  }, [tab, fetchExtensions]);
+
   // Fetch permissions on mount and poll on permissions tab
   useEffect(() => {
     if (!permissions.length) void fetchPermissions();
@@ -138,6 +158,26 @@ export function WorkspaceView({ mode }: ExtensionViewProps) {
       await fetchPermissions();
     } catch (err) {
       setError(String(err));
+    }
+  };
+
+  const handleToggleExtension = async (extensionId: string, currentlyEnabled: boolean) => {
+    if (!config) return;
+    const installed = [...config.extensions.installed];
+    const idx = installed.findIndex((e) => e.extension_id === extensionId);
+    if (idx >= 0) {
+      installed[idx] = { ...installed[idx], enabled: !currentlyEnabled };
+    } else {
+      installed.push({ extension_id: extensionId, version: "0.0.0", enabled: !currentlyEnabled });
+    }
+    try {
+      await updateConfig({
+        ...config,
+        extensions: { ...config.extensions, installed },
+      });
+      void fetchExtensions();
+    } catch {
+      // error tracked by store
     }
   };
 
@@ -350,6 +390,71 @@ export function WorkspaceView({ mode }: ExtensionViewProps) {
                 />
                 <InlineHelp text="Leave blank to keep the current key." />
               </Field>
+            </>
+          )}
+
+          {tab === "extensions" && (
+            <>
+              <Text as="h3" size="lg" weight="semibold">
+                Extensions
+              </Text>
+              <Text as="p" size="sm" tone="secondary">
+                Manage installed extensions and their status.
+              </Text>
+              <Divider />
+              <div className={styles.extensionList}>
+                {visibleExtensions.length === 0 ? (
+                  <div className={styles.extensionRow}>
+                    <Text size="sm" tone="secondary">Loading extensions...</Text>
+                  </div>
+                ) : (
+                  visibleExtensions.map((ext) => {
+                    const isDisabled = ext.status === "disabled";
+                    const isEnabled = !isDisabled;
+                    return (
+                      <div key={ext.id} className={styles.extensionRow}>
+                        <div className={styles.extensionInfo}>
+                          <div style={{ display: "flex", alignItems: "center", gap: "var(--cc-space-2)" }}>
+                            <Text as="div" size="sm" weight="medium">
+                              {ext.name}
+                            </Text>
+                            <span className={styles.kindBadge}>{ext.kind}</span>
+                          </div>
+                        </div>
+                        <div className={styles.extensionActions}>
+                          <StatusBadge
+                            status={
+                              ext.status === "ready"
+                                ? "good"
+                                : ext.status === "building"
+                                  ? "warn"
+                                  : ext.status === "error"
+                                    ? "warn"
+                                    : "neutral"
+                            }
+                            label={
+                              ext.status === "ready"
+                                ? "Ready"
+                                : ext.status === "building"
+                                  ? "Building"
+                                  : ext.status === "error"
+                                    ? "Error"
+                                    : "Disabled"
+                            }
+                          />
+                          <button
+                            type="button"
+                            className={styles.toggleButton}
+                            onClick={() => handleToggleExtension(ext.id, isEnabled)}
+                          >
+                            {isEnabled ? "Disable" : "Enable"}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
             </>
           )}
 

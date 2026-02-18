@@ -167,3 +167,77 @@
   background: rgba(255, 255, 255, 0.05);
   color: var(--cc-text-primary);
 }
+
+/* Extensions tab */
+.extensionList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cc-space-3);
+}
+
+.extensionRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--cc-space-3);
+  padding-bottom: var(--cc-space-2);
+  border-bottom: 1px solid var(--cc-border-soft);
+}
+
+.extensionRow:last-child {
+  border-bottom: 0;
+}
+
+.extensionInfo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cc-space-1);
+  min-width: 0;
+}
+
+.extensionActions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cc-space-2);
+  flex-shrink: 0;
+}
+
+.toggleButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--cc-space-1) var(--cc-space-2);
+  border: 1px solid var(--cc-border-soft);
+  border-radius: var(--cc-radius-pill);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--cc-text-secondary);
+  cursor: pointer;
+  font-family: var(--cc-font-sans);
+  font-size: var(--cc-text-xs);
+  font-weight: 500;
+  transition: border-color 120ms ease, background 120ms ease, color 120ms ease;
+}
+
+.toggleButton:hover {
+  border-color: var(--cc-border-strong);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--cc-text-primary);
+}
+
+.extensionConfig {
+  padding: var(--cc-space-3) 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--cc-space-3);
+}
+
+.kindBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px var(--cc-space-1);
+  border-radius: var(--cc-radius-sm);
+  background: rgba(255, 255, 255, 0.06);
+  font-size: var(--cc-text-xs);
+  color: var(--cc-text-tertiary);
+  font-weight: 500;
+}

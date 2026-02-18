@@ -5,7 +5,7 @@ use serde::Deserialize;
 use serde::Serialize;
 use std::sync::Arc;
 
-use crate::extension::{Extension, ExtensionContext, ExtensionKind, ExtensionTool};
+use crate::extension::{Extension, ExtensionContext, ExtensionKind, ExtensionStatus, ExtensionTool};
 use crate::server::ServerState;
 
 #[derive(Debug, Serialize)]
@@ -13,6 +13,7 @@ pub struct ExtensionInfo {
     pub id: String,
     pub name: String,
     pub kind: String,
+    pub status: String,
     pub tags: Vec<String>,
     pub tools: Vec<ExtensionToolInfo>,
     pub view: Option<ExtensionViewInfo>,
@@ -49,10 +50,24 @@ pub(crate) async fn list_extensions(
     State(state): State<Arc<ServerState>>,
 ) -> Json<Vec<ExtensionInfo>> {
     let registry = state.workspace.extension_registry.read().await;
+    let config = state.workspace.config.read().await;
+    let installed = &config.extensions.installed;
+
     let apps = registry
         .list()
         .into_iter()
-        .map(|app| map_extension(app.as_ref()))
+        .map(|app| {
+            let mut info = map_extension(app.as_ref());
+            // Override status to "disabled" if config says so
+            let is_disabled = installed
+                .iter()
+                .find(|e| e.extension_id == info.id)
+                .is_some_and(|e| !e.enabled);
+            if is_disabled {
+                info.status = "disabled".to_string();
+            }
+            info
+        })
         .collect();
     Json(apps)
 }
@@ -114,6 +129,7 @@ fn map_extension(app: &dyn Extension) -> ExtensionInfo {
         id: app.id().to_string(),
         name: app.name().to_string(),
         kind: map_kind(app.kind()),
+        status: map_status(app.status()),
         tags: app.tags(),
         tools: app.tools().into_iter().map(map_tool).collect(),
         view: app.view_config().map(map_view_config),
@@ -139,6 +155,16 @@ fn map_tool(tool: ExtensionTool) -> ExtensionToolInfo {
         description: tool.description,
         input_schema: tool.input_schema,
     }
+}
+
+fn map_status(status: ExtensionStatus) -> String {
+    match status {
+        ExtensionStatus::Ready => "ready",
+        ExtensionStatus::Building => "building",
+        ExtensionStatus::Error => "error",
+        ExtensionStatus::Disabled => "disabled",
+    }
+    .to_string()
 }
 
 fn map_kind(kind: ExtensionKind) -> String {

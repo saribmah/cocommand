@@ -74,5 +74,6 @@ export const createWorkspaceExtensionStore = (invoke: ExtensionInvokeFn) => {
     openPermission: async (id: string) => {
       await invoke("workspace", "open_permission", { id });
     },
+
   }));
 };

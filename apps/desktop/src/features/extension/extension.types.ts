@@ -15,6 +15,7 @@ export interface ExtensionInfo {
   id: string;
   name: string;
   kind: string;
+  status: string;
   tags: string[];
   tools: ExtensionToolInfo[];
   view?: ExtensionViewInfo;

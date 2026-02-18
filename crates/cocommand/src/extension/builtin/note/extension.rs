@@ -5,9 +5,11 @@ use serde_json::json;
 
 use crate::error::{CoreError, CoreResult};
 use crate::extension::{
-    boxed_tool_future, Extension, ExtensionInitContext, ExtensionKind, ExtensionTool,
+    boxed_tool_future, Extension, ExtensionInitContext, ExtensionKind, ExtensionStatus,
+    ExtensionTool,
 };
 
+use filesystem::indexer::IndexBuildState;
 use filesystem::FileSystemIndexManager;
 
 use super::ops::{
@@ -65,6 +67,14 @@ impl Extension for NoteExtension {
 
     fn as_any(&self) -> &dyn Any {
         self
+    }
+
+    fn status(&self) -> ExtensionStatus {
+        match self.index_manager.peek_build_state() {
+            IndexBuildState::Idle | IndexBuildState::Building => ExtensionStatus::Building,
+            IndexBuildState::Ready | IndexBuildState::Updating => ExtensionStatus::Ready,
+            IndexBuildState::Error => ExtensionStatus::Error,
+        }
     }
 
     async fn initialize(&self, context: ExtensionInitContext) -> CoreResult<()> {

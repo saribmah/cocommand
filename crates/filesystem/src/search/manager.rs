@@ -267,6 +267,21 @@ impl FileSystemIndexManager {
         self.search_version_tracker.current_version()
     }
 
+    /// Returns the build state of the most recently created root index
+    /// without triggering a build. Returns `Idle` if no roots exist.
+    pub fn peek_build_state(&self) -> IndexBuildState {
+        let indexes = match self.indexes.read() {
+            Ok(guard) => guard,
+            Err(_) => return IndexBuildState::Idle,
+        };
+        // Return the state of the first (usually only) root index
+        indexes
+            .values()
+            .next()
+            .map(|index| IndexBuildState::load(&index.shared.build_state))
+            .unwrap_or(IndexBuildState::Idle)
+    }
+
     fn build_key(&self, root: PathBuf, ignored_roots: Vec<PathBuf>) -> Result<RootIndexKey> {
         if !root.exists() {
             return Err(FilesystemError::InvalidInput(format!(

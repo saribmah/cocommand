@@ -193,6 +193,11 @@ export function CommandView() {
   // Filtered lists
   // ---------------------------------------------------------------------------
 
+  const readyExtensions = useMemo(
+    () => extensions.filter((ext) => ext.status === "ready"),
+    [extensions],
+  );
+
   const filteredExtensions = useMemo(() => {
     const query = mentionState
       ? normalizeQuery(mentionState.query)
@@ -202,9 +207,9 @@ export function CommandView() {
     if (!mentionState && activeTab !== "extensions") return [];
     if (!mentionState) {
       if (!query) {
-        return [...extensions].sort((a, b) => a.name.localeCompare(b.name));
+        return [...readyExtensions].sort((a, b) => a.name.localeCompare(b.name));
       }
-      const ranked = extensions
+      const ranked = readyExtensions
         .map((extension) => ({
           extension,
           score: matchScore(query, extension.name, extension.id, extension.kind),
@@ -213,7 +218,7 @@ export function CommandView() {
         .sort((a, b) => b.score - a.score);
       return ranked.slice(0, 8).map((entry) => entry.extension);
     }
-    const ranked = extensions
+    const ranked = readyExtensions
       .map((extension) => ({
         extension,
         score: matchScore(query, extension.name, extension.id, extension.kind),
@@ -221,7 +226,7 @@ export function CommandView() {
       .filter((entry) => (query.length === 0 ? true : entry.score >= 0))
       .sort((a, b) => b.score - a.score);
     return ranked.slice(0, 8).map((entry) => entry.extension);
-  }, [activeTab, activeText, extensions, mentionState]);
+  }, [activeTab, activeText, readyExtensions, mentionState]);
 
   useEffect(() => {
     if (mentionState || activeTab === "extensions") {

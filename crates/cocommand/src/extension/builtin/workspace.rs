@@ -4,7 +4,9 @@ use std::sync::Arc;
 use serde_json::json;
 
 use crate::error::CoreError;
-use crate::extension::{boxed_tool_future, Extension, ExtensionContext, ExtensionKind, ExtensionTool};
+use crate::extension::{
+    boxed_tool_future, Extension, ExtensionContext, ExtensionKind, ExtensionTool,
+};
 use crate::llm::{LlmService, LlmSettings};
 use crate::utils::time::now_secs;
 use crate::workspace::WorkspaceConfig;

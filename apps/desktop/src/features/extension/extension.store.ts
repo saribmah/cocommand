@@ -102,6 +102,18 @@ export const createExtensionStore = (getAddr: () => string | null) => {
         throw new Error("Server unavailable");
       }
 
+      // Check if extension is ready before opening
+      const ext = get().extensions.find((e) => e.id === id);
+      if (ext && ext.status !== "ready") {
+        throw new Error(
+          ext.status === "building"
+            ? `Extension "${ext.name}" is still initializing`
+            : ext.status === "disabled"
+              ? `Extension "${ext.name}" is disabled`
+              : `Extension "${ext.name}" is not available (${ext.status})`,
+        );
+      }
+
       const url = buildServerUrl(addr, "/workspace/extensions/open");
       const response = await fetch(url, {
         method: "POST",

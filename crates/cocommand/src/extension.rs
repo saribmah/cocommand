@@ -10,7 +10,18 @@ use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 
+use serde::Serialize;
+
 use crate::error::CoreResult;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ExtensionStatus {
+    Ready,
+    Building,
+    Error,
+    Disabled,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ExtensionKind {
@@ -78,6 +89,11 @@ pub trait Extension: Send + Sync {
 
     /// Returns self as Any for downcasting to concrete types.
     fn as_any(&self) -> &dyn Any;
+
+    /// Returns the current status of the extension.
+    fn status(&self) -> ExtensionStatus {
+        ExtensionStatus::Ready
+    }
 
     /// Called once at startup when the extension is registered.
     /// Use this for background tasks like beginning filesystem indexing.
