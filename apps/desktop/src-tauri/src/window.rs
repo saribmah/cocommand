@@ -38,41 +38,6 @@ pub fn toggle_main_window(app: &tauri::AppHandle) {
     }
 }
 
-#[tauri::command]
-pub fn open_settings_window(app: tauri::AppHandle) -> Result<(), String> {
-    if let Some(window) = app.get_webview_window("settings") {
-        window.show().map_err(|error| error.to_string())?;
-        window.set_focus().map_err(|error| error.to_string())?;
-        position_window_on_active_screen(&window)?;
-        schedule_settings_reposition(app.clone());
-        return Ok(());
-    }
-
-    let url = tauri::WebviewUrl::App("settings".into());
-    let window = tauri::WebviewWindowBuilder::new(&app, "settings", url)
-        .title("Settings")
-        .inner_size(720.0, 520.0)
-        .resizable(true)
-        .decorations(false)
-        .transparent(true)
-        .always_on_top(false)
-        .build()
-        .map_err(|error| error.to_string())?;
-    window.show().map_err(|error| error.to_string())?;
-    window.set_focus().map_err(|error| error.to_string())?;
-    position_window_on_active_screen(&window)?;
-    schedule_settings_reposition(app);
-    Ok(())
-}
-
-#[tauri::command]
-pub fn hide_settings_window(app: tauri::AppHandle) -> Result<(), String> {
-    if let Some(window) = app.get_webview_window("settings") {
-        window.hide().map_err(|error| error.to_string())?;
-    }
-    Ok(())
-}
-
 fn position_window_on_active_screen(window: &tauri::WebviewWindow) -> Result<(), String> {
     let app = window.app_handle();
     let monitor = select_monitor_for_cursor(&app, window);
@@ -128,23 +93,6 @@ pub fn position_main_window_on_active_screen(app: &AppHandle) -> Result<(), Stri
         position_window_on_active_screen(&window)?;
     }
     Ok(())
-}
-
-fn position_settings_window_on_active_screen(app: &AppHandle) -> Result<(), String> {
-    if let Some(window) = app.get_webview_window("settings") {
-        position_window_on_active_screen(&window)?;
-    }
-    Ok(())
-}
-
-fn schedule_settings_reposition(app: AppHandle) {
-    tauri::async_runtime::spawn(async move {
-        tokio::time::sleep(std::time::Duration::from_millis(40)).await;
-        let app_for_main = app.clone();
-        let _ = app.run_on_main_thread(move || {
-            let _ = position_settings_window_on_active_screen(&app_for_main);
-        });
-    });
 }
 
 #[tauri::command]

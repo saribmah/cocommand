@@ -6,8 +6,6 @@ import { ExtensionProvider } from "../features/extension/extension.provider";
 import { OnboardingProvider } from "../features/onboarding/onboarding.provider";
 import { ServerProvider } from "../features/server/server.provider.tsx";
 import { SessionProvider } from "../features/session/session.provider";
-import { SettingsProvider } from "../features/settings/settings.provider";
-import { WorkspaceProvider } from "../features/workspace/workspace.provider";
 import { getServerInfo, ServerInfo } from "../lib/ipc.ts";
 
 interface AppInitProps {
@@ -64,21 +62,17 @@ export function AppInit({ children }: AppInitProps) {
 
   return (
     <ServerProvider serverInfo={serverInfo}>
-      <WorkspaceProvider>
+      <ExtensionProvider>
         <OnboardingProvider>
           <ApplicationProvider>
             <SessionProvider>
               <CommandProvider>
-                <SettingsProvider>
-                  <ExtensionProvider>
-                    {children}
-                  </ExtensionProvider>
-                </SettingsProvider>
+                {children}
               </CommandProvider>
             </SessionProvider>
           </ApplicationProvider>
         </OnboardingProvider>
-      </WorkspaceProvider>
+      </ExtensionProvider>
     </ServerProvider>
   );
 }

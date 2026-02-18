@@ -24,7 +24,6 @@ pub mod oauth;
 pub mod screenshots;
 pub mod session;
 pub mod system;
-pub mod workspace;
 
 pub struct Server {
     addr: SocketAddr,
@@ -45,18 +44,22 @@ impl Server {
             let config = workspace.config.read().await;
             LlmSettings::from_workspace(&config.llm)
         };
-        let llm = LlmService::new(settings).map_err(|e| e.to_string())?;
+        let llm = Arc::new(LlmService::new(settings).map_err(|e| e.to_string())?);
         let oauth = OAuthManager::new(Duration::from_secs(300));
         let browser_bridge = Arc::new(BrowserBridge::new(Duration::from_secs(10)));
 
         // Register the browser extension.
         {
             use crate::extension::builtin::browser::BrowserExtension;
+            use crate::extension::builtin::workspace::WorkspaceExtension;
             use crate::extension::Extension;
-            let ext = Arc::new(BrowserExtension::new(browser_bridge.clone()))
-                as Arc<dyn Extension>;
             let mut registry = workspace.extension_registry.write().await;
-            registry.register(ext);
+            registry.register(
+                Arc::new(BrowserExtension::new(browser_bridge.clone())) as Arc<dyn Extension>,
+            );
+            registry.register(
+                Arc::new(WorkspaceExtension::new(llm.clone())) as Arc<dyn Extension>,
+            );
         }
 
         let listener = TcpListener::bind("127.0.0.1:0")
@@ -85,19 +88,6 @@ impl Server {
             .route(
                 "/workspace/extensions/open",
                 post(extension::open_extension),
-            )
-            .route("/workspace/config", get(workspace::get_workspace_config))
-            .route(
-                "/workspace/config",
-                post(workspace::update_workspace_config),
-            )
-            .route(
-                "/workspace/settings/permissions",
-                get(workspace::get_permissions_status),
-            )
-            .route(
-                "/workspace/settings/permissions/open",
-                post(workspace::open_permission),
             )
             .route(
                 "/extension/:extension_id/invoke/:tool_id",
@@ -201,7 +191,7 @@ pub(crate) struct ServerState {
     pub(crate) workspace: WorkspaceInstance,
     pub(crate) sessions: Arc<SessionManager>,
     pub(crate) bus: Bus,
-    pub(crate) llm: LlmService,
+    pub(crate) llm: Arc<LlmService>,
     pub(crate) oauth: OAuthManager,
     pub(crate) browser: Arc<BrowserBridge>,
     pub(crate) addr: SocketAddr,

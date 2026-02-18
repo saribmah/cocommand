@@ -1,24 +1,24 @@
 import { AppPanel, ButtonPrimary, Text } from "@cocommand/ui";
 import { type PropsWithChildren, useEffect } from "react";
-import { useWorkspaceContext } from "../workspace/workspace.context";
-import { OnboardingView } from "./onboarding.view";
+import { useStore } from "zustand";
+import { useExtensionStore } from "../extension/extension.context";
+import type { WorkspaceExtensionState } from "../workspace/workspace.extension-store";
+import { WorkspaceView } from "../workspace/workspace.view";
 
 type OnboardingProviderProps = PropsWithChildren;
 
 export function OnboardingProvider({ children }: OnboardingProviderProps) {
-  const config = useWorkspaceContext((state) => state.config);
-  const isLoaded = useWorkspaceContext((state) => state.isLoaded);
-  const error = useWorkspaceContext((state) => state.error);
-  const fetchConfig = useWorkspaceContext((state) => state.fetchConfig);
+  const store = useExtensionStore<WorkspaceExtensionState>("workspace");
+  const config = useStore(store, (s) => s.config);
+  const isLoading = useStore(store, (s) => s.isLoading);
+  const error = useStore(store, (s) => s.error);
+  const fetchConfig = useStore(store, (s) => s.fetchConfig);
 
   useEffect(() => {
-    if (isLoaded) return;
-    void fetchConfig();
-  }, [isLoaded, fetchConfig]);
+    if (!config && !isLoading) void fetchConfig();
+  }, [config, isLoading, fetchConfig]);
 
-  console.log({config, isLoaded, error});
-
-  if (error) {
+  if (error && !config) {
     return (
       <AppPanel style={{ minHeight: 360, maxWidth: 620 }}>
         <Text as="div" size="lg" weight="semibold">
@@ -32,7 +32,7 @@ export function OnboardingProvider({ children }: OnboardingProviderProps) {
     );
   }
 
-  if (!isLoaded || !config) {
+  if (!config) {
     return (
       <AppPanel style={{ minHeight: 360, maxWidth: 620 }}>
         <Text as="div" size="lg" weight="semibold">
@@ -46,7 +46,7 @@ export function OnboardingProvider({ children }: OnboardingProviderProps) {
   }
 
   if (!config.onboarding.completed) {
-    return <OnboardingView />;
+    return <WorkspaceView mode="inline" />;
   }
 
   return <>{children}</>;

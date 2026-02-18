@@ -7,7 +7,7 @@ import {
   useState,
   type KeyboardEvent,
 } from "react";
-import { hideWindow, openSettingsWindow } from "../../lib/ipc";
+import { hideWindow, openExtensionWindow } from "../../lib/ipc";
 import {
   CloseButton,
   CommandPaletteShell,
@@ -327,7 +327,12 @@ export function CommandView() {
 
   const executeSlashCommand = (id: string) => {
     if (id !== "settings") return;
-    openSettingsWindow()
+    openExtensionWindow({
+      extensionId: "workspace",
+      title: "Settings",
+      width: 720,
+      height: 520,
+    })
       .then(() => {
         reset();
         hideWindow();
