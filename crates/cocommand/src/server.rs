@@ -8,6 +8,7 @@ use tokio::net::TcpListener;
 use tokio::sync::{oneshot, watch};
 use tower_http::cors::{Any, CorsLayer};
 
+use crate::browser::BrowserBridge;
 use crate::bus::Bus;
 use crate::clipboard::spawn_clipboard_watcher;
 use crate::llm::{LlmService, LlmSettings};
@@ -15,6 +16,7 @@ use crate::oauth::OAuthManager;
 use crate::session::SessionManager;
 use crate::workspace::WorkspaceInstance;
 pub mod assets;
+pub mod browser;
 pub mod events;
 pub mod extension;
 pub mod invoke;
@@ -45,6 +47,18 @@ impl Server {
         };
         let llm = LlmService::new(settings).map_err(|e| e.to_string())?;
         let oauth = OAuthManager::new(Duration::from_secs(300));
+        let browser_bridge = Arc::new(BrowserBridge::new(Duration::from_secs(10)));
+
+        // Register the browser extension.
+        {
+            use crate::extension::builtin::browser::BrowserExtension;
+            use crate::extension::Extension;
+            let ext = Arc::new(BrowserExtension::new(browser_bridge.clone()))
+                as Arc<dyn Extension>;
+            let mut registry = workspace.extension_registry.write().await;
+            registry.register(ext);
+        }
+
         let listener = TcpListener::bind("127.0.0.1:0")
             .await
             .map_err(|error| error.to_string())?;
@@ -55,6 +69,7 @@ impl Server {
             bus,
             llm,
             oauth,
+            browser: browser_bridge,
             addr,
         });
         let cors = CorsLayer::new()
@@ -104,6 +119,8 @@ impl Server {
                 "/workspace/extension/system/applications/open",
                 post(system::open_application),
             )
+            .route("/browser/ws", get(browser::ws_handler))
+            .route("/browser/status", get(browser::status))
             .route("/oauth/start", post(oauth::start_flow))
             .route("/oauth/callback", get(oauth::callback))
             .route("/oauth/poll", get(oauth::poll_flow))
@@ -125,6 +142,7 @@ impl Server {
                 })
                 .await;
         });
+
         spawn_clipboard_watcher(state.workspace.clone(), clipboard_shutdown_rx, 500);
 
         {
@@ -178,12 +196,14 @@ async fn health() -> &'static str {
     "ok"
 }
 
+
 pub(crate) struct ServerState {
     pub(crate) workspace: WorkspaceInstance,
     pub(crate) sessions: Arc<SessionManager>,
     pub(crate) bus: Bus,
     pub(crate) llm: LlmService,
     pub(crate) oauth: OAuthManager,
+    pub(crate) browser: Arc<BrowserBridge>,
     pub(crate) addr: SocketAddr,
 }
 

@@ -1,3 +1,4 @@
+pub mod browser;
 pub mod bus;
 pub mod clipboard;
 pub mod command;
