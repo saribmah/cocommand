@@ -152,14 +152,19 @@ export function CommandView() {
   const slashState = useMemo(() => getSlashState(activeText), [activeText]);
   const hashState = useMemo(() => getHashState(activeText), [activeText]);
   const starState = useMemo(() => getStarState(activeText), [activeText]);
+  const isTypingAfterTaggedExtension =
+    activeTab.startsWith("ext:") && activeText.length > 0;
 
   const activeView: FilterTab = useMemo(() => {
     if (mentionState) return "extensions";
     if (slashState) return "commands";
     if (starState) return "applications";
     if (hashState) return "ext:filesystem";
+    // Only keep extension inline view while active input is empty; typing should return to Recent
+    // so Enter submits the composed message instead of being blocked by the extension view.
+    if (isTypingAfterTaggedExtension) return "recent";
     return activeTab;
-  }, [mentionState, slashState, starState, hashState, activeTab]);
+  }, [mentionState, slashState, starState, hashState, isTypingAfterTaggedExtension, activeTab]);
 
   const slashCommands = useMemo(
     () => [{ id: "settings", name: "Settings", description: "Open the settings window" }],
@@ -606,6 +611,11 @@ export function CommandView() {
 
     if (showExtensionView) {
       if (e.key === "Escape") {
+        e.preventDefault();
+        setActiveTab("recent");
+        return;
+      }
+      if (e.key === "Enter") {
         e.preventDefault();
         setActiveTab("recent");
         return;
