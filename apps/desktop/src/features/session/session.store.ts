@@ -1,12 +1,12 @@
 import { create } from "zustand";
 import type { ServerInfo } from "../../lib/ipc";
-import { createApiClient } from "@cocommand/api-client";
+import { createApiClient } from "@cocommand/api";
 import type {
   MessagePart,
   SessionCommandInputPart,
   RecordMessageResponse,
   SessionContext,
-} from "@cocommand/api-client";
+} from "@cocommand/api";
 
 export interface StreamEvent<T = unknown> {
   event: string;

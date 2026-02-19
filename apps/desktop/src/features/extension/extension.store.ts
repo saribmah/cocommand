@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import type { StoreApi } from "zustand";
-import { createApiClient } from "@cocommand/api-client";
-import { listExtensions, openExtension } from "@cocommand/api-client";
+import { createApiClient } from "@cocommand/api";
+import { listExtensions, openExtension } from "@cocommand/api";
 import { invokeExtensionTool } from "../../lib/extension-client";
 import { getRegisteredStoreFactories } from "./extension-stores";
 import { loadDynamicExtensionViews } from "./extension-loader";

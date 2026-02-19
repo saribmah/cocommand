@@ -1,4 +1,4 @@
-//! Writes the OpenAPI spec to `packages/api-client/openapi.json`.
+//! Writes the OpenAPI spec to `packages/api/openapi.json`.
 //!
 //! Usage: `cargo run --bin generate_openapi`
 
@@ -8,7 +8,7 @@ fn main() {
     let spec = generate_full_spec();
 
     let out_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../packages/api-client");
+        .join("../../packages/api");
 
     std::fs::create_dir_all(&out_dir).expect("failed to create output directory");
 

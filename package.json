@@ -8,7 +8,7 @@
     "packages/*"
   ],
   "scripts": {
-    "generate:api": "cargo run --manifest-path crates/cocommand/Cargo.toml --bin generate_openapi && bun run --cwd packages/api-client generate",
+    "generate:api": "cargo run --manifest-path crates/cocommand/Cargo.toml --bin generate_openapi && bun run --cwd packages/api generate",
     "docs:dev": "bun --cwd apps/docs run dev",
     "docs:build": "bun --cwd apps/docs run build",
     "docs:preview": "bun --cwd apps/docs run preview"

@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import type { ServerInfo } from "../../lib/ipc";
-import { createApiClient } from "@cocommand/api-client";
-import { listApplications, openApplication } from "@cocommand/api-client";
+import { createApiClient } from "@cocommand/api";
+import { listApplications, openApplication } from "@cocommand/api";
 import type {
   ApplicationInfo,
   ApplicationsResponse,

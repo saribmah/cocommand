@@ -1,5 +1,5 @@
-import { createApiClient } from "@cocommand/api-client";
-import { invokeTool } from "@cocommand/api-client";
+import { createApiClient } from "@cocommand/api";
+import { invokeTool } from "@cocommand/api";
 
 export interface InvokeResponse<T = unknown> {
   ok: boolean;

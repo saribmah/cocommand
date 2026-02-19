@@ -11,7 +11,7 @@
   },
   "dependencies": {
     "@cocommand/sdk": "workspace:*",
-    "@cocommand/api-client": "workspace:*",
+    "@cocommand/api": "workspace:*",
     "@cocommand/demo": "workspace:*",
     "@cocommand/ui": "workspace:*",
     "@tauri-apps/api": "^2",

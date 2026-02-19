@@ -8,7 +8,7 @@
       "name": "cocommand",
       "version": "0.1.0",
       "dependencies": {
-        "@cocommand/api-client": "workspace:*",
+        "@cocommand/api": "workspace:*",
         "@cocommand/demo": "workspace:*",
         "@cocommand/sdk": "workspace:*",
         "@cocommand/ui": "workspace:*",
@@ -43,8 +43,8 @@
         "sharp": "^0.34.2",
       },
     },
-    "packages/api-client": {
-      "name": "@cocommand/api-client",
+    "packages/api": {
+      "name": "@cocommand/api",
       "version": "0.1.0",
       "dependencies": {
         "@hey-api/client-fetch": "^0.9.0",
@@ -132,7 +132,7 @@
 
     "@capsizecss/unpack": ["@capsizecss/unpack@4.0.0", "", { "dependencies": { "fontkitten": "^1.0.0" } }, "sha512-VERIM64vtTP1C4mxQ5thVT9fK0apjPFobqybMtA1UdUujWka24ERHbRHFGmpbbhp73MhV+KSsHQH9C6uOTdEQA=="],
 
-    "@cocommand/api-client": ["@cocommand/api-client@workspace:packages/api-client"],
+    "@cocommand/api": ["@cocommand/api@workspace:packages/api"],
 
     "@cocommand/demo": ["@cocommand/demo@workspace:packages/demo"],
 

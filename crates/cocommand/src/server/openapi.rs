@@ -187,7 +187,7 @@ mod tests {
         let from_code = generate_full_spec();
 
         let spec_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../packages/api-client/openapi.json");
+            .join("../../packages/api/openapi.json");
 
         let on_disk = std::fs::read_to_string(&spec_path).unwrap_or_else(|_| {
             panic!(

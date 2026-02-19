@@ -1,4 +1,4 @@
-import { createApiClient, type Client } from "@cocommand/api-client";
+import { createApiClient, type Client } from "@cocommand/api";
 
 let _client: Client | null = null;
 
