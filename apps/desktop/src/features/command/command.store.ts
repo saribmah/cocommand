@@ -1,7 +1,12 @@
 import { create } from "zustand";
 import { hideWindow } from "../../lib/ipc";
 import type { StreamEvent } from "../session/session.store";
-import type { MessagePart, MessagePartInput, RecordMessageResponse } from "./command.types";
+import type {
+  CommandTurn,
+  MessagePart,
+  MessagePartInput,
+  RecordMessageResponse,
+} from "./command.types";
 
 type SendMessageFn = (
   parts: MessagePartInput[],
@@ -40,10 +45,41 @@ function submitReadyParts(parts: MessagePartInput[]): MessagePartInput[] {
   return withoutBlankText;
 }
 
+function createTurnId(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function cloneMessagePartInput(part: MessagePartInput): MessagePartInput {
+  switch (part.type) {
+    case "text":
+      return { ...part };
+    case "extension":
+      return {
+        ...part,
+        source: part.source ? { ...part.source } : part.source,
+      };
+    case "file":
+      return {
+        ...part,
+        source: part.source ? { ...part.source } : part.source,
+      };
+    default:
+      return part;
+  }
+}
+
+function cloneMessagePartInputs(parts: MessagePartInput[]): MessagePartInput[] {
+  return parts.map(cloneMessagePartInput);
+}
+
 export interface CommandState {
   draftParts: MessagePartInput[];
   isSubmitting: boolean;
   parts: MessagePart[];
+  turns: CommandTurn[];
   error: string | null;
   setDraftParts: (parts: MessagePartInput[]) => void;
   setError: (error: string | null) => void;
@@ -59,6 +95,7 @@ export const createCommandStore = () => {
     draftParts: [emptyTextPart()],
     isSubmitting: false,
     parts: [],
+    turns: [],
     error: null,
 
     setDraftParts: (parts) => set({ draftParts: normalizeDraftParts(parts) }),
@@ -74,11 +111,7 @@ export const createCommandStore = () => {
       }),
 
     dismiss: () => {
-      const { parts, error } = get();
-      if (parts.length > 0 || error) {
-        set({ parts: [], error: null });
-        return;
-      }
+      set({ parts: [], error: null });
       hideWindow();
     },
 
@@ -89,7 +122,24 @@ export const createCommandStore = () => {
         return false;
       }
 
-      set({ isSubmitting: true, parts: [], error: null });
+      const turnId = createTurnId();
+      const turnInputParts = cloneMessagePartInputs(inputParts);
+      set((state) => ({
+        isSubmitting: true,
+        parts: [],
+        error: null,
+        turns: [
+          ...state.turns,
+          {
+            id: turnId,
+            submittedAt: Date.now(),
+            inputParts: turnInputParts,
+            replyParts: [],
+            status: "streaming",
+            error: null,
+          },
+        ],
+      }));
 
       try {
         const streamParts: MessagePart[] = [];
@@ -103,23 +153,42 @@ export const createCommandStore = () => {
           } else {
             streamParts.push(part);
           }
-          set({ parts: [...streamParts] });
+          set((state) => ({
+            parts: [...streamParts],
+            turns: updateTurnById(state.turns, turnId, (turn) => ({
+              ...turn,
+              replyParts: [...streamParts],
+            })),
+          }));
         });
 
-        set({
+        const replyParts = response.reply_parts ?? [];
+        set((state) => ({
           draftParts: [emptyTextPart()],
           isSubmitting: false,
-          parts: response.reply_parts ?? [],
+          parts: replyParts,
           error: null,
-        });
+          turns: updateTurnById(state.turns, turnId, (turn) => ({
+            ...turn,
+            replyParts,
+            status: "complete",
+            error: null,
+          })),
+        }));
         return true;
       } catch (err) {
         console.error("CommandStore submit error", err);
-        set({
+        const errorMessage = normalizeErrorMessage(err);
+        set((state) => ({
           isSubmitting: false,
           parts: [],
-          error: normalizeErrorMessage(err),
-        });
+          error: null,
+          turns: updateTurnById(state.turns, turnId, (turn) => ({
+            ...turn,
+            status: "error",
+            error: errorMessage,
+          })),
+        }));
         return false;
       }
     },
@@ -151,4 +220,12 @@ function findPartIndexToUpdate(parts: MessagePart[], nextPart: MessagePart): num
   return parts.findIndex(
     (part) => part.type === "tool" && part.callId === nextPart.callId
   );
+}
+
+function updateTurnById(
+  turns: CommandTurn[],
+  turnId: string,
+  updater: (turn: CommandTurn) => CommandTurn
+): CommandTurn[] {
+  return turns.map((turn) => (turn.id === turnId ? updater(turn) : turn));
 }

@@ -1,4 +1,4 @@
-import type { RefObject } from "react";
+import { Fragment, type RefObject } from "react";
 import {
   ActionHint,
   ArrowIcon,
@@ -20,7 +20,7 @@ import {
 } from "@cocommand/ui";
 import type { ExtensionInfo } from "../../extension/extension.types";
 import type { ApplicationInfo } from "../../application/application.types";
-import type { MessagePart } from "../command.types";
+import type { CommandTurn, MessagePartInput } from "../command.types";
 import type { ComposerActions } from "../composer-actions";
 import {
   formatFileType,
@@ -76,7 +76,7 @@ interface RenderingAreaProps {
   onOpenApplication: (app: ApplicationInfo) => void;
 
   // Response
-  parts: MessagePart[];
+  turns: CommandTurn[];
   error: string | null;
 
   // Extension view support
@@ -84,6 +84,23 @@ interface RenderingAreaProps {
 
   // Scroll
   scrollRef: RefObject<HTMLDivElement | null>;
+}
+
+function formatSubmittedInput(parts: MessagePartInput[]): string {
+  return parts
+    .map((part) => {
+      switch (part.type) {
+        case "text":
+          return part.text;
+        case "extension":
+          return part.source?.value ?? `@${part.extensionId}`;
+        case "file":
+          return part.source?.value ?? `#${part.name}`;
+        default:
+          return "";
+      }
+    })
+    .join("");
 }
 
 export function RenderingArea({
@@ -107,12 +124,12 @@ export function RenderingArea({
   applicationIndex,
   starQuery,
   onOpenApplication,
-  parts,
+  turns,
   error,
   composerActions,
   scrollRef,
 }: RenderingAreaProps) {
-  const showResponses = parts.length > 0 || !!error;
+  const showResponses = turns.length > 0 || !!error;
 
   return (
     <ContentArea className={styles.content}>
@@ -238,36 +255,51 @@ export function RenderingArea({
           {showResponses ? (
             <ResponseStack>
               {error ? <ErrorCard message={error} /> : null}
-              {parts.map((part) => {
-                switch (part.type) {
-                  case "text":
-                    return <MarkdownResponseCard key={part.id} body={part.text} />;
-                  case "reasoning":
-                    return <ReasoningCard key={part.id} reasoning={part.text} />;
-                  case "tool":
-                    return (
-                      <ToolCallCard
-                        key={part.id}
-                        toolName={part.tool}
-                        toolId={part.callId}
-                        state={mapToolStateToCard(part.state)}
-                        params={getToolParams(part.state)}
-                        result={getToolResult(part.state)}
-                        errorMessage={getToolError(part.state)}
-                      />
-                    );
-                  case "file":
-                    return (
-                      <FileCard
-                        key={part.id}
-                        fileName={part.name ?? "Untitled file"}
-                        fileType={formatFileType(part.mediaType)}
-                      />
-                    );
-                  default:
-                    return null;
-                }
-              })}
+              {turns.map((turn) => (
+                <Fragment key={turn.id}>
+                  <MarkdownResponseCard
+                    className={styles.userTranscriptCard}
+                    body={formatSubmittedInput(turn.inputParts)}
+                  />
+                  {turn.replyParts.map((part) => {
+                    switch (part.type) {
+                      case "text":
+                        return (
+                          <MarkdownResponseCard
+                            key={part.id}
+                            className={styles.assistantTranscriptCard}
+                            body={part.text}
+                          />
+                        );
+                      case "reasoning":
+                        return <ReasoningCard key={part.id} reasoning={part.text} />;
+                      case "tool":
+                        return (
+                          <ToolCallCard
+                            key={part.id}
+                            toolName={part.tool}
+                            toolId={part.callId}
+                            state={mapToolStateToCard(part.state)}
+                            params={getToolParams(part.state)}
+                            result={getToolResult(part.state)}
+                            errorMessage={getToolError(part.state)}
+                          />
+                        );
+                      case "file":
+                        return (
+                          <FileCard
+                            key={part.id}
+                            fileName={part.name ?? "Untitled file"}
+                            fileType={formatFileType(part.mediaType)}
+                          />
+                        );
+                      default:
+                        return null;
+                    }
+                  })}
+                  {turn.error ? <ErrorCard message={turn.error} /> : null}
+                </Fragment>
+              ))}
             </ResponseStack>
           ) : !showExtensionsList && !showCommandsList && !showApplicationsList ? (
             <Text size="sm" tone="secondary">

@@ -1,6 +1,6 @@
 import type {
-    MessagePart,
-    SessionCommandInputPart,
+  MessagePart,
+  SessionCommandInputPart,
 } from "@cocommand/sdk";
 
 // ---------------------------------------------------------------------------
@@ -8,15 +8,15 @@ import type {
 // ---------------------------------------------------------------------------
 
 export type {
-    RecordMessageResponse,
-    PartBase as MessagePartBase,
-    FilePartSourceText as TextSource,
-    ToolState,
-    ToolStatePending,
-    ToolStateRunning,
-    ToolStateCompleted,
-    ToolStateError,
-    MessagePart
+  RecordMessageResponse,
+  PartBase as MessagePartBase,
+  FilePartSourceText as TextSource,
+  ToolState,
+  ToolStatePending,
+  ToolStateRunning,
+  ToolStateCompleted,
+  ToolStateError,
+  MessagePart
 } from "@cocommand/sdk";
 
 // ---------------------------------------------------------------------------
@@ -27,6 +27,17 @@ export type TextPartInput = Extract<SessionCommandInputPart, { type: "text" }>;
 export type ExtensionPartInput = Extract<SessionCommandInputPart, { type: "extension" }>;
 export type FilePartInput = Extract<SessionCommandInputPart, { type: "file" }>;
 export type MessagePartInput = SessionCommandInputPart;
+
+export type CommandTurnStatus = "streaming" | "complete" | "error";
+
+export interface CommandTurn {
+  id: string;
+  submittedAt: number;
+  inputParts: MessagePartInput[];
+  replyParts: MessagePart[];
+  status: CommandTurnStatus;
+  error: string | null;
+}
 
 // ---------------------------------------------------------------------------
 // Message part types (discriminated variants extracted from the API union)

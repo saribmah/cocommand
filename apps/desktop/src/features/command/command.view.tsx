@@ -52,6 +52,29 @@ import { PillArea } from "./components/PillArea";
 import { RenderingArea } from "./components/RenderingArea";
 import styles from "./command.module.css";
 
+function cloneMessagePartInput(part: MessagePartInput): MessagePartInput {
+  switch (part.type) {
+    case "text":
+      return { ...part };
+    case "extension":
+      return {
+        ...part,
+        source: part.source ? { ...part.source } : part.source,
+      };
+    case "file":
+      return {
+        ...part,
+        source: part.source ? { ...part.source } : part.source,
+      };
+    default:
+      return part;
+  }
+}
+
+function cloneMessagePartInputs(parts: MessagePartInput[]): MessagePartInput[] {
+  return parts.map(cloneMessagePartInput);
+}
+
 export function CommandView() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -60,11 +83,15 @@ export function CommandView() {
   const [mentionIndex, setMentionIndex] = useState(0);
   const [slashIndex, setSlashIndex] = useState(0);
   const [applicationIndex, setApplicationIndex] = useState(0);
+  const [inputHistoryCursor, setInputHistoryCursor] = useState<number | null>(null);
+  const draftBeforeHistoryRef = useRef<MessagePartInput[] | null>(null);
+  const isApplyingHistoryRef = useRef(false);
 
   const draftParts = useCommandContext((state) => state.draftParts);
   const setDraftParts = useCommandContext((state) => state.setDraftParts);
   const isSubmitting = useCommandContext((state) => state.isSubmitting);
   const parts = useCommandContext((state) => state.parts);
+  const turns = useCommandContext((state) => state.turns);
   const error = useCommandContext((state) => state.error);
   const setError = useCommandContext((state) => state.setError);
   const submit = useCommandContext((state) => state.submit);
@@ -138,17 +165,43 @@ export function CommandView() {
     () => [{ id: "settings", name: "Settings", description: "Open the settings window" }],
     []
   );
+  const submittedInputHistory = useMemo(
+    () => turns.map((turn) => turn.inputParts),
+    [turns]
+  );
 
   // ---------------------------------------------------------------------------
   // Composer helpers
   // ---------------------------------------------------------------------------
 
+  const clearInputHistoryNavigation = () => {
+    setInputHistoryCursor(null);
+    draftBeforeHistoryRef.current = null;
+  };
+
   const applyComposerParts = (next: MessagePartInput[]) => {
+    if (!isApplyingHistoryRef.current) {
+      clearInputHistoryNavigation();
+    }
     setDraftParts(commitComposerParts(next));
   };
 
   const updateComposerText = (value: string) => {
     applyComposerParts(updateActiveText(composerParts, value));
+  };
+
+  const applyHistoryDraft = (nextDraft: MessagePartInput[]) => {
+    isApplyingHistoryRef.current = true;
+    setDraftParts(cloneMessagePartInputs(nextDraft));
+    requestAnimationFrame(() => {
+      const node = inputRef.current;
+      if (node) {
+        node.focus();
+        const caret = node.value.length;
+        node.setSelectionRange(caret, caret);
+      }
+      isApplyingHistoryRef.current = false;
+    });
   };
 
   const focusInput = () => {
@@ -179,7 +232,7 @@ export function CommandView() {
   useEffect(() => {
     const node = document.getElementById(inputId) as HTMLInputElement | null;
     node?.focus();
-  }, [inputId, parts]);
+  }, [inputId, parts, turns]);
 
   useEffect(() => {
     const node = scrollRef.current;
@@ -187,7 +240,13 @@ export function CommandView() {
     requestAnimationFrame(() => {
       node.scrollTop = node.scrollHeight;
     });
-  }, [parts]);
+  }, [parts, turns, error]);
+
+  useEffect(() => {
+    if (activeView !== "recent") {
+      clearInputHistoryNavigation();
+    }
+  }, [activeView]);
 
   // ---------------------------------------------------------------------------
   // Filtered lists
@@ -465,7 +524,7 @@ export function CommandView() {
         },
       };
       nextParts = insertPartAfterActiveText(nextParts, partWithSource);
-      setDraftParts(commitComposerParts(nextParts));
+      applyComposerParts(nextParts);
       setActiveTab("recent");
       requestAnimationFrame(() => {
         inputRef.current?.focus();
@@ -482,7 +541,7 @@ export function CommandView() {
       if (index < 0) return;
       const next = [...parts];
       next.splice(index, 1);
-      setDraftParts(commitComposerParts(next));
+      applyComposerParts(next);
     },
     setActiveTab: (tab) => setActiveTab(tab as FilterTab),
     focusInput,
@@ -627,6 +686,47 @@ export function CommandView() {
       }
     }
 
+    const hasModifierKey = e.metaKey || e.ctrlKey || e.altKey || e.shiftKey;
+    const canNavigateInputHistory =
+      activeView === "recent" &&
+      !showExtensionView &&
+      !showExtensionsList &&
+      !showCommandsList &&
+      !showApplicationsList &&
+      !hasModifierKey;
+
+    if (canNavigateInputHistory && e.key === "ArrowUp") {
+      if (submittedInputHistory.length === 0) return;
+      e.preventDefault();
+      if (inputHistoryCursor === null) {
+        draftBeforeHistoryRef.current = cloneMessagePartInputs(draftParts);
+        const nextCursor = submittedInputHistory.length - 1;
+        setInputHistoryCursor(nextCursor);
+        applyHistoryDraft(submittedInputHistory[nextCursor] ?? []);
+        return;
+      }
+      const nextCursor = Math.max(inputHistoryCursor - 1, 0);
+      setInputHistoryCursor(nextCursor);
+      applyHistoryDraft(submittedInputHistory[nextCursor] ?? []);
+      return;
+    }
+
+    if (canNavigateInputHistory && e.key === "ArrowDown") {
+      if (inputHistoryCursor === null || submittedInputHistory.length === 0) return;
+      e.preventDefault();
+      if (inputHistoryCursor >= submittedInputHistory.length - 1) {
+        setInputHistoryCursor(null);
+        const draftBeforeHistory = draftBeforeHistoryRef.current;
+        draftBeforeHistoryRef.current = null;
+        applyHistoryDraft(draftBeforeHistory ?? [{ type: "text", text: "" }]);
+        return;
+      }
+      const nextCursor = inputHistoryCursor + 1;
+      setInputHistoryCursor(nextCursor);
+      applyHistoryDraft(submittedInputHistory[nextCursor] ?? []);
+      return;
+    }
+
     switch (e.key) {
       case "Enter":
         e.preventDefault();
@@ -642,6 +742,7 @@ export function CommandView() {
               });
             return;
           }
+          clearInputHistoryNavigation();
           submit(sendMessage);
         }
         break;
@@ -722,7 +823,7 @@ export function CommandView() {
           applicationIndex={applicationIndex}
           starQuery={starState?.query ?? null}
           onOpenApplication={openApplicationById}
-          parts={parts}
+          turns={turns}
           error={error}
           composerActions={composerActions}
           scrollRef={scrollRef}
@@ -732,7 +833,7 @@ export function CommandView() {
           <HintBar
             left={
               <>
-                <HintItem label="Navigate" keyHint={<KeyHint keys={["↑", "↓"]} />} />
+                <HintItem label="Navigate / History" keyHint={<KeyHint keys={["↑", "↓"]} />} />
                 <HintItem label="Enter" keyHint={<KeyHint keys="↵" />} />
                 <HintItem label="Extensions" keyHint={<KeyHint keys="@" />} />
                 <HintItem label="Command" keyHint={<KeyHint keys="/" />} />
