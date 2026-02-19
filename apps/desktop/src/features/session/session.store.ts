@@ -1,18 +1,24 @@
 import { create } from "zustand";
 import type { ServerInfo } from "../../lib/ipc";
+import { createApiClient } from "@cocommand/api-client";
 import type {
   MessagePart,
-  MessagePartInput,
+  SessionCommandInputPart,
   RecordMessageResponse,
-} from "../command/command.types";
-import type { SessionContext, StreamEvent } from "./session.types";
+  SessionContext,
+} from "@cocommand/api-client";
+
+export interface StreamEvent<T = unknown> {
+  event: string;
+  data: T;
+}
 
 export interface SessionState {
   context: SessionContext | null;
   setContext: (context: SessionContext) => void;
   clear: () => void;
   sendMessage: (
-    parts: MessagePartInput[],
+    parts: SessionCommandInputPart[],
     onEvent?: (event: StreamEvent) => void
   ) => Promise<RecordMessageResponse>;
   getContext: () => SessionContext | null;
@@ -23,11 +29,6 @@ type StreamPayload = {
   reply_parts?: MessagePart[];
   error?: unknown;
 };
-
-function buildServerUrl(addr: string, path: string): string {
-  const prefix = addr.startsWith("http") ? addr : `http://${addr}`;
-  return `${prefix}${path}`;
-}
 
 function normalizeErrorMessage(error: unknown): string {
   if (error instanceof Error) return error.message;
@@ -81,8 +82,9 @@ export const createSessionStore = (getServer: () => ServerInfo | null) => {
         throw new Error("Server unavailable");
       }
 
-      const url = buildServerUrl(server.addr, "/sessions/command");
-      const response = await fetch(url, {
+      const client = createApiClient(server.addr);
+      const { baseUrl } = client.getConfig();
+      const response = await fetch(`${baseUrl}/sessions/command`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

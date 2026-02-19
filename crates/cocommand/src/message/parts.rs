@@ -1,8 +1,9 @@
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
+use utoipa::ToSchema;
 use uuid::Uuid;
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, ToSchema)]
 pub struct PartBase {
     pub id: String,
     #[serde(rename = "sessionId")]
@@ -21,7 +22,7 @@ impl PartBase {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, ToSchema)]
 #[serde(tag = "type", rename_all = "kebab-case")]
 pub enum MessagePart {
     Text(TextPart),
@@ -58,21 +59,21 @@ impl MessagePart {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, ToSchema)]
 pub struct TextPart {
     #[serde(flatten)]
     pub base: PartBase,
     pub text: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, ToSchema)]
 pub struct ReasoningPart {
     #[serde(flatten)]
     pub base: PartBase,
     pub text: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, ToSchema)]
 #[serde(tag = "status", rename_all = "lowercase")]
 pub enum ToolState {
     Pending(ToolStatePending),
@@ -81,13 +82,13 @@ pub enum ToolState {
     Error(ToolStateError),
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, ToSchema)]
 pub struct ToolStatePending {
     pub input: Map<String, Value>,
     pub raw: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, ToSchema)]
 pub struct ToolStateRunning {
     pub input: Map<String, Value>,
     pub title: Option<String>,
@@ -95,7 +96,7 @@ pub struct ToolStateRunning {
     pub time: ToolStateTimeStart,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, ToSchema)]
 pub struct ToolStateCompleted {
     pub input: Map<String, Value>,
     pub output: String,
@@ -105,7 +106,7 @@ pub struct ToolStateCompleted {
     pub attachments: Option<Vec<FilePart>>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, ToSchema)]
 pub struct ToolStateError {
     pub input: Map<String, Value>,
     pub error: String,
@@ -113,25 +114,25 @@ pub struct ToolStateError {
     pub time: ToolStateTimeRange,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, ToSchema)]
 pub struct ToolStateTimeStart {
     pub start: u64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, ToSchema)]
 pub struct ToolStateTimeRange {
     pub start: u64,
     pub end: u64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, ToSchema)]
 pub struct ToolStateTimeCompleted {
     pub start: u64,
     pub end: u64,
     pub compacted: Option<u64>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, ToSchema)]
 pub struct ToolPart {
     #[serde(flatten)]
     pub base: PartBase,
@@ -143,7 +144,7 @@ pub struct ToolPart {
     pub metadata: Option<Map<String, Value>>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, ToSchema)]
 pub struct ExtensionPart {
     #[serde(flatten)]
     pub base: PartBase,
@@ -156,27 +157,27 @@ pub struct ExtensionPart {
     pub source: Option<FilePartSourceText>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, ToSchema)]
 pub struct FilePartSourceText {
     pub value: String,
     pub start: i64,
     pub end: i64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, ToSchema)]
 #[serde(tag = "type", rename_all = "lowercase")]
 pub enum FilePartSource {
     File(FilePartFileSource),
     Symbol(FilePartSymbolSource),
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, ToSchema)]
 pub struct FilePartFileSource {
     pub text: FilePartSourceText,
     pub path: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, ToSchema)]
 pub struct FilePartSymbolSource {
     pub text: FilePartSourceText,
     pub path: String,
@@ -184,7 +185,7 @@ pub struct FilePartSymbolSource {
     pub kind: i64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, ToSchema)]
 pub struct FilePart {
     #[serde(flatten)]
     pub base: PartBase,

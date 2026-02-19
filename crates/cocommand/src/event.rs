@@ -1,15 +1,16 @@
 use crate::message::MessagePart;
 use crate::session::SessionContext;
 use serde::Serialize;
+use utoipa::ToSchema;
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, ToSchema)]
 #[serde(tag = "type", content = "payload")]
 pub enum CoreEvent {
     SessionPartUpdated(SessionPartUpdatedPayload),
     SessionContextUpdated(SessionContextPayload),
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct SessionPartUpdatedPayload {
     pub request_id: String,
     pub session_id: String,
@@ -18,7 +19,7 @@ pub struct SessionPartUpdatedPayload {
     pub part: MessagePart,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct SessionContextPayload {
     pub request_id: String,
     pub context: SessionContext,

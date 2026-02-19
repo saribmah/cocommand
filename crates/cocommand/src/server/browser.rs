@@ -6,10 +6,11 @@ use futures_util::{SinkExt, StreamExt};
 use serde::Serialize;
 use std::sync::Arc;
 use tokio::sync::mpsc;
+use utoipa::ToSchema;
 
 use crate::server::ServerState;
 
-#[derive(Serialize)]
+#[derive(Serialize, ToSchema)]
 pub struct BrowserStatus {
     pub connected: bool,
 }
@@ -61,6 +62,14 @@ async fn handle_socket(state: Arc<ServerState>, socket: WebSocket) {
     state.browser.on_disconnect(generation).await;
 }
 
+#[utoipa::path(
+    get,
+    path = "/browser/status",
+    tag = "browser",
+    responses(
+        (status = 200, body = BrowserStatus),
+    )
+)]
 pub(crate) async fn status(
     State(state): State<Arc<ServerState>>,
 ) -> Json<BrowserStatus> {

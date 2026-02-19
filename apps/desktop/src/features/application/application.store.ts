@@ -1,5 +1,7 @@
 import { create } from "zustand";
 import type { ServerInfo } from "../../lib/ipc";
+import { createApiClient } from "@cocommand/api-client";
+import { listApplications, openApplication } from "@cocommand/api-client";
 import type {
   ApplicationInfo,
   ApplicationsResponse,
@@ -19,9 +21,10 @@ export interface ApplicationState {
   clear: () => void;
 }
 
-function buildServerUrl(addr: string, path: string): string {
-  const prefix = addr.startsWith("http") ? addr : `http://${addr}`;
-  return `${prefix}${path}`;
+function getClient(getServer: () => ServerInfo | null) {
+  const server = getServer();
+  if (!server?.addr) return null;
+  return createApiClient(server.addr);
 }
 
 export type ApplicationStore = ReturnType<typeof createApplicationStore>;
@@ -36,8 +39,8 @@ export const createApplicationStore = (getServer: () => ServerInfo | null) => {
     error: null,
 
     fetchApplications: async () => {
-      const server = getServer();
-      if (!server || !server.addr) {
+      const client = getClient(getServer);
+      if (!client) {
         set({
           applications: [],
           count: 0,
@@ -49,17 +52,15 @@ export const createApplicationStore = (getServer: () => ServerInfo | null) => {
       }
 
       set({ isLoading: true, error: null });
-      const url = buildServerUrl(server.addr, "/workspace/extension/system/applications");
       try {
-        const response = await fetch(url);
-        if (!response.ok) {
-          const errorText = await response.text();
-          throw new Error(errorText || `Server error (${response.status})`);
+        const { data, error: fetchError } = await listApplications({ client });
+        if (fetchError) {
+          throw new Error(fetchError.error?.message ?? "Server error");
         }
-        const data = (await response.json()) as ApplicationsResponse;
+        const response = data as ApplicationsResponse;
         set({
-          applications: data.applications,
-          count: data.count,
+          applications: response.applications,
+          count: response.count,
           isLoaded: true,
           isLoading: false,
           error: null,
@@ -76,29 +77,22 @@ export const createApplicationStore = (getServer: () => ServerInfo | null) => {
     },
 
     openApplication: async (request) => {
-      const server = getServer();
-      if (!server || !server.addr) {
+      const client = getClient(getServer);
+      if (!client) {
         throw new Error("Server unavailable");
       }
 
       set({ isOpening: true, error: null });
-      const url = buildServerUrl(
-        server.addr,
-        "/workspace/extension/system/applications/open"
-      );
       try {
-        const response = await fetch(url, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(request),
+        const { data, error: fetchError } = await openApplication({
+          client,
+          body: request,
         });
-        if (!response.ok) {
-          const errorText = await response.text();
-          throw new Error(errorText || `Server error (${response.status})`);
+        if (fetchError) {
+          throw new Error(fetchError.error?.message ?? "Server error");
         }
-        const data = (await response.json()) as OpenApplicationResponse;
         set({ isOpening: false, error: null });
-        return data;
+        return data as OpenApplicationResponse;
       } catch (error) {
         const message = String(error);
         set({ isOpening: false, error: message });

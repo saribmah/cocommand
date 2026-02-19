@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { hideWindow } from "../../lib/ipc";
-import type { StreamEvent } from "../session/session.types";
+import type { StreamEvent } from "../session/session.store";
 import type { MessagePart, MessagePartInput } from "./command.types";
 
 type SendMessageFn = (

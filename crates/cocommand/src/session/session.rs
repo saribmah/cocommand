@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::error::{CoreError, CoreResult};
@@ -7,7 +8,7 @@ use crate::session::extension_cache::ExtensionCache;
 use crate::utils::time::now_secs;
 use crate::workspace::WorkspaceInstance;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct SessionContext {
     pub workspace_id: String,
     pub session_id: String,

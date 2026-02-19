@@ -11,6 +11,7 @@ use crate::session::{SessionContext, SessionManager};
 use crate::tool::ToolRegistry;
 use crate::workspace::WorkspaceInstance;
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 
 #[derive(Debug, Clone)]
 pub struct SessionCommandInput {
@@ -18,7 +19,7 @@ pub struct SessionCommandInput {
     pub parts: Vec<SessionCommandInputPart>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, ToSchema)]
 #[serde(tag = "type", rename_all = "kebab-case")]
 pub enum SessionCommandInputPart {
     Text(SessionCommandTextPartInput),
@@ -26,12 +27,12 @@ pub enum SessionCommandInputPart {
     File(SessionCommandFilePartInput),
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, ToSchema)]
 pub struct SessionCommandTextPartInput {
     pub text: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, ToSchema)]
 pub struct SessionCommandExtensionPartInput {
     #[serde(rename = "extensionId")]
     pub extension_id: String,
@@ -42,7 +43,7 @@ pub struct SessionCommandExtensionPartInput {
     pub source: Option<FilePartSourceText>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, ToSchema)]
 pub struct SessionCommandFilePartInput {
     pub path: String,
     pub name: String,

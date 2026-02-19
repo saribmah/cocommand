@@ -1,5 +1,5 @@
 use axum::routing::{get, post};
-use axum::Router;
+use axum::{Json, Router};
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -7,6 +7,7 @@ use std::time::Duration;
 use tokio::net::TcpListener;
 use tokio::sync::{oneshot, watch};
 use tower_http::cors::{Any, CorsLayer};
+use utoipa::OpenApi;
 
 use crate::browser::BrowserBridge;
 use crate::bus::Bus;
@@ -17,10 +18,12 @@ use crate::session::SessionManager;
 use crate::workspace::WorkspaceInstance;
 pub mod assets;
 pub mod browser;
+pub mod error;
 pub mod events;
 pub mod extension;
 pub mod invoke;
 pub mod oauth;
+pub mod openapi;
 pub mod screenshots;
 pub mod session;
 pub mod system;
@@ -81,6 +84,7 @@ impl Server {
             .allow_headers(Any);
         let app = Router::new()
             .route("/health", get(health))
+            .route("/openapi.json", get(serve_openapi))
             .route("/events", get(events::stream_events))
             .route("/sessions/command", post(session::session_command))
             .route("/sessions/context", get(session::session_context))
@@ -184,6 +188,10 @@ impl Drop for Server {
 
 async fn health() -> &'static str {
     "ok"
+}
+
+async fn serve_openapi() -> Json<utoipa::openapi::OpenApi> {
+    Json(openapi::ApiDoc::openapi())
 }
 
 

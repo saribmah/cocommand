@@ -1,6 +1,5 @@
 use axum::{
     extract::{Query, State},
-    http::StatusCode,
     response::sse::{Event, KeepAlive, Sse},
     Json,
 };
@@ -10,6 +9,7 @@ use std::convert::Infallible;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio_stream::wrappers::UnboundedReceiverStream;
+use utoipa::{IntoParams, ToSchema};
 use uuid::Uuid;
 
 use crate::command::session_message::{
@@ -17,21 +17,22 @@ use crate::command::session_message::{
 };
 use crate::event::CoreEvent;
 use crate::message::parts::MessagePart;
+use crate::server::error::{ApiError, ApiErrorResponse};
 use crate::server::ServerState;
 use crate::session::SessionContext;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct RecordMessageRequest {
     pub parts: Vec<SessionCommandInputPart>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, IntoParams)]
 pub struct SessionContextQuery {
     pub session_id: Option<String>,
     pub limit: Option<usize>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct ApiSessionContext {
     pub workspace_id: String,
     pub session_id: String,
@@ -39,12 +40,22 @@ pub struct ApiSessionContext {
     pub ended_at: Option<u64>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct RecordMessageResponse {
     pub context: ApiSessionContext,
     pub reply_parts: Vec<MessagePart>,
 }
 
+#[utoipa::path(
+    post,
+    path = "/sessions/command",
+    tag = "sessions",
+    request_body = RecordMessageRequest,
+    responses(
+        (status = 200, description = "SSE stream of session events", content_type = "text/event-stream"),
+    ),
+    description = "Process a user command. Returns an SSE stream of part.updated, context, and done events."
+)]
 #[tracing::instrument(skip_all)]
 pub(crate) async fn session_command(
     State(state): State<Arc<ServerState>>,
@@ -125,10 +136,20 @@ pub(crate) async fn session_command(
     )
 }
 
+#[utoipa::path(
+    get,
+    path = "/sessions/context",
+    tag = "sessions",
+    params(SessionContextQuery),
+    responses(
+        (status = 200, body = ApiSessionContext),
+        (status = 400, body = ApiErrorResponse),
+    )
+)]
 pub(crate) async fn session_context(
     State(state): State<Arc<ServerState>>,
     Query(params): Query<SessionContextQuery>,
-) -> Result<Json<ApiSessionContext>, (StatusCode, String)> {
+) -> Result<Json<ApiSessionContext>, ApiError> {
     let ctx = state
         .sessions
         .with_session_mut(|session| {
@@ -139,7 +160,7 @@ pub(crate) async fn session_context(
             })
         })
         .await
-        .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+        .map_err(|e| ApiError::bad_request(e.to_string()))?;
     Ok(Json(to_api_context(ctx)))
 }
 

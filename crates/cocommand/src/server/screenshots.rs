@@ -4,34 +4,32 @@ use axum::http::{header, StatusCode};
 use axum::response::Response;
 use std::sync::Arc;
 
+use crate::server::error::ApiError;
 use crate::server::ServerState;
 
 pub(crate) async fn serve_screenshot(
     State(state): State<Arc<ServerState>>,
     Path(filename): Path<String>,
-) -> Result<Response<Body>, (StatusCode, String)> {
+) -> Result<Response<Body>, ApiError> {
     let screenshots_dir = state.workspace.workspace_dir.join("screenshots");
 
-    let base = screenshots_dir.canonicalize().map_err(|_| {
-        (
-            StatusCode::NOT_FOUND,
-            "screenshots directory not found".to_string(),
-        )
-    })?;
+    let base = screenshots_dir
+        .canonicalize()
+        .map_err(|_| ApiError::not_found("screenshots directory not found"))?;
 
     let requested = screenshots_dir.join(&filename);
-    let resolved = requested.canonicalize().map_err(|_| {
-        (StatusCode::NOT_FOUND, "screenshot not found".to_string())
-    })?;
+    let resolved = requested
+        .canonicalize()
+        .map_err(|_| ApiError::not_found("screenshot not found"))?;
 
     // Path traversal guard
     if !resolved.starts_with(&base) {
-        return Err((StatusCode::FORBIDDEN, "path traversal denied".to_string()));
+        return Err(ApiError::forbidden("path traversal denied"));
     }
 
-    let bytes = tokio::fs::read(&resolved).await.map_err(|_| {
-        (StatusCode::NOT_FOUND, "screenshot not found".to_string())
-    })?;
+    let bytes = tokio::fs::read(&resolved)
+        .await
+        .map_err(|_| ApiError::not_found("screenshot not found"))?;
 
     let content_type = match resolved
         .extension()
@@ -50,5 +48,5 @@ pub(crate) async fn serve_screenshot(
         .header(header::CONTENT_TYPE, content_type)
         .header(header::CACHE_CONTROL, "no-cache")
         .body(Body::from(bytes))
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))
+        .map_err(|e| ApiError::internal(e.to_string()))
 }

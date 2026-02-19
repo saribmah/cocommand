@@ -1,3 +1,6 @@
+import { createApiClient } from "@cocommand/api-client";
+import { invokeTool } from "@cocommand/api-client";
+
 export interface InvokeResponse<T = unknown> {
   ok: boolean;
   data?: T;
@@ -11,17 +14,20 @@ export async function invokeExtensionTool<T = unknown>(
   input: Record<string, unknown> = {},
   options?: { signal?: AbortSignal },
 ): Promise<T> {
-  const prefix = addr.startsWith("http") ? addr : `http://${addr}`;
-  const url = `${prefix}/extension/${extensionId}/invoke/${toolId}`;
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input),
+  const client = createApiClient(addr);
+  const { data, error: fetchError, response } = await invokeTool({
+    client,
+    path: { extension_id: extensionId, tool_id: toolId },
+    body: input as Record<string, never>,
     signal: options?.signal,
   });
-  const result = (await response.json()) as InvokeResponse<T>;
-  if (!result.ok || !response.ok) {
-    throw new Error(result.error?.message ?? `Server error (${response.status})`);
+  if (fetchError || !response.ok) {
+    const errBody = fetchError as { error?: { message?: string } } | undefined;
+    throw new Error(errBody?.error?.message ?? `Server error (${response.status})`);
+  }
+  const result = data as unknown as InvokeResponse<T>;
+  if (!result.ok) {
+    throw new Error(result.error?.message ?? "Unknown error");
   }
   return result.data as T;
 }

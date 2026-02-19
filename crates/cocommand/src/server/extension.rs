@@ -1,14 +1,15 @@
 use axum::extract::State;
-use axum::http::StatusCode;
 use axum::Json;
 use serde::Deserialize;
 use serde::Serialize;
 use std::sync::Arc;
+use utoipa::ToSchema;
 
 use crate::extension::{Extension, ExtensionContext, ExtensionKind, ExtensionStatus, ExtensionTool};
+use crate::server::error::{ApiError, ApiErrorResponse};
 use crate::server::ServerState;
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct ExtensionInfo {
     pub id: String,
     pub name: String,
@@ -19,21 +20,21 @@ pub struct ExtensionInfo {
     pub view: Option<ExtensionViewInfo>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct ExtensionViewInfo {
     pub entry: String,
     pub label: String,
     pub popout: Option<ExtensionViewPopoutInfo>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct ExtensionViewPopoutInfo {
     pub width: u32,
     pub height: u32,
     pub title: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 pub struct ExtensionToolInfo {
     pub id: String,
     pub name: String,
@@ -41,11 +42,19 @@ pub struct ExtensionToolInfo {
     pub input_schema: serde_json::Value,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct OpenExtensionRequest {
     pub id: String,
 }
 
+#[utoipa::path(
+    get,
+    path = "/workspace/extensions",
+    tag = "extensions",
+    responses(
+        (status = 200, body = Vec<ExtensionInfo>),
+    )
+)]
 pub(crate) async fn list_extensions(
     State(state): State<Arc<ServerState>>,
 ) -> Json<Vec<ExtensionInfo>> {
@@ -72,24 +81,32 @@ pub(crate) async fn list_extensions(
     Json(apps)
 }
 
+#[utoipa::path(
+    post,
+    path = "/workspace/extensions/open",
+    tag = "extensions",
+    request_body = OpenExtensionRequest,
+    responses(
+        (status = 200, description = "Tool output from the extension's open tool"),
+        (status = 400, body = ApiErrorResponse),
+        (status = 404, body = ApiErrorResponse),
+    )
+)]
 pub(crate) async fn open_extension(
     State(state): State<Arc<ServerState>>,
     Json(payload): Json<OpenExtensionRequest>,
-) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+) -> Result<Json<serde_json::Value>, ApiError> {
     let app_id = payload.id;
     let app = {
         let registry = state.workspace.extension_registry.read().await;
         registry
             .get(&app_id)
-            .ok_or((StatusCode::NOT_FOUND, "extension not found".to_string()))?
+            .ok_or_else(|| ApiError::not_found("extension not found"))?
     };
 
     let supports_open = app.tools().into_iter().any(|tool| tool.id == "open");
     if !supports_open {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            "extension cannot be opened".to_string(),
-        ));
+        return Err(ApiError::bad_request("extension cannot be opened"));
     }
 
     let session_id = state
@@ -103,7 +120,7 @@ pub(crate) async fn open_extension(
             })
         })
         .await
-        .map_err(|error| (StatusCode::INTERNAL_SERVER_ERROR, error.to_string()))?;
+        .map_err(|error| ApiError::internal(error.to_string()))?;
 
     let context = ExtensionContext {
         workspace: Arc::new(state.workspace.clone()),
@@ -113,13 +130,10 @@ pub(crate) async fn open_extension(
         .tools()
         .into_iter()
         .find(|tool| tool.id == "open")
-        .ok_or((
-            StatusCode::BAD_REQUEST,
-            "extension cannot be opened".to_string(),
-        ))?;
+        .ok_or_else(|| ApiError::bad_request("extension cannot be opened"))?;
     let output = (tool.execute)(serde_json::json!({}), context)
         .await
-        .map_err(|error| (StatusCode::INTERNAL_SERVER_ERROR, error.to_string()))?;
+        .map_err(|error| ApiError::internal(error.to_string()))?;
 
     Ok(Json(output))
 }

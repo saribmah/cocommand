@@ -18,10 +18,17 @@ tower-http = { version = "0.6", features = ["cors"] }
 async-trait = "0.1"
 tracing = "0.1"
 rayon = "1.10"
+utoipa = { version = "5", features = ["axum_extras"] }
+utoipa-axum = "0.2"
+utoipa-swagger-ui = { version = "9", features = ["axum"], optional = true }
 llm-kit-core = { path = "../../../ai-sdk/llm-kit-core" }
 llm-kit-openai-compatible = { path = "../../../ai-sdk/llm-kit-openai-compatible" }
 llm-kit-provider = { path = "../../../ai-sdk/llm-kit-provider" }
 llm-kit-provider-utils = { path = "../../../ai-sdk/llm-kit-provider-utils" }
+
+[features]
+default = []
+swagger-ui = ["dep:utoipa-swagger-ui"]
 
 [target.'cfg(target_os = "macos")'.dependencies]
 platform-macos = { path = "../platform-macos" }

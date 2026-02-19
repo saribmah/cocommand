@@ -1,21 +1,22 @@
 use std::sync::Arc;
 
 use axum::extract::State;
-use axum::http::StatusCode;
 use axum::Json;
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 
 use crate::error::CoreError;
 use crate::extension::ExtensionContext;
+use crate::server::error::{ApiError, ApiErrorResponse};
 use crate::server::ServerState;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct OpenApplicationRequest {
     pub id: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ApplicationInfo {
     pub id: String,
@@ -27,14 +28,14 @@ pub struct ApplicationInfo {
     pub icon: Option<String>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ApplicationsResponse {
     pub applications: Vec<ApplicationInfo>,
     pub count: usize,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct OpenApplicationResponse {
     pub status: String,
@@ -52,9 +53,18 @@ struct InstalledAppToolOutput {
     icon: Option<String>,
 }
 
+#[utoipa::path(
+    get,
+    path = "/workspace/extension/system/applications",
+    tag = "system",
+    responses(
+        (status = 200, body = ApplicationsResponse),
+        (status = 500, body = ApiErrorResponse),
+    )
+)]
 pub(crate) async fn list_applications(
     State(state): State<Arc<ServerState>>,
-) -> Result<Json<ApplicationsResponse>, (StatusCode, String)> {
+) -> Result<Json<ApplicationsResponse>, ApiError> {
     let applications = load_installed_applications(state.as_ref()).await?;
     Ok(Json(ApplicationsResponse {
         count: applications.len(),
@@ -62,13 +72,24 @@ pub(crate) async fn list_applications(
     }))
 }
 
+#[utoipa::path(
+    post,
+    path = "/workspace/extension/system/applications/open",
+    tag = "system",
+    request_body = OpenApplicationRequest,
+    responses(
+        (status = 200, body = OpenApplicationResponse),
+        (status = 400, body = ApiErrorResponse),
+        (status = 404, body = ApiErrorResponse),
+    )
+)]
 pub(crate) async fn open_application(
     State(state): State<Arc<ServerState>>,
     Json(payload): Json<OpenApplicationRequest>,
-) -> Result<Json<OpenApplicationResponse>, (StatusCode, String)> {
+) -> Result<Json<OpenApplicationResponse>, ApiError> {
     let requested_id = payload.id.trim().to_string();
     if requested_id.is_empty() {
-        return Err((StatusCode::BAD_REQUEST, "missing id".to_string()));
+        return Err(ApiError::bad_request("missing id"));
     }
 
     let applications = load_installed_applications(state.as_ref()).await?;
@@ -79,10 +100,9 @@ pub(crate) async fn open_application(
                 || app.bundle_id.as_deref() == Some(requested_id.as_str())
                 || app.path == requested_id
         })
-        .ok_or((
-            StatusCode::NOT_FOUND,
-            format!("application not found: {requested_id}"),
-        ))?;
+        .ok_or_else(|| {
+            ApiError::not_found(format!("application not found: {requested_id}"))
+        })?;
 
     if let Some(bundle_id) = app.bundle_id.as_deref() {
         let app_action_result = execute_system_tool(
@@ -140,13 +160,12 @@ pub(crate) async fn open_application(
 
 async fn load_installed_applications(
     state: &ServerState,
-) -> Result<Vec<ApplicationInfo>, (StatusCode, String)> {
+) -> Result<Vec<ApplicationInfo>, ApiError> {
     let output = execute_system_tool(state, "list_installed_apps", serde_json::json!({})).await?;
     let parsed: Vec<InstalledAppToolOutput> = serde_json::from_value(output).map_err(|error| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            format!("invalid system.list_installed_apps output: {error}"),
-        )
+        ApiError::internal(format!(
+            "invalid system.list_installed_apps output: {error}"
+        ))
     })?;
 
     let mut applications = parsed
@@ -171,24 +190,18 @@ async fn execute_system_tool(
     state: &ServerState,
     tool_id: &str,
     input: serde_json::Value,
-) -> Result<serde_json::Value, (StatusCode, String)> {
+) -> Result<serde_json::Value, ApiError> {
     let extension = {
         let registry = state.workspace.extension_registry.read().await;
         registry.get("system")
     }
-    .ok_or((
-        StatusCode::INTERNAL_SERVER_ERROR,
-        "system extension not found".to_string(),
-    ))?;
+    .ok_or_else(|| ApiError::internal("system extension not found"))?;
 
     let tool = extension
         .tools()
         .into_iter()
         .find(|tool| tool.id == tool_id)
-        .ok_or((
-            StatusCode::INTERNAL_SERVER_ERROR,
-            format!("system tool not found: {tool_id}"),
-        ))?;
+        .ok_or_else(|| ApiError::internal(format!("system tool not found: {tool_id}")))?;
 
     let session_id = state
         .sessions
@@ -199,21 +212,16 @@ async fn execute_system_tool(
             })
         })
         .await
-        .map_err(map_core_error)?;
+        .map_err(|e: CoreError| ApiError::from(e))?;
 
     let context = ExtensionContext {
         workspace: Arc::new(state.workspace.clone()),
         session_id,
     };
 
-    (tool.execute)(input, context).await.map_err(map_core_error)
-}
-
-fn map_core_error(error: CoreError) -> (StatusCode, String) {
-    match error {
-        CoreError::InvalidInput(message) => (StatusCode::BAD_REQUEST, message),
-        other => (StatusCode::INTERNAL_SERVER_ERROR, other.to_string()),
-    }
+    (tool.execute)(input, context)
+        .await
+        .map_err(|e| ApiError::from(e))
 }
 
 fn escape_applescript_string(value: &str) -> String {

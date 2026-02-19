@@ -1,5 +1,7 @@
 import { create } from "zustand";
 import type { StoreApi } from "zustand";
+import { createApiClient } from "@cocommand/api-client";
+import { listExtensions, openExtension } from "@cocommand/api-client";
 import { invokeExtensionTool } from "../../lib/extension-client";
 import { getRegisteredStoreFactories } from "./extension-stores";
 import { loadDynamicExtensionViews } from "./extension-loader";
@@ -17,11 +19,6 @@ export interface ExtensionState {
   loadDynamicViews: (serverAddr: string) => Promise<void>;
   invoke: ExtensionInvokeFn;
   stores: Record<string, StoreApi<unknown>>;
-}
-
-function buildServerUrl(addr: string, path: string): string {
-  const prefix = addr.startsWith("http") ? addr : `http://${addr}`;
-  return `${prefix}${path}`;
 }
 
 export type ExtensionStore = ReturnType<typeof createExtensionStore>;
@@ -78,17 +75,19 @@ export const createExtensionStore = (getAddr: () => string | null) => {
         return;
       }
 
-      const url = buildServerUrl(addr, "/workspace/extensions");
       try {
-        const response = await fetch(url);
-        if (!response.ok) {
-          throw new Error(`Server error (${response.status})`);
+        const client = createApiClient(addr);
+        const { data, error: fetchError } = await listExtensions({ client });
+        if (fetchError) {
+          throw new Error("Server error");
         }
-        const data = (await response.json()) as ExtensionInfo[];
-        set({ extensions: data, isLoaded: true, error: null });
+        const extensions = data as ExtensionInfo[];
+        set({ extensions, isLoaded: true, error: null });
 
         // Fire dynamic view loading if any custom extensions have views
-        const hasDynamicViews = data.some((ext) => ext.view && ext.kind === "custom");
+        const hasDynamicViews = extensions.some(
+          (ext) => ext.view && ext.kind === "custom"
+        );
         if (hasDynamicViews) {
           get().loadDynamicViews(addr);
         }
@@ -114,15 +113,14 @@ export const createExtensionStore = (getAddr: () => string | null) => {
         );
       }
 
-      const url = buildServerUrl(addr, "/workspace/extensions/open");
-      const response = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id }),
+      const client = createApiClient(addr);
+      const { error: fetchError } = await openExtension({
+        client,
+        body: { id },
       });
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(errorText || `Server error (${response.status})`);
+      if (fetchError) {
+        const msg = fetchError.error?.message ?? "Server error";
+        throw new Error(msg);
       }
     },
     getExtensions: () => get().extensions,
