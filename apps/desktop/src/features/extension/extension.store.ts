@@ -14,24 +14,14 @@ export interface ExtensionState {
   fetchExtensions: () => Promise<void>;
   openExtension: (id: string) => Promise<void>;
   getExtensions: () => ExtensionInfo[];
-  loadDynamicViews: (serverAddr: string) => Promise<void>;
+  loadDynamicViews: () => Promise<void>;
   invoke: ExtensionInvokeFn;
   stores: Record<string, StoreApi<unknown>>;
 }
 
 export type ExtensionStore = ReturnType<typeof createExtensionStore>;
 
-function getServerBaseUrl(sdk: Sdk): string {
-  const baseUrl = sdk.client.getConfig().baseUrl;
-  if (!baseUrl) {
-    throw new Error("SDK client baseUrl is not configured");
-  }
-  return String(baseUrl).replace(/\/$/, "");
-}
-
 export const createExtensionStore = (sdk: Sdk) => {
-  const serverBaseUrl = getServerBaseUrl(sdk);
-
   const invoke: ExtensionInvokeFn = <T = unknown>(
     extensionId: string,
     toolId: string,
@@ -54,10 +44,10 @@ export const createExtensionStore = (sdk: Sdk) => {
     viewLoadVersion: 0,
     invoke,
     stores,
-    loadDynamicViews: async (serverAddr: string) => {
+    loadDynamicViews: async () => {
       const { extensions, viewLoadVersion } = get();
       try {
-        await loadDynamicExtensionViews(extensions, serverAddr);
+        await loadDynamicExtensionViews(sdk, extensions);
       } catch (err) {
         console.warn("Failed to load dynamic extension views:", err);
       }
@@ -82,7 +72,7 @@ export const createExtensionStore = (sdk: Sdk) => {
           (ext) => ext.view && ext.kind === "custom",
         );
         if (hasDynamicViews) {
-          get().loadDynamicViews(serverBaseUrl);
+          get().loadDynamicViews();
         }
       } catch (error) {
         set({ extensions: [], isLoaded: false, error: String(error) });

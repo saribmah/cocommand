@@ -5,4 +5,5 @@ export const {
   ExtensionSdkProvider,
   useSdk,
   useExtensionSdk,
+  loadExtensionViewModules,
 } = SDKReact;

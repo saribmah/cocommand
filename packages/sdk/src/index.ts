@@ -19,6 +19,8 @@ export type {
 
 export type {
   ExtensionsApi,
+  ExtensionViewsApi,
+  ResolvedExtensionViewAsset,
 } from "./extensions";
 
 export type { ToolsApi } from "./tools";

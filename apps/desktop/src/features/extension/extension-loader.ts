@@ -1,44 +1,48 @@
+import type { ComponentType } from "react";
+import type { Sdk } from "@cocommand/sdk";
+import { loadExtensionViewModules } from "@cocommand/sdk/react";
+import type { ExtensionStoreFactory } from "./extension-stores";
 import { registerExtensionView } from "./extension-views";
+import type { ExtensionViewProps } from "./extension-views";
 import { registerExtensionStore } from "./extension-stores";
 import type { ExtensionInfo } from "./extension.types";
 
 export async function loadDynamicExtensionViews(
+  sdk: Sdk,
   extensions: ExtensionInfo[],
-  serverAddr: string,
 ): Promise<string[]> {
-  const prefix = serverAddr.startsWith("http") ? serverAddr : `http://${serverAddr}`;
-  const candidates = extensions.filter((ext) => ext.view && ext.kind === "custom");
-
-  if (candidates.length === 0) return [];
-
-  const results = await Promise.allSettled(
-    candidates.map(async (ext) => {
-      const assetUrl = `${prefix}/extension/${ext.id}/assets/${ext.view!.entry}`;
-      const mod = await import(/* @vite-ignore */ assetUrl);
-
-      if (mod.default) {
-        registerExtensionView(ext.id, {
-          component: mod.default,
-          label: ext.view!.label,
-          popout: ext.view!.popout ?? undefined,
-        });
-      }
-
-      if (typeof mod.createStore === "function") {
-        registerExtensionStore(ext.id, mod.createStore);
-      }
-
-      return ext.id;
-    }),
-  );
+  const results = await loadExtensionViewModules(sdk, extensions);
 
   const loaded: string[] = [];
   for (const result of results) {
     if (result.status === "fulfilled") {
-      loaded.push(result.value);
+      const mod = result.module as {
+        default?: unknown;
+        createStore?: unknown;
+      };
+      const { view } = result;
+      if (mod.default) {
+        registerExtensionView(view.extensionId, {
+          component: mod.default as ComponentType<ExtensionViewProps>,
+          label: view.label,
+          popout: view.popout ?? undefined,
+        });
+      }
+
+      if (typeof mod.createStore === "function") {
+        registerExtensionStore(
+          view.extensionId,
+          mod.createStore as ExtensionStoreFactory,
+        );
+      }
+      loaded.push(view.extensionId);
     } else {
-      console.warn("Failed to load dynamic extension view:", result.reason);
+      console.warn(
+        `Failed to load dynamic extension view for "${result.view.extensionId}":`,
+        result.reason,
+      );
     }
   }
+
   return loaded;
 }

@@ -1,26 +1,12 @@
-export interface ExtensionToolInfo {
-  id: string;
-  name: string;
-  description?: string | null;
-  input_schema: unknown;
-  output_schema?: unknown | null;
-}
+import type {
+  ExtensionInfo as SdkExtensionInfo,
+  ExtensionToolInfo as SdkExtensionToolInfo,
+  ExtensionViewInfo as SdkExtensionViewInfo,
+} from "@cocommand/sdk";
 
-export interface ExtensionViewInfo {
-  entry: string;
-  label: string;
-  popout?: { width: number; height: number; title: string } | null;
-}
-
-export interface ExtensionInfo {
-  id: string;
-  name: string;
-  kind: string;
-  status: string;
-  tags: string[];
-  tools: ExtensionToolInfo[];
-  view?: ExtensionViewInfo | null;
-}
+export type ExtensionToolInfo = SdkExtensionToolInfo;
+export type ExtensionViewInfo = SdkExtensionViewInfo;
+export type ExtensionInfo = SdkExtensionInfo;
 
 export type ExtensionInvokeFn = <T = unknown>(
   extensionId: string,
