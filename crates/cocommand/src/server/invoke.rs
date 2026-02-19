@@ -39,9 +39,9 @@ pub(crate) async fn invoke_tool(
     // 1. Look up extension in registry
     let extension = {
         let registry = state.workspace.extension_registry.read().await;
-        registry.get(&extension_id).ok_or_else(|| {
-            ApiError::not_found(format!("Extension '{extension_id}' not found"))
-        })?
+        registry
+            .get(&extension_id)
+            .ok_or_else(|| ApiError::not_found(format!("Extension '{extension_id}' not found")))?
     };
 
     // 2. Find tool by ID

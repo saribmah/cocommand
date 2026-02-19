@@ -7,8 +7,7 @@ use cocommand::server::openapi::generate_full_spec;
 fn main() {
     let spec = generate_full_spec();
 
-    let out_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../packages/api");
+    let out_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../packages/api");
 
     std::fs::create_dir_all(&out_dir).expect("failed to create output directory");
 

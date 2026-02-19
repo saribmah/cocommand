@@ -1,8 +1,6 @@
-use std::path::PathBuf;
-
-use serde_json::json;
-
 use crate::error::CoreError;
+use serde_json::json;
+use std::path::PathBuf;
 
 use super::extension::{
     canonicalize_existing_path, normalize_input_path, parse_ignore_paths,

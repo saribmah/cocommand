@@ -22,7 +22,6 @@ use filesystem::FileSystemIndexManager;
 
 use super::icons;
 use super::ops::{list_directory_entries, path_info, read_file_content};
-use super::platform::{open_path_native, reveal_path_native};
 use super::types::{EntryKindFilter, ListSortKey, SortOrder};
 
 #[derive(Debug, Clone, Copy)]
@@ -74,37 +73,34 @@ impl FileSystemExtension {
                         let defaults =
                             workspace_filesystem_defaults(context.workspace.as_ref()).await;
                         let query = required_string(&input, "query")?;
-                        let root_raw = optional_string(&input, "root")
-                            .unwrap_or(defaults.watch_root.clone());
-                        let kind =
-                            EntryKindFilter::parse(optional_string_ref(&input, "kind"))?;
+                        let root_raw =
+                            optional_string(&input, "root").unwrap_or(defaults.watch_root.clone());
+                        let kind = EntryKindFilter::parse(optional_string_ref(&input, "kind"))?;
                         let search_options = parse_search_request_options(&input)?;
                         let workspace_dir = context.workspace.workspace_dir.clone();
 
                         let root = normalize_input_path(&root_raw, &workspace_dir)?;
                         let ignore_paths =
                             parse_ignore_paths(&input, &root, &defaults.ignore_paths)?;
-                        let index_cache_dir =
-                            workspace_dir.join("storage/filesystem-indexes");
+                        let index_cache_dir = workspace_dir.join("storage/filesystem-indexes");
                         let fs_kind: filesystem::KindFilter = kind.into();
-                        let result =
-                            run_blocking("filesystem_search_indexed", move || {
-                                index_manager
-                                    .search(
-                                        root,
-                                        query,
-                                        fs_kind,
-                                        search_options.include_hidden,
-                                        search_options.case_sensitive,
-                                        search_options.max_results,
-                                        search_options.max_depth,
-                                        index_cache_dir,
-                                        ignore_paths,
-                                        None,
-                                    )
-                                    .map_err(CoreError::from)
-                            })
-                            .await?;
+                        let result = run_blocking("filesystem_search_indexed", move || {
+                            index_manager
+                                .search(
+                                    root,
+                                    query,
+                                    fs_kind,
+                                    search_options.include_hidden,
+                                    search_options.case_sensitive,
+                                    search_options.max_results,
+                                    search_options.max_depth,
+                                    index_cache_dir,
+                                    ignore_paths,
+                                    None,
+                                )
+                                .map_err(CoreError::from)
+                        })
+                        .await?;
                         let payload: super::types::SearchPayload = result.unwrap().into();
                         Ok(json!(payload))
                     })
@@ -119,19 +115,15 @@ impl FileSystemExtension {
                     boxed_tool_future(async move {
                         let defaults =
                             workspace_filesystem_defaults(context.workspace.as_ref()).await;
-                        let path_raw = optional_string(&input, "path")
-                            .unwrap_or(defaults.watch_root.clone());
-                        let recursive =
-                            optional_bool(&input, "recursive").unwrap_or(false);
+                        let path_raw =
+                            optional_string(&input, "path").unwrap_or(defaults.watch_root.clone());
+                        let recursive = optional_bool(&input, "recursive").unwrap_or(false);
                         let include_hidden =
                             optional_bool(&input, "includeHidden").unwrap_or(false);
-                        let kind =
-                            EntryKindFilter::parse(optional_string_ref(&input, "kind"))?;
-                        let max_results =
-                            bounded_usize(&input, "maxResults", 200, 1, 2_000)?;
+                        let kind = EntryKindFilter::parse(optional_string_ref(&input, "kind"))?;
+                        let max_results = bounded_usize(&input, "maxResults", 200, 1, 2_000)?;
                         let max_depth = bounded_usize(&input, "maxDepth", 8, 0, 64)?;
-                        let sort_key =
-                            ListSortKey::parse(optional_string_ref(&input, "sortBy"))?;
+                        let sort_key = ListSortKey::parse(optional_string_ref(&input, "sortBy"))?;
                         let sort_order =
                             SortOrder::parse(optional_string_ref(&input, "sortOrder"))?;
                         let workspace_dir = context.workspace.workspace_dir.clone();
@@ -168,22 +160,20 @@ impl FileSystemExtension {
                     boxed_tool_future(async move {
                         let defaults =
                             workspace_filesystem_defaults(context.workspace.as_ref()).await;
-                        let root_raw = optional_string(&input, "root")
-                            .unwrap_or(defaults.watch_root.clone());
+                        let root_raw =
+                            optional_string(&input, "root").unwrap_or(defaults.watch_root.clone());
                         let workspace_dir = context.workspace.workspace_dir.clone();
                         let root = normalize_input_path(&root_raw, &workspace_dir)?;
                         let ignore_paths =
                             parse_ignore_paths(&input, &root, &defaults.ignore_paths)?;
-                        let index_cache_dir =
-                            workspace_dir.join("storage/filesystem-indexes");
+                        let index_cache_dir = workspace_dir.join("storage/filesystem-indexes");
 
-                        let result =
-                            run_blocking("filesystem_index_status", move || {
-                                index_manager
-                                    .index_status(root, index_cache_dir, ignore_paths)
-                                    .map_err(CoreError::from)
-                            })
-                            .await?;
+                        let result = run_blocking("filesystem_index_status", move || {
+                            index_manager
+                                .index_status(root, index_cache_dir, ignore_paths)
+                                .map_err(CoreError::from)
+                        })
+                        .await?;
                         let payload: super::types::IndexStatusPayload = result.into();
                         Ok(json!(payload))
                     })
@@ -200,22 +190,20 @@ impl FileSystemExtension {
                     boxed_tool_future(async move {
                         let defaults =
                             workspace_filesystem_defaults(context.workspace.as_ref()).await;
-                        let root_raw = optional_string(&input, "root")
-                            .unwrap_or(defaults.watch_root.clone());
+                        let root_raw =
+                            optional_string(&input, "root").unwrap_or(defaults.watch_root.clone());
                         let workspace_dir = context.workspace.workspace_dir.clone();
                         let root = normalize_input_path(&root_raw, &workspace_dir)?;
                         let ignore_paths =
                             parse_ignore_paths(&input, &root, &defaults.ignore_paths)?;
-                        let index_cache_dir =
-                            workspace_dir.join("storage/filesystem-indexes");
+                        let index_cache_dir = workspace_dir.join("storage/filesystem-indexes");
 
-                        let result =
-                            run_blocking("filesystem_rescan_index", move || {
-                                index_manager
-                                    .rescan(root, index_cache_dir, ignore_paths)
-                                    .map_err(CoreError::from)
-                            })
-                            .await?;
+                        let result = run_blocking("filesystem_rescan_index", move || {
+                            index_manager
+                                .rescan(root, index_cache_dir, ignore_paths)
+                                .map_err(CoreError::from)
+                        })
+                        .await?;
                         let payload: super::types::IndexStatusPayload = result.into();
                         Ok(json!({
                             "status": "ok",
@@ -234,8 +222,7 @@ impl FileSystemExtension {
                     boxed_tool_future(async move {
                         let path_raw = required_string(&input, "path")?;
                         let offset = bounded_u64(&input, "offset", 0, 0, u64::MAX)?;
-                        let max_bytes =
-                            bounded_usize(&input, "maxBytes", 16_384, 1, 1_048_576)?;
+                        let max_bytes = bounded_usize(&input, "maxBytes", 16_384, 1, 1_048_576)?;
                         let workspace_dir = context.workspace.workspace_dir.clone();
 
                         let path = normalize_input_path(&path_raw, &workspace_dir)?;
@@ -258,10 +245,8 @@ impl FileSystemExtension {
                         let workspace_dir = context.workspace.workspace_dir.clone();
                         let path = normalize_input_path(&path_raw, &workspace_dir)?;
 
-                        let payload = run_blocking("filesystem_path_info", move || {
-                            path_info(path)
-                        })
-                        .await?;
+                        let payload =
+                            run_blocking("filesystem_path_info", move || path_info(path)).await?;
                         Ok(json!(payload))
                     })
                 },
@@ -282,9 +267,10 @@ impl FileSystemExtension {
                                 path.display()
                             )));
                         }
+                        let platform = context.workspace.platform.clone();
 
                         run_blocking("filesystem_open_path", move || {
-                            open_path_native(&path)?;
+                            platform.open_path(&path)?;
                             Ok(json!({
                                 "status": "ok",
                                 "path": path.to_string_lossy(),
@@ -310,9 +296,10 @@ impl FileSystemExtension {
                                 path.display()
                             )));
                         }
+                        let platform = context.workspace.platform.clone();
 
                         run_blocking("filesystem_reveal_path", move || {
-                            reveal_path_native(&path)?;
+                            platform.reveal_path(&path)?;
                             Ok(json!({
                                 "status": "ok",
                                 "path": path.to_string_lossy(),
@@ -327,11 +314,11 @@ impl FileSystemExtension {
         execute_map.insert(
             "get_icons",
             Arc::new(
-                |input: serde_json::Value, _context: crate::extension::ExtensionContext| {
+                |input: serde_json::Value, context: crate::extension::ExtensionContext| {
                     boxed_tool_future(async move {
-                        let paths_value = input.get("paths").ok_or_else(|| {
-                            CoreError::InvalidInput("missing paths".to_string())
-                        })?;
+                        let paths_value = input
+                            .get("paths")
+                            .ok_or_else(|| CoreError::InvalidInput("missing paths".to_string()))?;
                         let paths_array = paths_value.as_array().ok_or_else(|| {
                             CoreError::InvalidInput("paths must be an array".to_string())
                         })?;
@@ -339,12 +326,12 @@ impl FileSystemExtension {
                             .iter()
                             .filter_map(|v| v.as_str().map(|s| s.to_string()))
                             .collect();
+                        let platform = context.workspace.platform.clone();
 
-                        let payload =
-                            run_blocking("filesystem_get_icons", move || {
-                                Ok(icons::extract_icons(paths))
-                            })
-                            .await?;
+                        let payload = run_blocking("filesystem_get_icons", move || {
+                            Ok(icons::extract_icons(paths, platform))
+                        })
+                        .await?;
                         Ok(json!(payload))
                     })
                 },

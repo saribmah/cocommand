@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
 use crate::bus::Bus;
-use crate::event::{CoreEvent, SessionPartUpdatedPayload};
 use crate::error::{CoreError, CoreResult};
+use crate::event::{CoreEvent, SessionPartUpdatedPayload};
 use crate::message::parts::{
     FilePart, MessagePart, PartBase, ReasoningPart, TextPart, ToolPart, ToolState,
     ToolStateCompleted, ToolStateError, ToolStateRunning, ToolStateTimeCompleted,
@@ -269,13 +269,15 @@ impl StreamProcessor {
     ) -> CoreResult<()> {
         let part_id = part.base().id.clone();
         Message::store_part(context.storage, &part).await?;
-        let _ = context.bus.publish(CoreEvent::SessionPartUpdated(SessionPartUpdatedPayload {
-            request_id: context.request_id.to_string(),
-            session_id: context.session_id.to_string(),
-            message_id: context.message_id.to_string(),
-            part_id,
-            part: part.clone(),
-        }));
+        let _ = context
+            .bus
+            .publish(CoreEvent::SessionPartUpdated(SessionPartUpdatedPayload {
+                request_id: context.request_id.to_string(),
+                session_id: context.session_id.to_string(),
+                message_id: context.message_id.to_string(),
+                part_id,
+                part: part.clone(),
+            }));
         if let Some(index) = self
             .mapped_parts
             .iter()

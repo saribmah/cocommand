@@ -7,12 +7,10 @@ use crate::clipboard::set_clipboard_image;
 use crate::error::CoreError;
 use crate::extension::manifest::ExtensionManifest;
 use crate::extension::{boxed_tool_future, Extension, ExtensionKind, ExtensionTool};
+use crate::platform::{ScreenshotMode, ScreenshotOptions};
 use crate::utils::time::now_secs;
 
 use super::manifest_tools::{merge_manifest_tools, parse_builtin_manifest};
-
-#[cfg(target_os = "macos")]
-use platform_macos::{capture_screenshot, ScreenshotMode, ScreenshotOptions};
 
 pub struct ScreenshotExtension {
     manifest: ExtensionManifest,
@@ -39,7 +37,6 @@ impl ScreenshotExtension {
         Self { manifest, tools }
     }
 
-    #[cfg(target_os = "macos")]
     fn parse_mode(value: Option<&str>) -> Result<ScreenshotMode, CoreError> {
         match value.unwrap_or("interactive") {
             "interactive" => Ok(ScreenshotMode::Interactive),
@@ -60,7 +57,6 @@ impl ScreenshotExtension {
         output_dir
     }
 
-    #[cfg(target_os = "macos")]
     fn normalize_format(value: Option<&str>) -> Result<String, CoreError> {
         let format = value.unwrap_or("png");
         match format {
@@ -74,99 +70,78 @@ impl ScreenshotExtension {
     fn build_execute_map() -> HashMap<&'static str, crate::extension::ExtensionToolExecute> {
         let mut map = HashMap::new();
 
-        // capture_screenshot
-        #[cfg(target_os = "macos")]
-        {
-            map.insert(
-                "capture_screenshot",
-                Arc::new(
-                    |input: serde_json::Value, context: crate::extension::ExtensionContext| {
-                        boxed_tool_future(async move {
-                            let mode =
-                                Self::parse_mode(input.get("mode").and_then(|v| v.as_str()))?;
-                            let display = input
-                                .get("display")
-                                .and_then(|v| v.as_u64())
-                                .map(|v| v as u32);
-                            let window_id = input
-                                .get("windowId")
-                                .and_then(|v| v.as_u64())
-                                .map(|v| v as u32);
-                            let rect = input
-                                .get("rect")
-                                .and_then(|v| v.as_str())
-                                .map(|v| v.to_string());
-                            let format = Self::normalize_format(
-                                input.get("format").and_then(|v| v.as_str()),
-                            )?;
-                            let delay_seconds =
-                                input.get("delaySeconds").and_then(|v| v.as_u64());
-                            let to_clipboard = input
-                                .get("toClipboard")
-                                .and_then(|v| v.as_bool())
-                                .unwrap_or(false);
-                            let include_cursor = input
-                                .get("includeCursor")
-                                .and_then(|v| v.as_bool())
-                                .unwrap_or(false);
-
-                            let output_path = if to_clipboard {
-                                None
-                            } else {
-                                let path = Self::build_output_path(
-                                    &context.workspace.workspace_dir,
-                                    &context.session_id,
-                                    &format,
-                                );
-                                if let Some(parent) = path.parent() {
-                                    std::fs::create_dir_all(parent).map_err(|error| {
-                                        CoreError::Internal(format!(
-                                            "failed to create screenshots directory: {error}"
-                                        ))
-                                    })?;
-                                }
-                                Some(path)
-                            };
-
-                            let result = capture_screenshot(
-                                ScreenshotOptions {
-                                    mode,
-                                    display,
-                                    window_id,
-                                    rect,
-                                    format: Some(format.clone()),
-                                    delay_seconds,
-                                    to_clipboard,
-                                    include_cursor,
-                                },
-                                output_path.as_deref(),
-                            )
-                            .map_err(CoreError::Internal)?;
-
-                            Ok(serde_json::json!({
-                                "path": result.path,
-                                "filename": result.filename,
-                                "format": result.format,
-                                "clipboard": result.clipboard
-                            }))
-                        })
-                    },
-                ) as _,
-            );
-        }
-        #[cfg(not(target_os = "macos"))]
-        {
-            map.insert(
-                "capture_screenshot",
-                Arc::new(|_input: serde_json::Value, _context| {
+        map.insert(
+            "capture_screenshot",
+            Arc::new(
+                |input: serde_json::Value, context: crate::extension::ExtensionContext| {
                     boxed_tool_future(async move {
-                        Err(CoreError::Internal(
-                            "screenshot tool not supported on this platform".to_string(),
-                        ))
+                        let mode = Self::parse_mode(input.get("mode").and_then(|v| v.as_str()))?;
+                        let display = input
+                            .get("display")
+                            .and_then(|v| v.as_u64())
+                            .map(|v| v as u32);
+                        let window_id = input
+                            .get("windowId")
+                            .and_then(|v| v.as_u64())
+                            .map(|v| v as u32);
+                        let rect = input
+                            .get("rect")
+                            .and_then(|v| v.as_str())
+                            .map(|v| v.to_string());
+                        let format =
+                            Self::normalize_format(input.get("format").and_then(|v| v.as_str()))?;
+                        let delay_seconds = input.get("delaySeconds").and_then(|v| v.as_u64());
+                        let to_clipboard = input
+                            .get("toClipboard")
+                            .and_then(|v| v.as_bool())
+                            .unwrap_or(false);
+                        let include_cursor = input
+                            .get("includeCursor")
+                            .and_then(|v| v.as_bool())
+                            .unwrap_or(false);
+
+                        let output_path = if to_clipboard {
+                            None
+                        } else {
+                            let path = Self::build_output_path(
+                                &context.workspace.workspace_dir,
+                                &context.session_id,
+                                &format,
+                            );
+                            if let Some(parent) = path.parent() {
+                                std::fs::create_dir_all(parent).map_err(|error| {
+                                    CoreError::Internal(format!(
+                                        "failed to create screenshots directory: {error}"
+                                    ))
+                                })?;
+                            }
+                            Some(path)
+                        };
+
+                        let result = context.workspace.platform.capture_screenshot(
+                            ScreenshotOptions {
+                                mode,
+                                display,
+                                window_id,
+                                rect,
+                                format: Some(format.clone()),
+                                delay_seconds,
+                                to_clipboard,
+                                include_cursor,
+                            },
+                            output_path.as_deref(),
+                        )?;
+
+                        Ok(serde_json::json!({
+                            "path": result.path,
+                            "filename": result.filename,
+                            "format": result.format,
+                            "clipboard": result.clipboard
+                        }))
                     })
-                }) as _,
-            );
-        }
+                },
+            ) as _,
+        );
 
         // list_screenshots
         map.insert(
@@ -179,8 +154,7 @@ impl ScreenshotExtension {
                             .and_then(|v| v.as_u64())
                             .map(|v| v as usize);
 
-                        let screenshots_dir =
-                            context.workspace.workspace_dir.join("screenshots");
+                        let screenshots_dir = context.workspace.workspace_dir.join("screenshots");
 
                         if !screenshots_dir.exists() {
                             return Ok(serde_json::json!([]));
@@ -189,26 +163,19 @@ impl ScreenshotExtension {
                         let mut entries = Vec::new();
                         let mut read_dir =
                             tokio::fs::read_dir(&screenshots_dir).await.map_err(|e| {
-                                CoreError::Internal(format!(
-                                    "failed to read screenshots dir: {e}"
-                                ))
+                                CoreError::Internal(format!("failed to read screenshots dir: {e}"))
                             })?;
 
-                        while let Some(dir_entry) =
-                            read_dir.next_entry().await.map_err(|e| {
-                                CoreError::Internal(format!("failed to read dir entry: {e}"))
-                            })?
-                        {
+                        while let Some(dir_entry) = read_dir.next_entry().await.map_err(|e| {
+                            CoreError::Internal(format!("failed to read dir entry: {e}"))
+                        })? {
                             let path = dir_entry.path();
                             if !path.is_file() {
                                 continue;
                             }
-                            let metadata =
-                                tokio::fs::metadata(&path).await.map_err(|e| {
-                                    CoreError::Internal(format!(
-                                        "failed to read metadata: {e}"
-                                    ))
-                                })?;
+                            let metadata = tokio::fs::metadata(&path).await.map_err(|e| {
+                                CoreError::Internal(format!("failed to read metadata: {e}"))
+                            })?;
                             let filename = path
                                 .file_name()
                                 .unwrap_or_default()
@@ -261,33 +228,25 @@ impl ScreenshotExtension {
                         let filename = input
                             .get("filename")
                             .and_then(|v| v.as_str())
-                            .ok_or_else(|| {
-                                CoreError::Internal("filename is required".to_string())
-                            })?
+                            .ok_or_else(|| CoreError::Internal("filename is required".to_string()))?
                             .to_string();
 
-                        let screenshots_dir =
-                            context.workspace.workspace_dir.join("screenshots");
+                        let screenshots_dir = context.workspace.workspace_dir.join("screenshots");
                         let path = screenshots_dir.join(&filename);
 
-                        let resolved = path.canonicalize().map_err(|_| {
-                            CoreError::Internal("screenshot not found".to_string())
-                        })?;
+                        let resolved = path
+                            .canonicalize()
+                            .map_err(|_| CoreError::Internal("screenshot not found".to_string()))?;
                         let base = screenshots_dir.canonicalize().map_err(|_| {
-                            CoreError::Internal(
-                                "screenshots directory not found".to_string(),
-                            )
+                            CoreError::Internal("screenshots directory not found".to_string())
                         })?;
                         if !resolved.starts_with(&base) {
-                            return Err(CoreError::Internal(
-                                "path traversal denied".to_string(),
-                            ));
+                            return Err(CoreError::Internal("path traversal denied".to_string()));
                         }
 
-                        let metadata =
-                            tokio::fs::metadata(&resolved).await.map_err(|_| {
-                                CoreError::Internal("screenshot not found".to_string())
-                            })?;
+                        let metadata = tokio::fs::metadata(&resolved)
+                            .await
+                            .map_err(|_| CoreError::Internal("screenshot not found".to_string()))?;
 
                         let format = resolved
                             .extension()
@@ -323,33 +282,24 @@ impl ScreenshotExtension {
                         let filename = input
                             .get("filename")
                             .and_then(|v| v.as_str())
-                            .ok_or_else(|| {
-                                CoreError::Internal("filename is required".to_string())
-                            })?
+                            .ok_or_else(|| CoreError::Internal("filename is required".to_string()))?
                             .to_string();
 
-                        let screenshots_dir =
-                            context.workspace.workspace_dir.join("screenshots");
+                        let screenshots_dir = context.workspace.workspace_dir.join("screenshots");
                         let path = screenshots_dir.join(&filename);
 
-                        let resolved = path.canonicalize().map_err(|_| {
-                            CoreError::Internal("screenshot not found".to_string())
-                        })?;
+                        let resolved = path
+                            .canonicalize()
+                            .map_err(|_| CoreError::Internal("screenshot not found".to_string()))?;
                         let base = screenshots_dir.canonicalize().map_err(|_| {
-                            CoreError::Internal(
-                                "screenshots directory not found".to_string(),
-                            )
+                            CoreError::Internal("screenshots directory not found".to_string())
                         })?;
                         if !resolved.starts_with(&base) {
-                            return Err(CoreError::Internal(
-                                "path traversal denied".to_string(),
-                            ));
+                            return Err(CoreError::Internal("path traversal denied".to_string()));
                         }
 
                         tokio::fs::remove_file(&resolved).await.map_err(|e| {
-                            CoreError::Internal(format!(
-                                "failed to delete screenshot: {e}"
-                            ))
+                            CoreError::Internal(format!("failed to delete screenshot: {e}"))
                         })?;
 
                         Ok(serde_json::json!({
@@ -361,70 +311,49 @@ impl ScreenshotExtension {
             ) as _,
         );
 
-        // copy_screenshot_to_clipboard
-        #[cfg(target_os = "macos")]
-        {
-            map.insert(
-                "copy_screenshot_to_clipboard",
-                Arc::new(
-                    |input: serde_json::Value, context: crate::extension::ExtensionContext| {
-                        boxed_tool_future(async move {
-                            let filename = input
-                                .get("filename")
-                                .and_then(|v| v.as_str())
-                                .ok_or_else(|| {
-                                    CoreError::Internal("filename is required".to_string())
-                                })?
-                                .to_string();
-
-                            let screenshots_dir =
-                                context.workspace.workspace_dir.join("screenshots");
-                            let path = screenshots_dir.join(&filename);
-
-                            let resolved = path.canonicalize().map_err(|_| {
-                                CoreError::Internal("screenshot not found".to_string())
-                            })?;
-                            let base = screenshots_dir.canonicalize().map_err(|_| {
-                                CoreError::Internal(
-                                    "screenshots directory not found".to_string(),
-                                )
-                            })?;
-                            if !resolved.starts_with(&base) {
-                                return Err(CoreError::Internal(
-                                    "path traversal denied".to_string(),
-                                ));
-                            }
-
-                            let bytes =
-                                tokio::fs::read(&resolved).await.map_err(|e| {
-                                    CoreError::Internal(format!(
-                                        "failed to read screenshot: {e}"
-                                    ))
-                                })?;
-
-                            set_clipboard_image(&bytes).await?;
-
-                            Ok(serde_json::json!({
-                                "status": "ok"
-                            }))
-                        })
-                    },
-                ) as _,
-            );
-        }
-        #[cfg(not(target_os = "macos"))]
-        {
-            map.insert(
-                "copy_screenshot_to_clipboard",
-                Arc::new(|_input: serde_json::Value, _context| {
+        map.insert(
+            "copy_screenshot_to_clipboard",
+            Arc::new(
+                |input: serde_json::Value, context: crate::extension::ExtensionContext| {
                     boxed_tool_future(async move {
-                        Err(CoreError::Internal(
-                            "screenshot tool not supported on this platform".to_string(),
-                        ))
+                        if !context.workspace.platform.supports_screenshot_tools() {
+                            return Err(CoreError::Internal(
+                                "screenshot tool not supported on this platform".to_string(),
+                            ));
+                        }
+
+                        let filename = input
+                            .get("filename")
+                            .and_then(|v| v.as_str())
+                            .ok_or_else(|| CoreError::Internal("filename is required".to_string()))?
+                            .to_string();
+
+                        let screenshots_dir = context.workspace.workspace_dir.join("screenshots");
+                        let path = screenshots_dir.join(&filename);
+
+                        let resolved = path
+                            .canonicalize()
+                            .map_err(|_| CoreError::Internal("screenshot not found".to_string()))?;
+                        let base = screenshots_dir.canonicalize().map_err(|_| {
+                            CoreError::Internal("screenshots directory not found".to_string())
+                        })?;
+                        if !resolved.starts_with(&base) {
+                            return Err(CoreError::Internal("path traversal denied".to_string()));
+                        }
+
+                        let bytes = tokio::fs::read(&resolved).await.map_err(|e| {
+                            CoreError::Internal(format!("failed to read screenshot: {e}"))
+                        })?;
+
+                        set_clipboard_image(&context.workspace, &bytes).await?;
+
+                        Ok(serde_json::json!({
+                            "status": "ok"
+                        }))
                     })
-                }) as _,
-            );
-        }
+                },
+            ) as _,
+        );
 
         map
     }
@@ -458,5 +387,114 @@ impl Extension for ScreenshotExtension {
 
     fn tools(&self) -> Vec<ExtensionTool> {
         self.tools.clone()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::Path;
+    use std::sync::Arc;
+
+    use tempfile::tempdir;
+
+    use crate::extension::{Extension, ExtensionContext};
+    use crate::platform::{Platform, ScreenshotMode, ScreenshotOptions, ScreenshotResult};
+    use crate::workspace::WorkspaceInstance;
+
+    use super::ScreenshotExtension;
+
+    struct CapturePlatform;
+
+    impl Platform for CapturePlatform {
+        fn capture_screenshot(
+            &self,
+            options: ScreenshotOptions,
+            _output_path: Option<&Path>,
+        ) -> crate::error::CoreResult<ScreenshotResult> {
+            assert!(matches!(options.mode, ScreenshotMode::Screen));
+            Ok(ScreenshotResult {
+                path: Some("/tmp/screenshot.png".to_string()),
+                filename: Some("screenshot.png".to_string()),
+                format: "png".to_string(),
+                clipboard: options.to_clipboard,
+            })
+        }
+
+        fn supports_screenshot_tools(&self) -> bool {
+            true
+        }
+    }
+
+    struct UnsupportedScreenshotPlatform;
+
+    impl Platform for UnsupportedScreenshotPlatform {
+        fn supports_screenshot_tools(&self) -> bool {
+            false
+        }
+    }
+
+    #[tokio::test]
+    async fn capture_screenshot_tool_uses_platform() {
+        let dir = tempdir().expect("tempdir");
+        let workspace = Arc::new(
+            WorkspaceInstance::new_with_platform(dir.path(), Arc::new(CapturePlatform))
+                .await
+                .expect("workspace"),
+        );
+        let extension = ScreenshotExtension::new();
+        let tool = extension
+            .tools()
+            .into_iter()
+            .find(|tool| tool.id == "capture_screenshot")
+            .expect("tool");
+
+        let output = (tool.execute)(
+            serde_json::json!({ "mode": "screen", "format": "png", "toClipboard": true }),
+            ExtensionContext {
+                workspace,
+                session_id: "test".to_string(),
+            },
+        )
+        .await
+        .expect("output");
+
+        assert_eq!(output["filename"], "screenshot.png");
+        assert_eq!(output["format"], "png");
+        assert_eq!(output["clipboard"], true);
+    }
+
+    #[tokio::test]
+    async fn copy_screenshot_tool_returns_unsupported_when_feature_missing() {
+        let dir = tempdir().expect("tempdir");
+        let workspace = Arc::new(
+            WorkspaceInstance::new_with_platform(
+                dir.path(),
+                Arc::new(UnsupportedScreenshotPlatform),
+            )
+            .await
+            .expect("workspace"),
+        );
+        let extension = ScreenshotExtension::new();
+        let tool = extension
+            .tools()
+            .into_iter()
+            .find(|tool| tool.id == "copy_screenshot_to_clipboard")
+            .expect("tool");
+
+        let error = (tool.execute)(
+            serde_json::json!({ "filename": "missing.png" }),
+            ExtensionContext {
+                workspace,
+                session_id: "test".to_string(),
+            },
+        )
+        .await
+        .expect_err("should fail");
+        match error {
+            crate::error::CoreError::Internal(message) => {
+                assert_eq!(message, "screenshot tool not supported on this platform")
+            }
+            other => panic!("unexpected error variant: {other}"),
+        }
     }
 }

@@ -74,10 +74,9 @@ impl NoteExtension {
                         let limit = bounded_usize(&input, "limit", 50, 1, 500)?;
                         let workspace_dir = context.workspace.workspace_dir.clone();
                         let notes_root = notes_root(&workspace_dir);
-                        let payload = run_blocking("notes_list_notes", move || {
-                            list_notes(notes_root, limit)
-                        })
-                        .await?;
+                        let payload =
+                            run_blocking("notes_list_notes", move || list_notes(notes_root, limit))
+                                .await?;
                         Ok(json!(payload))
                     })
                 },
@@ -92,10 +91,9 @@ impl NoteExtension {
                         let id = required_string(&input, "id")?;
                         let workspace_dir = context.workspace.workspace_dir.clone();
                         let notes_root = notes_root(&workspace_dir);
-                        let payload = run_blocking("notes_read_note", move || {
-                            read_note(notes_root, id)
-                        })
-                        .await?;
+                        let payload =
+                            run_blocking("notes_read_note", move || read_note(notes_root, id))
+                                .await?;
                         Ok(json!(payload))
                     })
                 },
@@ -129,10 +127,9 @@ impl NoteExtension {
                         let id = required_string(&input, "id")?;
                         let workspace_dir = context.workspace.workspace_dir.clone();
                         let notes_root = notes_root(&workspace_dir);
-                        let deleted = run_blocking("notes_delete_note", move || {
-                            delete_note(notes_root, id)
-                        })
-                        .await?;
+                        let deleted =
+                            run_blocking("notes_delete_note", move || delete_note(notes_root, id))
+                                .await?;
                         Ok(json!({
                             "status": "ok",
                             "deleted": deleted,
@@ -155,8 +152,7 @@ impl NoteExtension {
                         let case_sensitive =
                             optional_bool(&input, "caseSensitive").unwrap_or(false);
                         let max_results = bounded_usize(&input, "maxResults", 20, 1, 200)?;
-                        let max_depth =
-                            optional_usize(&input, "maxDepth")?.unwrap_or(usize::MAX);
+                        let max_depth = optional_usize(&input, "maxDepth")?.unwrap_or(usize::MAX);
                         let workspace_dir = context.workspace.workspace_dir.clone();
                         let notes_root = notes_root(&workspace_dir);
                         let notes_root_for_payload = notes_root.clone();
@@ -178,11 +174,7 @@ impl NoteExtension {
                                     None,
                                 )
                                 .map_err(CoreError::from)?;
-                            Ok(build_search_payload(
-                                &notes_root_for_payload,
-                                query,
-                                result,
-                            ))
+                            Ok(build_search_payload(&notes_root_for_payload, query, result))
                         })
                         .await?;
                         Ok(json!(payload))

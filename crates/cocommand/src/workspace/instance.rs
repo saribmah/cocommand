@@ -12,6 +12,7 @@ use crate::extension::builtin::system::SystemExtension;
 use crate::extension::loader::load_custom_extensions;
 use crate::extension::registry::ExtensionRegistry;
 use crate::extension::{Extension, ExtensionInitContext};
+use crate::platform::{default_platform, SharedPlatform};
 use crate::storage::file::FileStorage;
 use crate::storage::SharedStorage;
 use crate::workspace::config::{load_or_create_workspace_storage, WorkspaceConfig};
@@ -22,6 +23,7 @@ pub struct WorkspaceInstance {
     pub config: Arc<RwLock<WorkspaceConfig>>,
     pub extension_registry: Arc<RwLock<ExtensionRegistry>>,
     pub storage: SharedStorage,
+    pub platform: SharedPlatform,
 }
 
 impl fmt::Debug for WorkspaceInstance {
@@ -37,6 +39,13 @@ impl fmt::Debug for WorkspaceInstance {
 
 impl WorkspaceInstance {
     pub async fn new(workspace_dir: &Path) -> CoreResult<Self> {
+        Self::new_with_platform(workspace_dir, default_platform()).await
+    }
+
+    pub async fn new_with_platform(
+        workspace_dir: &Path,
+        platform: SharedPlatform,
+    ) -> CoreResult<Self> {
         if !workspace_dir.exists() {
             std::fs::create_dir_all(workspace_dir).map_err(|error| {
                 CoreError::Internal(format!(
@@ -57,6 +66,7 @@ impl WorkspaceInstance {
             config: Arc::new(RwLock::new(config)),
             extension_registry,
             storage,
+            platform,
         };
 
         // Initialize all extensions

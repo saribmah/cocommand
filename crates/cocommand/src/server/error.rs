@@ -75,9 +75,11 @@ impl From<CoreError> for ApiError {
     fn from(err: CoreError) -> Self {
         match err {
             CoreError::InvalidInput(msg) => Self::bad_request(msg),
-            CoreError::NotImplemented => {
-                Self::new(StatusCode::NOT_IMPLEMENTED, "not_implemented", "not implemented")
-            }
+            CoreError::NotImplemented => Self::new(
+                StatusCode::NOT_IMPLEMENTED,
+                "not_implemented",
+                "not implemented",
+            ),
             CoreError::InvariantViolation(msg) => Self::internal(msg),
             CoreError::Internal(msg) => Self::internal(msg),
         }

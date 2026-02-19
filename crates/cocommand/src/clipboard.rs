@@ -1,9 +1,9 @@
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
-#[cfg(target_os = "macos")]
 use tokio::time::{sleep, Duration};
 
 use crate::error::{CoreError, CoreResult};
+use crate::platform::ClipboardItem as PlatformClipboardItem;
 use crate::storage::SharedStorage;
 use crate::utils::time::now_rfc3339;
 use crate::workspace::WorkspaceInstance;
@@ -112,19 +112,28 @@ pub async fn clear_history(storage: &SharedStorage) -> CoreResult<()> {
     Ok(())
 }
 
-#[cfg(target_os = "macos")]
 pub async fn record_clipboard(
     workspace: &WorkspaceInstance,
 ) -> CoreResult<Option<ClipboardHistoryEntry>> {
-    use platform_macos::{read_clipboard, ClipboardItem};
-    let item = read_clipboard().map_err(CoreError::Internal)?;
+    let item = workspace
+        .platform
+        .clipboard_read()
+        .map_err(|error| match error {
+            CoreError::Internal(message)
+                if message == "clipboard not supported on this platform" =>
+            {
+                CoreError::Internal("clipboard tracking not supported on this platform".to_string())
+            }
+            other => other,
+        })?;
     let Some(item) = item else {
         return Ok(None);
     };
+
     let id = uuid::Uuid::now_v7().to_string();
     let created_at = now_rfc3339();
     let entry = match item {
-        ClipboardItem::Text(text) => ClipboardHistoryEntry {
+        PlatformClipboardItem::Text(text) => ClipboardHistoryEntry {
             id,
             created_at,
             kind: ClipboardKind::Text,
@@ -134,7 +143,7 @@ pub async fn record_clipboard(
             files: None,
             source: Some("pasteboard".to_string()),
         },
-        ClipboardItem::Image(bytes) => {
+        PlatformClipboardItem::Image(bytes) => {
             let path = write_image_payload(&workspace.workspace_dir, &id, &bytes).await?;
             ClipboardHistoryEntry {
                 id,
@@ -147,7 +156,7 @@ pub async fn record_clipboard(
                 source: Some("pasteboard".to_string()),
             }
         }
-        ClipboardItem::Files(files) => ClipboardHistoryEntry {
+        PlatformClipboardItem::Files(files) => ClipboardHistoryEntry {
             id,
             created_at,
             kind: ClipboardKind::Files,
@@ -163,28 +172,18 @@ pub async fn record_clipboard(
     Ok(Some(entry))
 }
 
-#[cfg(not(target_os = "macos"))]
-pub async fn record_clipboard(
-    _workspace: &WorkspaceInstance,
-) -> CoreResult<Option<ClipboardHistoryEntry>> {
-    Err(CoreError::Internal(
-        "clipboard tracking not supported on this platform".to_string(),
-    ))
-}
-
-#[cfg(target_os = "macos")]
 pub async fn get_clipboard_snapshot(
     workspace: &WorkspaceInstance,
 ) -> CoreResult<Option<ClipboardHistoryEntry>> {
-    use platform_macos::{read_clipboard, ClipboardItem};
-    let item = read_clipboard().map_err(CoreError::Internal)?;
+    let item = workspace.platform.clipboard_read()?;
     let Some(item) = item else {
         return Ok(None);
     };
+
     let id = uuid::Uuid::now_v7().to_string();
     let created_at = now_rfc3339();
     let entry = match item {
-        ClipboardItem::Text(text) => ClipboardHistoryEntry {
+        PlatformClipboardItem::Text(text) => ClipboardHistoryEntry {
             id,
             created_at,
             kind: ClipboardKind::Text,
@@ -194,7 +193,7 @@ pub async fn get_clipboard_snapshot(
             files: None,
             source: Some("snapshot".to_string()),
         },
-        ClipboardItem::Image(bytes) => {
+        PlatformClipboardItem::Image(bytes) => {
             let path = write_current_image(&workspace.workspace_dir, &id, &bytes).await?;
             ClipboardHistoryEntry {
                 id,
@@ -207,7 +206,7 @@ pub async fn get_clipboard_snapshot(
                 source: Some("snapshot".to_string()),
             }
         }
-        ClipboardItem::Files(files) => ClipboardHistoryEntry {
+        PlatformClipboardItem::Files(files) => ClipboardHistoryEntry {
             id,
             created_at,
             kind: ClipboardKind::Files,
@@ -221,65 +220,34 @@ pub async fn get_clipboard_snapshot(
     Ok(Some(entry))
 }
 
-#[cfg(not(target_os = "macos"))]
-pub async fn get_clipboard_snapshot(
-    _workspace: &WorkspaceInstance,
-) -> CoreResult<Option<ClipboardHistoryEntry>> {
-    Err(CoreError::Internal(
-        "clipboard not supported on this platform".to_string(),
-    ))
+pub async fn set_clipboard_text(workspace: &WorkspaceInstance, text: &str) -> CoreResult<()> {
+    workspace
+        .platform
+        .clipboard_write(PlatformClipboardItem::Text(text.to_string()))
 }
 
-#[cfg(target_os = "macos")]
-pub async fn set_clipboard_text(text: &str) -> CoreResult<()> {
-    use platform_macos::{write_clipboard, ClipboardItem};
-    write_clipboard(ClipboardItem::Text(text.to_string())).map_err(CoreError::Internal)
+pub async fn set_clipboard_image(workspace: &WorkspaceInstance, bytes: &[u8]) -> CoreResult<()> {
+    workspace
+        .platform
+        .clipboard_write(PlatformClipboardItem::Image(bytes.to_vec()))
 }
 
-#[cfg(not(target_os = "macos"))]
-pub async fn set_clipboard_text(_text: &str) -> CoreResult<()> {
-    Err(CoreError::Internal(
-        "clipboard not supported on this platform".to_string(),
-    ))
+pub async fn set_clipboard_files(
+    workspace: &WorkspaceInstance,
+    files: Vec<String>,
+) -> CoreResult<()> {
+    workspace
+        .platform
+        .clipboard_write(PlatformClipboardItem::Files(files))
 }
 
-#[cfg(target_os = "macos")]
-pub async fn set_clipboard_image(bytes: &[u8]) -> CoreResult<()> {
-    use platform_macos::{write_clipboard, ClipboardItem};
-    write_clipboard(ClipboardItem::Image(bytes.to_vec())).map_err(CoreError::Internal)
-}
-
-#[cfg(not(target_os = "macos"))]
-pub async fn set_clipboard_image(_bytes: &[u8]) -> CoreResult<()> {
-    Err(CoreError::Internal(
-        "clipboard not supported on this platform".to_string(),
-    ))
-}
-
-#[cfg(target_os = "macos")]
-pub async fn set_clipboard_files(files: Vec<String>) -> CoreResult<()> {
-    use platform_macos::{write_clipboard, ClipboardItem};
-    write_clipboard(ClipboardItem::Files(files)).map_err(CoreError::Internal)
-}
-
-#[cfg(not(target_os = "macos"))]
-pub async fn set_clipboard_files(_files: Vec<String>) -> CoreResult<()> {
-    Err(CoreError::Internal(
-        "clipboard not supported on this platform".to_string(),
-    ))
-}
-
-#[cfg(target_os = "macos")]
 pub fn spawn_clipboard_watcher(
     workspace: WorkspaceInstance,
     mut shutdown: tokio::sync::watch::Receiver<bool>,
     poll_ms: u64,
 ) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
-        let mut last_count = match platform_macos::clipboard_change_count() {
-            Ok(value) => value,
-            Err(_) => -1,
-        };
+        let mut last_count = workspace.platform.clipboard_change_count().ok();
         loop {
             if *shutdown.borrow() {
                 break;
@@ -291,9 +259,9 @@ pub fn spawn_clipboard_watcher(
                     }
                 }
                 _ = sleep(Duration::from_millis(poll_ms)) => {
-                    match platform_macos::clipboard_change_count() {
-                        Ok(count) if count != last_count => {
-                            last_count = count;
+                    match workspace.platform.clipboard_change_count() {
+                        Ok(count) if last_count != Some(count) => {
+                            last_count = Some(count);
                             let _ = record_clipboard(&workspace).await;
                         }
                         Ok(_) => {}
@@ -303,15 +271,6 @@ pub fn spawn_clipboard_watcher(
             }
         }
     })
-}
-
-#[cfg(not(target_os = "macos"))]
-pub fn spawn_clipboard_watcher(
-    _workspace: WorkspaceInstance,
-    _shutdown: tokio::sync::watch::Receiver<bool>,
-    _poll_ms: u64,
-) -> tokio::task::JoinHandle<()> {
-    tokio::spawn(async move {})
 }
 
 async fn prune_old_entries(workspace: &WorkspaceInstance) -> CoreResult<()> {
@@ -360,4 +319,70 @@ async fn write_image_to_dir(
         ))
     })?;
     Ok(path)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::{Arc, Mutex};
+
+    use tempfile::tempdir;
+
+    use crate::platform::Platform;
+    use crate::workspace::WorkspaceInstance;
+
+    use super::{record_clipboard, set_clipboard_text, ClipboardKind, PlatformClipboardItem};
+
+    #[derive(Default)]
+    struct TestPlatform {
+        clipboard: Mutex<Option<PlatformClipboardItem>>,
+        writes: Mutex<Vec<PlatformClipboardItem>>,
+    }
+
+    impl Platform for TestPlatform {
+        fn clipboard_read(&self) -> crate::error::CoreResult<Option<PlatformClipboardItem>> {
+            Ok(self.clipboard.lock().expect("lock").clone())
+        }
+
+        fn clipboard_write(&self, item: PlatformClipboardItem) -> crate::error::CoreResult<()> {
+            self.writes.lock().expect("lock").push(item.clone());
+            *self.clipboard.lock().expect("lock") = Some(item);
+            Ok(())
+        }
+
+        fn clipboard_change_count(&self) -> crate::error::CoreResult<i64> {
+            Ok(1)
+        }
+    }
+
+    #[tokio::test]
+    async fn record_and_set_clipboard_use_platform() {
+        let platform = Arc::new(TestPlatform {
+            clipboard: Mutex::new(Some(PlatformClipboardItem::Text(
+                "hello clipboard".to_string(),
+            ))),
+            writes: Mutex::new(Vec::new()),
+        });
+        let dir = tempdir().expect("tempdir");
+        let workspace = WorkspaceInstance::new_with_platform(dir.path(), platform.clone())
+            .await
+            .expect("workspace");
+
+        let entry = record_clipboard(&workspace)
+            .await
+            .expect("record")
+            .expect("clipboard entry");
+        assert!(matches!(entry.kind, ClipboardKind::Text));
+        assert_eq!(entry.text.as_deref(), Some("hello clipboard"));
+
+        set_clipboard_text(&workspace, "updated")
+            .await
+            .expect("set clipboard");
+
+        let writes = platform.writes.lock().expect("lock");
+        assert_eq!(writes.len(), 1);
+        assert!(matches!(
+            writes.first(),
+            Some(PlatformClipboardItem::Text(value)) if value == "updated"
+        ));
+    }
 }

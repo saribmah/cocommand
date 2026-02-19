@@ -14,6 +14,7 @@ use crate::bus::Bus;
 use crate::clipboard::spawn_clipboard_watcher;
 use crate::llm::{LlmService, LlmSettings};
 use crate::oauth::OAuthManager;
+use crate::platform::{default_platform, SharedPlatform};
 use crate::session::SessionManager;
 use crate::workspace::WorkspaceInstance;
 pub mod assets;
@@ -37,7 +38,14 @@ pub struct Server {
 
 impl Server {
     pub async fn new(workspace_dir: PathBuf) -> Result<Self, String> {
-        let workspace = WorkspaceInstance::new(&workspace_dir)
+        Self::new_with_platform(workspace_dir, default_platform()).await
+    }
+
+    pub async fn new_with_platform(
+        workspace_dir: PathBuf,
+        platform: SharedPlatform,
+    ) -> Result<Self, String> {
+        let workspace = WorkspaceInstance::new_with_platform(&workspace_dir, platform)
             .await
             .map_err(|error| error.to_string())?;
         let workspace_arc = Arc::new(workspace.clone());
@@ -58,11 +66,9 @@ impl Server {
             use crate::extension::Extension;
             let mut registry = workspace.extension_registry.write().await;
             registry.register(
-                Arc::new(BrowserExtension::new(browser_bridge.clone())) as Arc<dyn Extension>,
+                Arc::new(BrowserExtension::new(browser_bridge.clone())) as Arc<dyn Extension>
             );
-            registry.register(
-                Arc::new(WorkspaceExtension::new(llm.clone())) as Arc<dyn Extension>,
-            );
+            registry.register(Arc::new(WorkspaceExtension::new(llm.clone())) as Arc<dyn Extension>);
         }
 
         let listener = TcpListener::bind("127.0.0.1:0")
@@ -193,7 +199,6 @@ async fn health() -> &'static str {
 async fn serve_openapi() -> Json<utoipa::openapi::OpenApi> {
     Json(openapi::ApiDoc::openapi())
 }
-
 
 pub(crate) struct ServerState {
     pub(crate) workspace: WorkspaceInstance,

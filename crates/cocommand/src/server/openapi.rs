@@ -19,9 +19,7 @@ use crate::server::extension::{
     OpenExtensionRequest,
 };
 use crate::server::oauth::{PollResponse, StartFlowRequest, StartFlowResponse};
-use crate::server::session::{
-    ApiSessionContext, RecordMessageRequest, RecordMessageResponse,
-};
+use crate::server::session::{ApiSessionContext, RecordMessageRequest, RecordMessageResponse};
 use crate::server::system::{
     ApplicationInfo, ApplicationsResponse, OpenApplicationRequest, OpenApplicationResponse,
 };

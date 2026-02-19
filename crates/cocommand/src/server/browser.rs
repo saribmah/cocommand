@@ -70,9 +70,7 @@ async fn handle_socket(state: Arc<ServerState>, socket: WebSocket) {
         (status = 200, body = BrowserStatus),
     )
 )]
-pub(crate) async fn status(
-    State(state): State<Arc<ServerState>>,
-) -> Json<BrowserStatus> {
+pub(crate) async fn status(State(state): State<Arc<ServerState>>) -> Json<BrowserStatus> {
     Json(BrowserStatus {
         connected: state.browser.is_connected().await,
     })

@@ -122,7 +122,11 @@ impl ExtensionHost {
                         }
                     }
                     Err(error) => {
-                        tracing::warn!("extension-host stdout parse error: {} line={}", error, line);
+                        tracing::warn!(
+                            "extension-host stdout parse error: {} line={}",
+                            error,
+                            line
+                        );
                     }
                 }
             }

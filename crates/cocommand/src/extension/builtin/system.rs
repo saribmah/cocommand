@@ -8,9 +8,6 @@ use crate::extension::{boxed_tool_future, Extension, ExtensionKind, ExtensionToo
 
 use super::manifest_tools::{merge_manifest_tools, parse_builtin_manifest};
 
-#[cfg(target_os = "macos")]
-use platform_macos;
-
 pub struct SystemExtension {
     manifest: ExtensionManifest,
     tools: Vec<ExtensionTool>,
@@ -39,84 +36,88 @@ impl SystemExtension {
     fn build_execute_map() -> HashMap<&'static str, crate::extension::ExtensionToolExecute> {
         let mut map = HashMap::new();
 
-        #[cfg(target_os = "macos")]
-        {
-            map.insert(
-                "list_open_apps",
-                Arc::new(|input: serde_json::Value, _context| {
+        map.insert(
+            "list_open_apps",
+            Arc::new(
+                |input: serde_json::Value, context: crate::extension::ExtensionContext| {
                     boxed_tool_future(async move {
                         let visible_only = input
                             .get("visibleOnly")
                             .and_then(|value| value.as_bool())
                             .unwrap_or(false);
-                        let apps = platform_macos::list_open_apps(visible_only)
-                            .map_err(CoreError::Internal)?;
+                        let apps = context.workspace.platform.list_open_apps(visible_only)?;
                         Ok(serde_json::to_value(apps).map_err(|error| {
-                            CoreError::Internal(format!(
-                                "failed to serialize open apps: {error}"
-                            ))
+                            CoreError::Internal(format!("failed to serialize open apps: {error}"))
                         })?)
                     })
-                }) as _,
-            );
+                },
+            ) as _,
+        );
 
-            map.insert(
-                "list_windows",
-                Arc::new(|input: serde_json::Value, _context| {
+        map.insert(
+            "list_windows",
+            Arc::new(
+                |input: serde_json::Value, context: crate::extension::ExtensionContext| {
                     boxed_tool_future(async move {
                         let visible_only = input
                             .get("visibleOnly")
                             .and_then(|value| value.as_bool())
                             .unwrap_or(false);
-                        let snapshot = platform_macos::list_windows_snapshot(visible_only)
-                            .map_err(CoreError::Internal)?;
+                        let snapshot = context
+                            .workspace
+                            .platform
+                            .list_windows_snapshot(visible_only)?;
                         Ok(serde_json::json!({
                             "snapshotId": snapshot.snapshot_id,
                             "windows": snapshot.windows,
                         }))
                     })
-                }) as _,
-            );
+                },
+            ) as _,
+        );
 
-            map.insert(
-                "run_applescript",
-                Arc::new(|input: serde_json::Value, _context| {
+        map.insert(
+            "run_applescript",
+            Arc::new(
+                |input: serde_json::Value, context: crate::extension::ExtensionContext| {
                     boxed_tool_future(async move {
                         let script = input
                             .get("script")
                             .and_then(|value| value.as_str())
                             .ok_or_else(|| CoreError::Internal("missing script".to_string()))?;
-                        let output = platform_macos::run_applescript(script)
-                            .map_err(CoreError::Internal)?;
+                        let output = context.workspace.platform.run_applescript(script)?;
                         Ok(serde_json::json!({ "output": output }))
                     })
-                }) as _,
-            );
+                },
+            ) as _,
+        );
 
-            map.insert(
-                "list_installed_apps",
-                Arc::new(|_input: serde_json::Value, _context| {
+        map.insert(
+            "list_installed_apps",
+            Arc::new(
+                |_input: serde_json::Value, context: crate::extension::ExtensionContext| {
                     boxed_tool_future(async move {
-                        let apps = platform_macos::list_installed_apps();
+                        let apps = context.workspace.platform.list_installed_apps()?;
                         Ok(serde_json::to_value(apps).map_err(|error| {
                             CoreError::Internal(format!(
                                 "failed to serialize installed apps: {error}"
                             ))
                         })?)
                     })
-                }) as _,
-            );
+                },
+            ) as _,
+        );
 
-            map.insert(
-                "app_action",
-                Arc::new(|input: serde_json::Value, _context| {
+        map.insert(
+            "app_action",
+            Arc::new(
+                |input: serde_json::Value, context: crate::extension::ExtensionContext| {
                     boxed_tool_future(async move {
                         let action = input
                             .get("action")
                             .and_then(|value| value.as_str())
                             .ok_or_else(|| CoreError::Internal("missing action".to_string()))?;
-                        let bundle_id =
-                            input.get("bundleId").and_then(|value| value.as_str());
+                        let bundle_id = input.get("bundleId").and_then(|value| value.as_str());
                         let pid = input
                             .get("pid")
                             .and_then(|value| value.as_i64())
@@ -126,16 +127,20 @@ impl SystemExtension {
                                 "bundleId or pid is required".to_string(),
                             ));
                         }
-                        platform_macos::perform_app_action(bundle_id, pid, action)
-                            .map_err(CoreError::Internal)?;
+                        context
+                            .workspace
+                            .platform
+                            .app_action(bundle_id, pid, action)?;
                         Ok(serde_json::json!({ "status": "ok" }))
                     })
-                }) as _,
-            );
+                },
+            ) as _,
+        );
 
-            map.insert(
-                "window_action",
-                Arc::new(|input: serde_json::Value, _context| {
+        map.insert(
+            "window_action",
+            Arc::new(
+                |input: serde_json::Value, context: crate::extension::ExtensionContext| {
                     boxed_tool_future(async move {
                         let action = input
                             .get("action")
@@ -144,47 +149,21 @@ impl SystemExtension {
                         let window_id = input
                             .get("windowId")
                             .and_then(|value| value.as_u64())
-                            .ok_or_else(|| {
-                                CoreError::Internal("missing windowId".to_string())
-                            })? as u32;
+                            .ok_or_else(|| CoreError::Internal("missing windowId".to_string()))?
+                            as u32;
                         let snapshot_id = input
                             .get("snapshotId")
                             .and_then(|value| value.as_u64())
-                            .or_else(|| {
-                                input.get("snapshot_id").and_then(|value| value.as_u64())
-                            });
-                        platform_macos::perform_window_action(
-                            window_id,
-                            action,
-                            snapshot_id,
-                        )
-                        .map_err(CoreError::Internal)?;
+                            .or_else(|| input.get("snapshot_id").and_then(|value| value.as_u64()));
+                        context
+                            .workspace
+                            .platform
+                            .window_action(window_id, action, snapshot_id)?;
                         Ok(serde_json::json!({ "status": "ok" }))
                     })
-                }) as _,
-            );
-        }
-
-        #[cfg(not(target_os = "macos"))]
-        {
-            let unsupported = |tool_id: &'static str| -> crate::extension::ExtensionToolExecute {
-                Arc::new(move |_input: serde_json::Value, _context| {
-                    let tool_id = tool_id.to_string();
-                    boxed_tool_future(async move {
-                        Err(CoreError::Internal(format!(
-                            "system tool not supported: {tool_id}"
-                        )))
-                    })
-                })
-            };
-
-            map.insert("list_open_apps", unsupported("list_open_apps"));
-            map.insert("list_windows", unsupported("list_windows"));
-            map.insert("run_applescript", unsupported("run_applescript"));
-            map.insert("list_installed_apps", unsupported("list_installed_apps"));
-            map.insert("app_action", unsupported("app_action"));
-            map.insert("window_action", unsupported("window_action"));
-        }
+                },
+            ) as _,
+        );
 
         map
     }
@@ -218,5 +197,68 @@ impl Extension for SystemExtension {
 
     fn tools(&self) -> Vec<ExtensionTool> {
         self.tools.clone()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use tempfile::tempdir;
+
+    use crate::extension::{Extension, ExtensionContext};
+    use crate::platform::{InstalledApp, Platform, SharedPlatform};
+    use crate::workspace::WorkspaceInstance;
+
+    use super::SystemExtension;
+
+    struct TestPlatform {
+        installed_apps: Vec<InstalledApp>,
+    }
+
+    impl Platform for TestPlatform {
+        fn list_installed_apps(&self) -> crate::error::CoreResult<Vec<InstalledApp>> {
+            Ok(self.installed_apps.clone())
+        }
+    }
+
+    #[tokio::test]
+    async fn list_installed_apps_tool_uses_platform() {
+        let platform: SharedPlatform = Arc::new(TestPlatform {
+            installed_apps: vec![InstalledApp {
+                name: "Finder".to_string(),
+                bundle_id: Some("com.apple.finder".to_string()),
+                path: "/System/Library/CoreServices/Finder.app".to_string(),
+                icon: Some("data:image/png;base64,abc".to_string()),
+            }],
+        });
+        let dir = tempdir().expect("tempdir");
+        let workspace = Arc::new(
+            WorkspaceInstance::new_with_platform(dir.path(), platform)
+                .await
+                .expect("workspace"),
+        );
+
+        let extension = SystemExtension::new();
+        let tool = extension
+            .tools()
+            .into_iter()
+            .find(|tool| tool.id == "list_installed_apps")
+            .expect("tool");
+
+        let output = (tool.execute)(
+            serde_json::json!({}),
+            ExtensionContext {
+                workspace,
+                session_id: "test".to_string(),
+            },
+        )
+        .await
+        .expect("tool output");
+
+        let apps = output.as_array().expect("array output");
+        assert_eq!(apps.len(), 1);
+        assert_eq!(apps[0]["name"], "Finder");
+        assert_eq!(apps[0]["bundle_id"], "com.apple.finder");
     }
 }

@@ -17,7 +17,10 @@ impl Bus {
         self.sender.subscribe()
     }
 
-    pub fn publish(&self, event: CoreEvent) -> Result<usize, broadcast::error::SendError<CoreEvent>> {
+    pub fn publish(
+        &self,
+        event: CoreEvent,
+    ) -> Result<usize, broadcast::error::SendError<CoreEvent>> {
         self.sender.send(event)
     }
 }
@@ -53,7 +56,9 @@ mod tests {
             .await
             .expect("timeout")
             .expect("recv");
-        assert!(matches!(received, CoreEvent::SessionPartUpdated(ref e) if e.request_id == "req-1"));
+        assert!(
+            matches!(received, CoreEvent::SessionPartUpdated(ref e) if e.request_id == "req-1")
+        );
     }
 
     #[tokio::test]

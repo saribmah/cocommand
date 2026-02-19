@@ -188,9 +188,7 @@ mod tests {
     #[tokio::test]
     async fn not_connected_returns_error() {
         let bridge = BrowserBridge::new(Duration::from_secs(1));
-        let result = bridge
-            .send_command("getTabs", serde_json::json!({}))
-            .await;
+        let result = bridge.send_command("getTabs", serde_json::json!({})).await;
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("not connected"));
     }
@@ -217,9 +215,7 @@ mod tests {
             }
         });
 
-        let result = bridge
-            .send_command("getTabs", serde_json::json!({}))
-            .await;
+        let result = bridge.send_command("getTabs", serde_json::json!({})).await;
         assert!(result.is_ok());
         let tabs = result.unwrap();
         assert!(tabs.is_array());
@@ -236,11 +232,10 @@ mod tests {
         let gen = bridge.on_connect(tx).await;
 
         let bridge2 = bridge.clone();
-        let handle = tokio::spawn(async move {
-            bridge2
-                .send_command("getTabs", serde_json::json!({}))
-                .await
-        });
+        let handle =
+            tokio::spawn(
+                async move { bridge2.send_command("getTabs", serde_json::json!({})).await },
+            );
 
         // Give the send_command a moment to register the pending request.
         tokio::time::sleep(Duration::from_millis(50)).await;
@@ -257,9 +252,7 @@ mod tests {
 
         bridge.on_connect(tx).await;
 
-        let result = bridge
-            .send_command("getTabs", serde_json::json!({}))
-            .await;
+        let result = bridge.send_command("getTabs", serde_json::json!({})).await;
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("timed out"));
     }

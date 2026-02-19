@@ -31,11 +31,7 @@ pub(crate) async fn serve_screenshot(
         .await
         .map_err(|_| ApiError::not_found("screenshot not found"))?;
 
-    let content_type = match resolved
-        .extension()
-        .and_then(|e| e.to_str())
-        .unwrap_or("")
-    {
+    let content_type = match resolved.extension().and_then(|e| e.to_str()).unwrap_or("") {
         "png" => "image/png",
         "jpg" | "jpeg" => "image/jpeg",
         "tiff" | "tif" => "image/tiff",

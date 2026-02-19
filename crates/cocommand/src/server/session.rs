@@ -169,10 +169,7 @@ struct BusSseEvent {
     payload: serde_json::Value,
 }
 
-fn map_bus_event_to_sse_payload(
-    event: &CoreEvent,
-    request_id: &str,
-) -> Option<BusSseEvent> {
+fn map_bus_event_to_sse_payload(event: &CoreEvent, request_id: &str) -> Option<BusSseEvent> {
     match event {
         CoreEvent::SessionPartUpdated(e) => {
             if e.request_id != request_id {

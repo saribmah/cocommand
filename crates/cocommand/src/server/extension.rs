@@ -5,7 +5,9 @@ use serde::Serialize;
 use std::sync::Arc;
 use utoipa::ToSchema;
 
-use crate::extension::{Extension, ExtensionContext, ExtensionKind, ExtensionStatus, ExtensionTool};
+use crate::extension::{
+    Extension, ExtensionContext, ExtensionKind, ExtensionStatus, ExtensionTool,
+};
 use crate::server::error::{ApiError, ApiErrorResponse};
 use crate::server::ServerState;
 

@@ -55,54 +55,60 @@ impl ClipboardExtension {
 
         execute_map.insert(
             "set_clipboard",
-            Arc::new(|input: serde_json::Value, _context| {
-                boxed_tool_future(async move {
-                    let kind = input
-                        .get("kind")
-                        .and_then(|value| value.as_str())
-                        .ok_or_else(|| CoreError::Internal("missing kind".to_string()))?;
-                    match kind {
-                        "text" => {
-                            let text = input
-                                .get("text")
-                                .and_then(|value| value.as_str())
-                                .ok_or_else(|| CoreError::Internal("missing text".to_string()))?;
-                            set_clipboard_text(text).await?;
-                            Ok(json!({ "status": "ok" }))
-                        }
-                        "image" => {
-                            let path = input
-                                .get("imagePath")
-                                .and_then(|value| value.as_str())
-                                .ok_or_else(|| {
-                                    CoreError::Internal("missing imagePath".to_string())
+            Arc::new(
+                |input: serde_json::Value, context: crate::extension::ExtensionContext| {
+                    boxed_tool_future(async move {
+                        let kind = input
+                            .get("kind")
+                            .and_then(|value| value.as_str())
+                            .ok_or_else(|| CoreError::Internal("missing kind".to_string()))?;
+                        match kind {
+                            "text" => {
+                                let text = input
+                                    .get("text")
+                                    .and_then(|value| value.as_str())
+                                    .ok_or_else(|| {
+                                        CoreError::Internal("missing text".to_string())
+                                    })?;
+                                set_clipboard_text(&context.workspace, text).await?;
+                                Ok(json!({ "status": "ok" }))
+                            }
+                            "image" => {
+                                let path = input
+                                    .get("imagePath")
+                                    .and_then(|value| value.as_str())
+                                    .ok_or_else(|| {
+                                        CoreError::Internal("missing imagePath".to_string())
+                                    })?;
+                                let bytes = tokio::fs::read(path).await.map_err(|error| {
+                                    CoreError::Internal(format!(
+                                        "failed to read image {path}: {error}"
+                                    ))
                                 })?;
-                            let bytes = tokio::fs::read(path).await.map_err(|error| {
-                                CoreError::Internal(format!(
-                                    "failed to read image {path}: {error}"
-                                ))
-                            })?;
-                            set_clipboard_image(&bytes).await?;
-                            Ok(json!({ "status": "ok" }))
+                                set_clipboard_image(&context.workspace, &bytes).await?;
+                                Ok(json!({ "status": "ok" }))
+                            }
+                            "files" => {
+                                let files = input
+                                    .get("files")
+                                    .and_then(|value| value.as_array())
+                                    .ok_or_else(|| {
+                                    CoreError::Internal("missing files".to_string())
+                                })?;
+                                let files = files
+                                    .iter()
+                                    .filter_map(|value| value.as_str().map(|item| item.to_string()))
+                                    .collect::<Vec<_>>();
+                                set_clipboard_files(&context.workspace, files).await?;
+                                Ok(json!({ "status": "ok" }))
+                            }
+                            other => Err(CoreError::Internal(format!(
+                                "unsupported clipboard kind: {other}"
+                            ))),
                         }
-                        "files" => {
-                            let files = input
-                                .get("files")
-                                .and_then(|value| value.as_array())
-                                .ok_or_else(|| CoreError::Internal("missing files".to_string()))?;
-                            let files = files
-                                .iter()
-                                .filter_map(|value| value.as_str().map(|item| item.to_string()))
-                                .collect::<Vec<_>>();
-                            set_clipboard_files(files).await?;
-                            Ok(json!({ "status": "ok" }))
-                        }
-                        other => Err(CoreError::Internal(format!(
-                            "unsupported clipboard kind: {other}"
-                        ))),
-                    }
-                })
-            }) as _,
+                    })
+                },
+            ) as _,
         );
 
         execute_map.insert(
@@ -127,11 +133,9 @@ impl ClipboardExtension {
                 |input: serde_json::Value, context: crate::extension::ExtensionContext| {
                     boxed_tool_future(async move {
                         let limit = input.get("limit").and_then(|value| value.as_u64());
-                        let items = list_history(
-                            &context.workspace.storage,
-                            limit.map(|v| v as usize),
-                        )
-                        .await?;
+                        let items =
+                            list_history(&context.workspace.storage, limit.map(|v| v as usize))
+                                .await?;
                         Ok(serde_json::to_value(items).map_err(|error| {
                             CoreError::Internal(format!(
                                 "failed to serialize clipboard history: {error}"

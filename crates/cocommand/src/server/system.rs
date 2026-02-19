@@ -100,9 +100,7 @@ pub(crate) async fn open_application(
                 || app.bundle_id.as_deref() == Some(requested_id.as_str())
                 || app.path == requested_id
         })
-        .ok_or_else(|| {
-            ApiError::not_found(format!("application not found: {requested_id}"))
-        })?;
+        .ok_or_else(|| ApiError::not_found(format!("application not found: {requested_id}")))?;
 
     if let Some(bundle_id) = app.bundle_id.as_deref() {
         let app_action_result = execute_system_tool(
