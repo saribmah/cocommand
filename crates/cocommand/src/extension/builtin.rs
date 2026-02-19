@@ -1,6 +1,7 @@
 pub mod browser;
 pub mod clipboard;
 pub mod filesystem;
+pub mod manifest_tools;
 pub mod note;
 pub mod screenshot;
 pub mod system;

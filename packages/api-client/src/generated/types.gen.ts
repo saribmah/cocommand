@@ -30,8 +30,62 @@ export type ApplicationsResponse = {
     count: number;
 };
 
+export type BrowserGetActiveTabInput = {
+    [key: string]: never;
+};
+
+export type BrowserGetContentInput = {
+    /**
+     * A CSS selector to narrow the content extraction to a specific element.
+     */
+    cssSelector?: string;
+    /**
+     * The format to return the page content in. Defaults to text.
+     */
+    format?: 'html' | 'text' | 'markdown';
+    /**
+     * The tab ID to get content from. Defaults to the active tab.
+     */
+    tabId?: number;
+};
+
+export type BrowserGetTabsInput = {
+    [key: string]: never;
+};
+
 export type BrowserStatus = {
     connected: boolean;
+};
+
+export type ClipboardClearClipboardHistoryInput = {
+    [key: string]: never;
+};
+
+export type ClipboardClearClipboardHistoryOutput = {
+    status?: string;
+};
+
+export type ClipboardGetClipboardInput = {
+    [key: string]: never;
+};
+
+export type ClipboardListClipboardHistoryInput = {
+    limit?: number;
+};
+
+export type ClipboardRecordClipboardInput = {
+    [key: string]: never;
+};
+
+export type ClipboardSetClipboardInput = {
+    files?: Array<string>;
+    imagePath?: string;
+    kind: 'text' | 'image' | 'files';
+    text?: string;
+};
+
+export type ClipboardSetClipboardOutput = {
+    status?: string;
 };
 
 export type CoreEvent = {
@@ -62,8 +116,13 @@ export type ExtensionPart = PartBase & {
 export type ExtensionToolInfo = {
     description?: string | null;
     id: string;
-    input_schema: unknown;
+    input_schema: {
+        [key: string]: unknown;
+    };
     name: string;
+    output_schema?: {
+        [key: string]: unknown;
+    } | null;
 };
 
 export type ExtensionViewInfo = {
@@ -109,6 +168,104 @@ export type FilePartSymbolSource = {
     text: FilePartSourceText;
 };
 
+export type FilesystemGetIconsInput = {
+    /**
+     * List of file paths to get icons for.
+     */
+    paths: Array<string>;
+};
+
+export type FilesystemIndexStatusInput = {
+    /**
+     * Optional paths to exclude from index (absolute, ~, or root-relative). Defaults to configured ignore_paths.
+     */
+    ignorePaths?: Array<string>;
+    /**
+     * Index root path (absolute, ~, or workspace-relative). Defaults to configured watch_root.
+     */
+    root?: string;
+};
+
+export type FilesystemListDirectoryInput = {
+    /**
+     * Optional paths to exclude from listing recursion (absolute, ~, or path-relative).
+     */
+    ignorePaths?: Array<string>;
+    includeHidden?: boolean;
+    kind?: 'all' | 'file' | 'directory';
+    maxDepth?: number;
+    maxResults?: number;
+    /**
+     * Directory path (absolute, ~, or workspace-relative). Defaults to configured watch_root.
+     */
+    path?: string;
+    recursive?: boolean;
+    sortBy?: 'name' | 'path' | 'modified' | 'size' | 'type';
+    sortOrder?: 'asc' | 'desc';
+};
+
+export type FilesystemOpenPathInput = {
+    path: string;
+};
+
+export type FilesystemOpenPathOutput = {
+    path?: string;
+    status?: string;
+};
+
+export type FilesystemPathInfoInput = {
+    path: string;
+};
+
+export type FilesystemReadFileInput = {
+    maxBytes?: number;
+    offset?: number;
+    path: string;
+};
+
+export type FilesystemRescanIndexInput = {
+    /**
+     * Optional paths to exclude from index (absolute, ~, or root-relative). Defaults to configured ignore_paths.
+     */
+    ignorePaths?: Array<string>;
+    /**
+     * Index root path (absolute, ~, or workspace-relative). Defaults to configured watch_root.
+     */
+    root?: string;
+};
+
+export type FilesystemRevealPathInput = {
+    path: string;
+};
+
+export type FilesystemRevealPathOutput = {
+    path?: string;
+    status?: string;
+};
+
+export type FilesystemSearchInput = {
+    caseSensitive?: boolean;
+    /**
+     * Optional paths to exclude from indexing/search (absolute, ~, or root-relative).
+     */
+    ignorePaths?: Array<string>;
+    includeHidden?: boolean;
+    kind?: 'all' | 'file' | 'directory';
+    /**
+     * Optional maximum depth from root; omit to search all indexed descendants.
+     */
+    maxDepth?: number;
+    maxResults?: number;
+    /**
+     * Supports text terms, quoted phrases, AND/OR/NOT, groups with () or <>, wildcard/path segments (*, ?, ** with slash-sensitive matching), filters ext:/type:/size:/file:/folder:/parent:/in:/infolder:/nosubfolders:, and macros audio:/video:/doc:/exe:.
+     */
+    query: string;
+    /**
+     * Search root path (absolute, ~, or workspace-relative).
+     */
+    root?: string;
+};
+
 export type MessagePart = (TextPart & {
     type: 'text';
 }) | (ReasoningPart & {
@@ -120,6 +277,53 @@ export type MessagePart = (TextPart & {
 }) | (FilePart & {
     type: 'file';
 });
+
+export type NotesCreateNoteInput = {
+    content?: string;
+    /**
+     * Optional nested folder under notes/, using forward slashes.
+     */
+    folder?: string;
+    title?: string;
+};
+
+export type NotesDeleteNoteInput = {
+    id: string;
+};
+
+export type NotesDeleteNoteOutput = {
+    deleted?: boolean;
+    status?: string;
+};
+
+export type NotesIndexStatusInput = {
+    [key: string]: never;
+};
+
+export type NotesListNotesInput = {
+    limit?: number;
+};
+
+export type NotesReadNoteInput = {
+    id: string;
+};
+
+export type NotesRescanIndexInput = {
+    [key: string]: never;
+};
+
+export type NotesSearchNotesInput = {
+    caseSensitive?: boolean;
+    includeHidden?: boolean;
+    maxDepth?: number;
+    maxResults?: number;
+    query: string;
+};
+
+export type NotesUpdateNoteInput = {
+    content: string;
+    id: string;
+};
 
 export type OpenApplicationRequest = {
     id: string;
@@ -157,6 +361,60 @@ export type RecordMessageRequest = {
 export type RecordMessageResponse = {
     context: ApiSessionContext;
     reply_parts: Array<MessagePart>;
+};
+
+export type ScreenshotCaptureScreenshotInput = {
+    delaySeconds?: number;
+    display?: number;
+    format?: 'png' | 'jpg' | 'tiff' | 'pdf';
+    includeCursor?: boolean;
+    mode?: 'interactive' | 'screen' | 'window' | 'rect';
+    /**
+     * x,y,w,h
+     */
+    rect?: string;
+    toClipboard?: boolean;
+    windowId?: number;
+};
+
+export type ScreenshotCaptureScreenshotOutput = {
+    clipboard?: boolean;
+    filename?: string;
+    format?: string;
+    path?: string;
+};
+
+export type ScreenshotCopyScreenshotToClipboardInput = {
+    filename: string;
+};
+
+export type ScreenshotCopyScreenshotToClipboardOutput = {
+    status?: string;
+};
+
+export type ScreenshotDeleteScreenshotInput = {
+    filename: string;
+};
+
+export type ScreenshotDeleteScreenshotOutput = {
+    deleted?: boolean;
+    status?: string;
+};
+
+export type ScreenshotGetScreenshotInput = {
+    filename: string;
+};
+
+export type ScreenshotGetScreenshotOutput = {
+    created_at?: number;
+    filename?: string;
+    format?: string;
+    path?: string;
+    size?: number;
+};
+
+export type ScreenshotListScreenshotsInput = {
+    limit?: number;
 };
 
 export type SessionCommandExtensionPartInput = {
@@ -211,6 +469,46 @@ export type StartFlowRequest = {
 
 export type StartFlowResponse = {
     redirect_uri: string;
+};
+
+export type SystemAppActionInput = {
+    action: 'activate' | 'hide' | 'quit';
+    bundleId?: string;
+    pid?: number;
+};
+
+export type SystemAppActionOutput = {
+    status?: string;
+};
+
+export type SystemListInstalledAppsInput = {
+    [key: string]: never;
+};
+
+export type SystemListOpenAppsInput = {
+    visibleOnly?: boolean;
+};
+
+export type SystemListWindowsInput = {
+    visibleOnly?: boolean;
+};
+
+export type SystemRunApplescriptInput = {
+    script: string;
+};
+
+export type SystemRunApplescriptOutput = {
+    output?: string;
+};
+
+export type SystemWindowActionInput = {
+    action: 'minimize' | 'close' | 'focus';
+    snapshotId?: number;
+    windowId: number;
+};
+
+export type SystemWindowActionOutput = {
+    status?: string;
 };
 
 export type TextPart = PartBase & {
@@ -291,6 +589,34 @@ export type ToolStateTimeRange = {
 
 export type ToolStateTimeStart = {
     start: number;
+};
+
+export type WorkspaceGetConfigInput = {
+    [key: string]: never;
+};
+
+export type WorkspaceGetPermissionsInput = {
+    [key: string]: never;
+};
+
+export type WorkspaceOpenPermissionInput = {
+    /**
+     * Permission ID (accessibility, screen-recording, automation)
+     */
+    id: string;
+};
+
+export type WorkspaceOpenPermissionOutput = {
+    status?: string;
+};
+
+export type WorkspaceUpdateConfigInput = {
+    /**
+     * The full WorkspaceConfig to apply
+     */
+    config: {
+        [key: string]: unknown;
+    };
 };
 
 export type StatusData = {

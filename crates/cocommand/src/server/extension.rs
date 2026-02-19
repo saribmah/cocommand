@@ -39,7 +39,10 @@ pub struct ExtensionToolInfo {
     pub id: String,
     pub name: String,
     pub description: Option<String>,
+    #[schema(value_type = Object)]
     pub input_schema: serde_json::Value,
+    #[schema(nullable, value_type = Option<Object>)]
+    pub output_schema: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Deserialize, ToSchema)]
@@ -168,6 +171,7 @@ fn map_tool(tool: ExtensionTool) -> ExtensionToolInfo {
         name: tool.name,
         description: tool.description,
         input_schema: tool.input_schema,
+        output_schema: tool.output_schema,
     }
 }
 

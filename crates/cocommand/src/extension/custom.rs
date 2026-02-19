@@ -157,11 +157,12 @@ pub fn tools_from_manifest(
             });
             tools.push(ExtensionTool {
                 id: tool.id.clone(),
-                name: tool.id.clone(),
-                description: None,
+                name: tool.name.unwrap_or_else(|| tool.id.clone()),
+                description: tool.description,
                 input_schema: tool
                     .input_schema
                     .unwrap_or_else(|| serde_json::json!({ "type": "object" })),
+                output_schema: tool.output_schema,
                 execute,
             });
         }

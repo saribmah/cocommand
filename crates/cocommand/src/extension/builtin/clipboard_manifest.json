@@ -1,0 +1,85 @@
+{
+  "id": "clipboard",
+  "name": "Clipboard",
+  "description": "Manage system clipboard contents and history",
+  "routing": {
+    "keywords": ["clipboard", "history", "system"]
+  },
+  "tools": [
+    {
+      "id": "get_clipboard",
+      "name": "Get Clipboard",
+      "description": "Get the current clipboard contents",
+      "risk_level": "Safe",
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "id": "set_clipboard",
+      "name": "Set Clipboard",
+      "description": "Set clipboard contents",
+      "risk_level": "Safe",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "kind": { "type": "string", "enum": ["text", "image", "files"] },
+          "text": { "type": "string" },
+          "imagePath": { "type": "string" },
+          "files": { "type": "array", "items": { "type": "string" } }
+        },
+        "required": ["kind"],
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "status": { "type": "string" }
+        }
+      }
+    },
+    {
+      "id": "record_clipboard",
+      "name": "Record Clipboard",
+      "description": "Record the current clipboard contents into history",
+      "risk_level": "Safe",
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "id": "list_clipboard_history",
+      "name": "List Clipboard History",
+      "description": "List recent clipboard history items",
+      "risk_level": "Safe",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": { "type": "integer", "minimum": 1 }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "id": "clear_clipboard_history",
+      "name": "Clear Clipboard History",
+      "description": "Clear clipboard history",
+      "risk_level": "Safe",
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "status": { "type": "string" }
+        }
+      }
+    }
+  ]
+}

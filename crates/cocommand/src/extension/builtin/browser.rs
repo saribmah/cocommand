@@ -1,30 +1,97 @@
 use std::any::Any;
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use serde_json::json;
 
 use crate::browser::BrowserBridge;
 use crate::error::CoreError;
+use crate::extension::manifest::ExtensionManifest;
 use crate::extension::{boxed_tool_future, Extension, ExtensionKind, ExtensionTool};
 
+use super::manifest_tools::{merge_manifest_tools, parse_builtin_manifest};
+
 pub struct BrowserExtension {
-    bridge: Arc<BrowserBridge>,
+    manifest: ExtensionManifest,
+    tools: Vec<ExtensionTool>,
 }
 
 impl BrowserExtension {
     pub fn new(bridge: Arc<BrowserBridge>) -> Self {
-        Self { bridge }
+        let manifest = parse_builtin_manifest(include_str!("browser_manifest.json"));
+
+        let mut execute_map = HashMap::new();
+
+        let b = bridge.clone();
+        execute_map.insert(
+            "get_tabs",
+            Arc::new(
+                move |_input: serde_json::Value, _context: crate::extension::ExtensionContext| {
+                    let bridge = b.clone();
+                    boxed_tool_future(async move {
+                        let result = bridge
+                            .send_command("getTabs", json!({}))
+                            .await
+                            .map_err(|e| CoreError::Internal(e))?;
+                        Ok(result)
+                    })
+                },
+            ) as _,
+        );
+
+        let b = bridge.clone();
+        execute_map.insert(
+            "get_active_tab",
+            Arc::new(
+                move |_input: serde_json::Value, _context: crate::extension::ExtensionContext| {
+                    let bridge = b.clone();
+                    boxed_tool_future(async move {
+                        let result = bridge
+                            .send_command("getActiveTab", json!({}))
+                            .await
+                            .map_err(|e| CoreError::Internal(e))?;
+                        Ok(result)
+                    })
+                },
+            ) as _,
+        );
+
+        let b = bridge.clone();
+        execute_map.insert(
+            "get_content",
+            Arc::new(
+                move |input: serde_json::Value, _context: crate::extension::ExtensionContext| {
+                    let bridge = b.clone();
+                    boxed_tool_future(async move {
+                        let params = json!({
+                            "tabId": input.get("tabId"),
+                            "format": input.get("format").and_then(|v| v.as_str()).unwrap_or("text"),
+                            "cssSelector": input.get("cssSelector"),
+                        });
+                        let result = bridge
+                            .send_command("getContent", params)
+                            .await
+                            .map_err(|e| CoreError::Internal(e))?;
+                        Ok(result)
+                    })
+                },
+            ) as _,
+        );
+
+        let tools = merge_manifest_tools(&manifest, execute_map);
+
+        Self { manifest, tools }
     }
 }
 
 #[async_trait::async_trait]
 impl Extension for BrowserExtension {
     fn id(&self) -> &str {
-        "browser"
+        &self.manifest.id
     }
 
     fn name(&self) -> &str {
-        "Browser"
+        &self.manifest.name
     }
 
     fn kind(&self) -> ExtensionKind {
@@ -32,12 +99,11 @@ impl Extension for BrowserExtension {
     }
 
     fn tags(&self) -> Vec<String> {
-        vec![
-            "browser".to_string(),
-            "tabs".to_string(),
-            "web".to_string(),
-            "system".to_string(),
-        ]
+        self.manifest
+            .routing
+            .as_ref()
+            .and_then(|r| r.keywords.clone())
+            .unwrap_or_default()
     }
 
     fn as_any(&self) -> &dyn Any {
@@ -45,103 +111,6 @@ impl Extension for BrowserExtension {
     }
 
     fn tools(&self) -> Vec<ExtensionTool> {
-        let bridge = self.bridge.clone();
-        let get_tabs_execute = Arc::new(move |_input: serde_json::Value, _context: crate::extension::ExtensionContext| {
-            let bridge = bridge.clone();
-            boxed_tool_future(async move {
-                let result = bridge
-                    .send_command("getTabs", json!({}))
-                    .await
-                    .map_err(|e| CoreError::Internal(e))?;
-                Ok(result)
-            })
-        });
-
-        let bridge = self.bridge.clone();
-        let get_active_tab_execute = Arc::new(move |_input: serde_json::Value, _context: crate::extension::ExtensionContext| {
-            let bridge = bridge.clone();
-            boxed_tool_future(async move {
-                let result = bridge
-                    .send_command("getActiveTab", json!({}))
-                    .await
-                    .map_err(|e| CoreError::Internal(e))?;
-                Ok(result)
-            })
-        });
-
-        let bridge = self.bridge.clone();
-        let get_content_execute = Arc::new(move |input: serde_json::Value, _context: crate::extension::ExtensionContext| {
-            let bridge = bridge.clone();
-            boxed_tool_future(async move {
-                let params = json!({
-                    "tabId": input.get("tabId"),
-                    "format": input.get("format").and_then(|v| v.as_str()).unwrap_or("text"),
-                    "cssSelector": input.get("cssSelector"),
-                });
-                let result = bridge
-                    .send_command("getContent", params)
-                    .await
-                    .map_err(|e| CoreError::Internal(e))?;
-                Ok(result)
-            })
-        });
-
-        vec![
-            ExtensionTool {
-                id: "get_tabs".to_string(),
-                name: "Get Browser Tabs".to_string(),
-                description: Some(
-                    "List all open browser tabs with their id, url, title, and active state"
-                        .to_string(),
-                ),
-                input_schema: json!({
-                    "type": "object",
-                    "properties": {},
-                    "additionalProperties": false
-                }),
-                execute: get_tabs_execute,
-            },
-            ExtensionTool {
-                id: "get_active_tab".to_string(),
-                name: "Get Active Tab".to_string(),
-                description: Some(
-                    "Get the currently focused browser tab".to_string(),
-                ),
-                input_schema: json!({
-                    "type": "object",
-                    "properties": {},
-                    "additionalProperties": false
-                }),
-                execute: get_active_tab_execute,
-            },
-            ExtensionTool {
-                id: "get_content".to_string(),
-                name: "Get Page Content".to_string(),
-                description: Some(
-                    "Get the content of a browser tab. Optionally specify a tab ID (defaults to active tab), format (html, text, or markdown), and a CSS selector to narrow the content."
-                        .to_string(),
-                ),
-                input_schema: json!({
-                    "type": "object",
-                    "properties": {
-                        "tabId": {
-                            "type": "integer",
-                            "description": "The tab ID to get content from. Defaults to the active tab."
-                        },
-                        "format": {
-                            "type": "string",
-                            "enum": ["html", "text", "markdown"],
-                            "description": "The format to return the page content in. Defaults to text."
-                        },
-                        "cssSelector": {
-                            "type": "string",
-                            "description": "A CSS selector to narrow the content extraction to a specific element."
-                        }
-                    },
-                    "additionalProperties": false
-                }),
-                execute: get_content_execute,
-            },
-        ]
+        self.tools.clone()
     }
 }

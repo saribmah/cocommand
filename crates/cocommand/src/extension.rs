@@ -54,6 +54,7 @@ pub struct ExtensionTool {
     pub name: String,
     pub description: Option<String>,
     pub input_schema: serde_json::Value,
+    pub output_schema: Option<serde_json::Value>,
     pub execute: ExtensionToolExecute,
 }
 

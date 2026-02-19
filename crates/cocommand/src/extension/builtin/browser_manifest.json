@@ -1,0 +1,57 @@
+{
+  "id": "browser",
+  "name": "Browser",
+  "description": "Interact with browser tabs and page content",
+  "routing": {
+    "keywords": ["browser", "tabs", "web", "system"]
+  },
+  "tools": [
+    {
+      "id": "get_tabs",
+      "name": "Get Browser Tabs",
+      "description": "List all open browser tabs with their id, url, title, and active state",
+      "risk_level": "Safe",
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "id": "get_active_tab",
+      "name": "Get Active Tab",
+      "description": "Get the currently focused browser tab",
+      "risk_level": "Safe",
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "id": "get_content",
+      "name": "Get Page Content",
+      "description": "Get the content of a browser tab. Optionally specify a tab ID (defaults to active tab), format (html, text, or markdown), and a CSS selector to narrow the content.",
+      "risk_level": "Safe",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "tabId": {
+            "type": "integer",
+            "description": "The tab ID to get content from. Defaults to the active tab."
+          },
+          "format": {
+            "type": "string",
+            "enum": ["html", "text", "markdown"],
+            "description": "The format to return the page content in. Defaults to text."
+          },
+          "cssSelector": {
+            "type": "string",
+            "description": "A CSS selector to narrow the content extraction to a specific element."
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  ]
+}

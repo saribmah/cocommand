@@ -1,3 +1,4 @@
+use serde_json::Value;
 use utoipa::OpenApi;
 
 use crate::command::session_message::{
@@ -119,15 +120,71 @@ use crate::session::SessionContext;
 )]
 pub struct ApiDoc;
 
+/// Generates the full OpenAPI spec JSON string, including tool schemas from
+/// builtin manifests injected as named components.
+pub fn generate_full_spec() -> String {
+    let mut spec: Value =
+        serde_json::from_str(&ApiDoc::openapi().to_pretty_json().unwrap()).unwrap();
+
+    inject_tool_schemas(&mut spec);
+
+    serde_json::to_string_pretty(&spec).unwrap()
+}
+
+/// Injects each tool's `input_schema` and `output_schema` from builtin manifests
+/// into the OpenAPI spec as named component schemas.
+///
+/// Naming convention: `{PascalExtensionId}{PascalToolId}Input` / `Output`
+fn inject_tool_schemas(spec: &mut Value) {
+    use crate::extension::builtin::manifest_tools::all_builtin_manifests;
+
+    let schemas = spec
+        .pointer_mut("/components/schemas")
+        .expect("spec must have components/schemas");
+    let schemas_obj = schemas.as_object_mut().unwrap();
+
+    for manifest in all_builtin_manifests() {
+        let ext_pascal = to_pascal_case(&manifest.id);
+        if let Some(tools) = &manifest.tools {
+            for tool in tools {
+                let tool_pascal = to_pascal_case(&tool.id);
+
+                if let Some(input) = &tool.input_schema {
+                    let name = format!("{ext_pascal}{tool_pascal}Input");
+                    schemas_obj.insert(name, input.clone());
+                }
+                if let Some(output) = &tool.output_schema {
+                    let name = format!("{ext_pascal}{tool_pascal}Output");
+                    schemas_obj.insert(name, output.clone());
+                }
+            }
+        }
+    }
+}
+
+fn to_pascal_case(s: &str) -> String {
+    s.split(|c: char| c == '-' || c == '_')
+        .map(|part| {
+            let mut chars = part.chars();
+            match chars.next() {
+                None => String::new(),
+                Some(first) => {
+                    let mut result = first.to_uppercase().to_string();
+                    result.extend(chars);
+                    result
+                }
+            }
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn checked_in_spec_matches_code() {
-        let from_code = ApiDoc::openapi()
-            .to_pretty_json()
-            .expect("serialize spec");
+        let from_code = generate_full_spec();
 
         let spec_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../../packages/api-client/openapi.json");

@@ -34,6 +34,13 @@ pub async fn load_custom_extensions(workspace_dir: &Path) -> CoreResult<Vec<Arc<
             continue;
         }
         let manifest = read_manifest(&manifest_path)?;
+        if manifest.entrypoint.is_none() {
+            tracing::warn!(
+                "custom extension {} has no entrypoint, skipping",
+                manifest.id
+            );
+            continue;
+        }
         let host = match ExtensionHost::start(&host_path).await {
             Ok(host) => host,
             Err(error) => {

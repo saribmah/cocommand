@@ -1,0 +1,125 @@
+{
+  "id": "screenshot",
+  "name": "Screenshot",
+  "description": "Capture and manage screenshots in the workspace",
+  "routing": {
+    "keywords": ["screenshot", "screen", "system"]
+  },
+  "tools": [
+    {
+      "id": "capture_screenshot",
+      "name": "Capture Screenshot",
+      "description": "Capture a screenshot using the macOS screencapture tool",
+      "risk_level": "Safe",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": ["interactive", "screen", "window", "rect"],
+            "default": "interactive"
+          },
+          "display": { "type": "integer" },
+          "windowId": { "type": "integer" },
+          "rect": { "type": "string", "description": "x,y,w,h" },
+          "format": {
+            "type": "string",
+            "enum": ["png", "jpg", "tiff", "pdf"],
+            "default": "png"
+          },
+          "delaySeconds": { "type": "integer" },
+          "toClipboard": { "type": "boolean", "default": false },
+          "includeCursor": { "type": "boolean", "default": false }
+        },
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "path": { "type": "string" },
+          "filename": { "type": "string" },
+          "format": { "type": "string" },
+          "clipboard": { "type": "boolean" }
+        }
+      }
+    },
+    {
+      "id": "list_screenshots",
+      "name": "List Screenshots",
+      "description": "List all screenshots in the workspace",
+      "risk_level": "Safe",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": { "type": "integer" }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "id": "get_screenshot",
+      "name": "Get Screenshot",
+      "description": "Get a single screenshot by filename",
+      "risk_level": "Safe",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "filename": { "type": "string" }
+        },
+        "required": ["filename"],
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "filename": { "type": "string" },
+          "path": { "type": "string" },
+          "format": { "type": "string" },
+          "size": { "type": "integer" },
+          "created_at": { "type": "integer" }
+        }
+      }
+    },
+    {
+      "id": "delete_screenshot",
+      "name": "Delete Screenshot",
+      "description": "Delete a screenshot file",
+      "risk_level": "Confirm",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "filename": { "type": "string" }
+        },
+        "required": ["filename"],
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "status": { "type": "string" },
+          "deleted": { "type": "boolean" }
+        }
+      }
+    },
+    {
+      "id": "copy_screenshot_to_clipboard",
+      "name": "Copy Screenshot to Clipboard",
+      "description": "Copy a screenshot image to the system clipboard",
+      "risk_level": "Safe",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "filename": { "type": "string" }
+        },
+        "required": ["filename"],
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "status": { "type": "string" }
+        }
+      }
+    }
+  ]
+}

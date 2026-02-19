@@ -1,0 +1,128 @@
+{
+  "id": "notes",
+  "name": "Notes",
+  "description": "Create and manage markdown notes in the workspace",
+  "routing": {
+    "keywords": ["notes", "markdown", "workspace", "search"]
+  },
+  "tools": [
+    {
+      "id": "create-note",
+      "name": "Create Note",
+      "description": "Create a note in the workspace notes directory. Default format is markdown.",
+      "risk_level": "Safe",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "title": { "type": "string" },
+          "content": { "type": "string" },
+          "folder": { "type": "string", "description": "Optional nested folder under notes/, using forward slashes." }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "id": "list-notes",
+      "name": "List Notes",
+      "description": "List notes sorted by last modified time.",
+      "risk_level": "Safe",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "limit": { "type": "integer", "minimum": 1, "maximum": 500, "default": 50 }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "id": "read-note",
+      "name": "Read Note",
+      "description": "Read a note by id.",
+      "risk_level": "Safe",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" }
+        },
+        "required": ["id"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "id": "update-note",
+      "name": "Update Note",
+      "description": "Replace note content by id.",
+      "risk_level": "Safe",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "content": { "type": "string" }
+        },
+        "required": ["id", "content"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "id": "delete-note",
+      "name": "Delete Note",
+      "description": "Delete a note by id.",
+      "risk_level": "Confirm",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" }
+        },
+        "required": ["id"],
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "status": { "type": "string" },
+          "deleted": { "type": "boolean" }
+        }
+      }
+    },
+    {
+      "id": "search-notes",
+      "name": "Search Notes",
+      "description": "Search notes using the shared filesystem index over workspace notes/.",
+      "risk_level": "Safe",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "query": { "type": "string" },
+          "includeHidden": { "type": "boolean", "default": false },
+          "caseSensitive": { "type": "boolean", "default": false },
+          "maxResults": { "type": "integer", "minimum": 1, "maximum": 200, "default": 20 },
+          "maxDepth": { "type": "integer", "minimum": 0 }
+        },
+        "required": ["query"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "id": "index-status",
+      "name": "Index Status",
+      "description": "Inspect notes index status.",
+      "risk_level": "Safe",
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "id": "rescan-index",
+      "name": "Rescan Index",
+      "description": "Force a notes index rebuild.",
+      "risk_level": "Safe",
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    }
+  ]
+}

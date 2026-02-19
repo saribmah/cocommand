@@ -1,9 +1,12 @@
 use std::any::Any;
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use serde_json::json;
 
 use crate::error::{CoreError, CoreResult};
+use crate::extension::builtin::manifest_tools::{merge_manifest_tools, parse_builtin_manifest};
+use crate::extension::manifest::ExtensionManifest;
 use crate::extension::{
     boxed_tool_future, Extension, ExtensionInitContext, ExtensionKind, ExtensionStatus,
     ExtensionTool,
@@ -19,6 +22,8 @@ use super::ops::{
 use super::types::NoteIndexStatusPayload;
 
 pub struct NoteExtension {
+    manifest: ExtensionManifest,
+    tools: Vec<ExtensionTool>,
     index_manager: Arc<FileSystemIndexManager>,
 }
 
@@ -36,8 +41,214 @@ impl Default for NoteExtension {
 
 impl NoteExtension {
     pub fn new() -> Self {
+        let manifest = parse_builtin_manifest(include_str!("manifest.json"));
+        let index_manager = Arc::new(FileSystemIndexManager::default());
+
+        let mut execute_map = HashMap::new();
+
+        execute_map.insert(
+            "create-note",
+            Arc::new(
+                |input: serde_json::Value, context: crate::extension::ExtensionContext| {
+                    boxed_tool_future(async move {
+                        let title = optional_string(&input, "title");
+                        let content = optional_string_allow_empty(&input, "content");
+                        let folder = optional_string(&input, "folder");
+                        let workspace_dir = context.workspace.workspace_dir.clone();
+                        let notes_root = notes_root(&workspace_dir);
+                        let payload = run_blocking("notes_create_note", move || {
+                            create_note(notes_root, title, content, folder)
+                        })
+                        .await?;
+                        Ok(json!(payload))
+                    })
+                },
+            ) as _,
+        );
+
+        execute_map.insert(
+            "list-notes",
+            Arc::new(
+                |input: serde_json::Value, context: crate::extension::ExtensionContext| {
+                    boxed_tool_future(async move {
+                        let limit = bounded_usize(&input, "limit", 50, 1, 500)?;
+                        let workspace_dir = context.workspace.workspace_dir.clone();
+                        let notes_root = notes_root(&workspace_dir);
+                        let payload = run_blocking("notes_list_notes", move || {
+                            list_notes(notes_root, limit)
+                        })
+                        .await?;
+                        Ok(json!(payload))
+                    })
+                },
+            ) as _,
+        );
+
+        execute_map.insert(
+            "read-note",
+            Arc::new(
+                |input: serde_json::Value, context: crate::extension::ExtensionContext| {
+                    boxed_tool_future(async move {
+                        let id = required_string(&input, "id")?;
+                        let workspace_dir = context.workspace.workspace_dir.clone();
+                        let notes_root = notes_root(&workspace_dir);
+                        let payload = run_blocking("notes_read_note", move || {
+                            read_note(notes_root, id)
+                        })
+                        .await?;
+                        Ok(json!(payload))
+                    })
+                },
+            ) as _,
+        );
+
+        execute_map.insert(
+            "update-note",
+            Arc::new(
+                |input: serde_json::Value, context: crate::extension::ExtensionContext| {
+                    boxed_tool_future(async move {
+                        let id = required_string(&input, "id")?;
+                        let content = required_raw_string(&input, "content")?;
+                        let workspace_dir = context.workspace.workspace_dir.clone();
+                        let notes_root = notes_root(&workspace_dir);
+                        let payload = run_blocking("notes_update_note", move || {
+                            update_note(notes_root, id, content)
+                        })
+                        .await?;
+                        Ok(json!(payload))
+                    })
+                },
+            ) as _,
+        );
+
+        execute_map.insert(
+            "delete-note",
+            Arc::new(
+                |input: serde_json::Value, context: crate::extension::ExtensionContext| {
+                    boxed_tool_future(async move {
+                        let id = required_string(&input, "id")?;
+                        let workspace_dir = context.workspace.workspace_dir.clone();
+                        let notes_root = notes_root(&workspace_dir);
+                        let deleted = run_blocking("notes_delete_note", move || {
+                            delete_note(notes_root, id)
+                        })
+                        .await?;
+                        Ok(json!({
+                            "status": "ok",
+                            "deleted": deleted,
+                        }))
+                    })
+                },
+            ) as _,
+        );
+
+        let im = index_manager.clone();
+        execute_map.insert(
+            "search-notes",
+            Arc::new(
+                move |input: serde_json::Value, context: crate::extension::ExtensionContext| {
+                    let index_manager = im.clone();
+                    boxed_tool_future(async move {
+                        let query = required_query(&input)?;
+                        let include_hidden =
+                            optional_bool(&input, "includeHidden").unwrap_or(false);
+                        let case_sensitive =
+                            optional_bool(&input, "caseSensitive").unwrap_or(false);
+                        let max_results = bounded_usize(&input, "maxResults", 20, 1, 200)?;
+                        let max_depth =
+                            optional_usize(&input, "maxDepth")?.unwrap_or(usize::MAX);
+                        let workspace_dir = context.workspace.workspace_dir.clone();
+                        let notes_root = notes_root(&workspace_dir);
+                        let notes_root_for_payload = notes_root.clone();
+                        let index_cache_dir = notes_index_cache_dir(&workspace_dir);
+
+                        let payload = run_blocking("notes_search_notes", move || {
+                            ensure_notes_dir(&notes_root)?;
+                            let result = index_manager
+                                .search(
+                                    notes_root.clone(),
+                                    query.clone(),
+                                    filesystem::KindFilter::File,
+                                    include_hidden,
+                                    case_sensitive,
+                                    max_results,
+                                    max_depth,
+                                    index_cache_dir,
+                                    Vec::new(),
+                                    None,
+                                )
+                                .map_err(CoreError::from)?;
+                            Ok(build_search_payload(
+                                &notes_root_for_payload,
+                                query,
+                                result,
+                            ))
+                        })
+                        .await?;
+                        Ok(json!(payload))
+                    })
+                },
+            ) as _,
+        );
+
+        let im = index_manager.clone();
+        execute_map.insert(
+            "index-status",
+            Arc::new(
+                move |_input: serde_json::Value, context: crate::extension::ExtensionContext| {
+                    let index_manager = im.clone();
+                    boxed_tool_future(async move {
+                        let workspace_dir = context.workspace.workspace_dir.clone();
+                        let notes_root = notes_root(&workspace_dir);
+                        let index_cache_dir = notes_index_cache_dir(&workspace_dir);
+                        let payload = run_blocking("notes_index_status", move || {
+                            ensure_notes_dir(&notes_root)?;
+                            let status = index_manager
+                                .index_status(notes_root, index_cache_dir, Vec::new())
+                                .map_err(CoreError::from)?;
+                            Ok(NoteIndexStatusPayload::from(status))
+                        })
+                        .await?;
+                        Ok(json!(payload))
+                    })
+                },
+            ) as _,
+        );
+
+        let im = index_manager.clone();
+        execute_map.insert(
+            "rescan-index",
+            Arc::new(
+                move |_input: serde_json::Value, context: crate::extension::ExtensionContext| {
+                    let index_manager = im.clone();
+                    boxed_tool_future(async move {
+                        let workspace_dir = context.workspace.workspace_dir.clone();
+                        let notes_root = notes_root(&workspace_dir);
+                        let index_cache_dir = notes_index_cache_dir(&workspace_dir);
+                        let payload = run_blocking("notes_rescan_index", move || {
+                            ensure_notes_dir(&notes_root)?;
+                            let status = index_manager
+                                .rescan(notes_root, index_cache_dir, Vec::new())
+                                .map_err(CoreError::from)?;
+                            Ok(NoteIndexStatusPayload::from(status))
+                        })
+                        .await?;
+                        Ok(json!({
+                            "status": "ok",
+                            "rescanned": true,
+                            "index": payload,
+                        }))
+                    })
+                },
+            ) as _,
+        );
+
+        let tools = merge_manifest_tools(&manifest, execute_map);
+
         Self {
-            index_manager: Arc::new(FileSystemIndexManager::default()),
+            manifest,
+            tools,
+            index_manager,
         }
     }
 }
@@ -45,11 +256,11 @@ impl NoteExtension {
 #[async_trait::async_trait]
 impl Extension for NoteExtension {
     fn id(&self) -> &str {
-        "notes"
+        &self.manifest.id
     }
 
     fn name(&self) -> &str {
-        "Notes"
+        &self.manifest.name
     }
 
     fn kind(&self) -> ExtensionKind {
@@ -57,12 +268,11 @@ impl Extension for NoteExtension {
     }
 
     fn tags(&self) -> Vec<String> {
-        vec![
-            "notes".to_string(),
-            "markdown".to_string(),
-            "workspace".to_string(),
-            "search".to_string(),
-        ]
+        self.manifest
+            .routing
+            .as_ref()
+            .and_then(|r| r.keywords.clone())
+            .unwrap_or_default()
     }
 
     fn as_any(&self) -> &dyn Any {
@@ -93,287 +303,7 @@ impl Extension for NoteExtension {
     }
 
     fn tools(&self) -> Vec<ExtensionTool> {
-        let create_execute = Arc::new(
-            |input: serde_json::Value, context: crate::extension::ExtensionContext| {
-                boxed_tool_future(async move {
-                    let title = optional_string(&input, "title");
-                    let content = optional_string_allow_empty(&input, "content");
-                    let folder = optional_string(&input, "folder");
-                    let workspace_dir = context.workspace.workspace_dir.clone();
-                    let notes_root = notes_root(&workspace_dir);
-                    let payload = run_blocking("notes_create_note", move || {
-                        create_note(notes_root, title, content, folder)
-                    })
-                    .await?;
-                    Ok(json!(payload))
-                })
-            },
-        );
-
-        let list_execute = Arc::new(
-            |input: serde_json::Value, context: crate::extension::ExtensionContext| {
-                boxed_tool_future(async move {
-                    let limit = bounded_usize(&input, "limit", 50, 1, 500)?;
-                    let workspace_dir = context.workspace.workspace_dir.clone();
-                    let notes_root = notes_root(&workspace_dir);
-                    let payload =
-                        run_blocking("notes_list_notes", move || list_notes(notes_root, limit))
-                            .await?;
-                    Ok(json!(payload))
-                })
-            },
-        );
-
-        let read_execute = Arc::new(
-            |input: serde_json::Value, context: crate::extension::ExtensionContext| {
-                boxed_tool_future(async move {
-                    let id = required_string(&input, "id")?;
-                    let workspace_dir = context.workspace.workspace_dir.clone();
-                    let notes_root = notes_root(&workspace_dir);
-                    let payload =
-                        run_blocking("notes_read_note", move || read_note(notes_root, id)).await?;
-                    Ok(json!(payload))
-                })
-            },
-        );
-
-        let update_execute = Arc::new(
-            |input: serde_json::Value, context: crate::extension::ExtensionContext| {
-                boxed_tool_future(async move {
-                    let id = required_string(&input, "id")?;
-                    let content = required_raw_string(&input, "content")?;
-                    let workspace_dir = context.workspace.workspace_dir.clone();
-                    let notes_root = notes_root(&workspace_dir);
-                    let payload = run_blocking("notes_update_note", move || {
-                        update_note(notes_root, id, content)
-                    })
-                    .await?;
-                    Ok(json!(payload))
-                })
-            },
-        );
-
-        let delete_execute = Arc::new(
-            |input: serde_json::Value, context: crate::extension::ExtensionContext| {
-                boxed_tool_future(async move {
-                    let id = required_string(&input, "id")?;
-                    let workspace_dir = context.workspace.workspace_dir.clone();
-                    let notes_root = notes_root(&workspace_dir);
-                    let deleted =
-                        run_blocking("notes_delete_note", move || delete_note(notes_root, id))
-                            .await?;
-                    Ok(json!({
-                        "status": "ok",
-                        "deleted": deleted,
-                    }))
-                })
-            },
-        );
-
-        let index_manager = self.index_manager.clone();
-        let search_execute = Arc::new(
-            move |input: serde_json::Value, context: crate::extension::ExtensionContext| {
-                let index_manager = index_manager.clone();
-                boxed_tool_future(async move {
-                    let query = required_query(&input)?;
-                    let include_hidden = optional_bool(&input, "includeHidden").unwrap_or(false);
-                    let case_sensitive = optional_bool(&input, "caseSensitive").unwrap_or(false);
-                    let max_results = bounded_usize(&input, "maxResults", 20, 1, 200)?;
-                    let max_depth = optional_usize(&input, "maxDepth")?.unwrap_or(usize::MAX);
-                    let workspace_dir = context.workspace.workspace_dir.clone();
-                    let notes_root = notes_root(&workspace_dir);
-                    let notes_root_for_payload = notes_root.clone();
-                    let index_cache_dir = notes_index_cache_dir(&workspace_dir);
-
-                    let payload = run_blocking("notes_search_notes", move || {
-                        ensure_notes_dir(&notes_root)?;
-                        let result = index_manager
-                            .search(
-                                notes_root.clone(),
-                                query.clone(),
-                                filesystem::KindFilter::File,
-                                include_hidden,
-                                case_sensitive,
-                                max_results,
-                                max_depth,
-                                index_cache_dir,
-                                Vec::new(),
-                                None,
-                            )
-                            .map_err(CoreError::from)?;
-                        Ok(build_search_payload(&notes_root_for_payload, query, result))
-                    })
-                    .await?;
-                    Ok(json!(payload))
-                })
-            },
-        );
-
-        let index_manager = self.index_manager.clone();
-        let index_status_execute = Arc::new(
-            move |_input: serde_json::Value, context: crate::extension::ExtensionContext| {
-                let index_manager = index_manager.clone();
-                boxed_tool_future(async move {
-                    let workspace_dir = context.workspace.workspace_dir.clone();
-                    let notes_root = notes_root(&workspace_dir);
-                    let index_cache_dir = notes_index_cache_dir(&workspace_dir);
-                    let payload = run_blocking("notes_index_status", move || {
-                        ensure_notes_dir(&notes_root)?;
-                        let status = index_manager
-                            .index_status(notes_root, index_cache_dir, Vec::new())
-                            .map_err(CoreError::from)?;
-                        Ok(NoteIndexStatusPayload::from(status))
-                    })
-                    .await?;
-                    Ok(json!(payload))
-                })
-            },
-        );
-
-        let index_manager = self.index_manager.clone();
-        let rescan_index_execute = Arc::new(
-            move |_input: serde_json::Value, context: crate::extension::ExtensionContext| {
-                let index_manager = index_manager.clone();
-                boxed_tool_future(async move {
-                    let workspace_dir = context.workspace.workspace_dir.clone();
-                    let notes_root = notes_root(&workspace_dir);
-                    let index_cache_dir = notes_index_cache_dir(&workspace_dir);
-                    let payload = run_blocking("notes_rescan_index", move || {
-                        ensure_notes_dir(&notes_root)?;
-                        let status = index_manager
-                            .rescan(notes_root, index_cache_dir, Vec::new())
-                            .map_err(CoreError::from)?;
-                        Ok(NoteIndexStatusPayload::from(status))
-                    })
-                    .await?;
-                    Ok(json!({
-                        "status": "ok",
-                        "rescanned": true,
-                        "index": payload,
-                    }))
-                })
-            },
-        );
-
-        vec![
-            ExtensionTool {
-                id: "create-note".to_string(),
-                name: "Create Note".to_string(),
-                description: Some(
-                    "Create a note in the workspace notes directory. Default format is markdown."
-                        .to_string(),
-                ),
-                input_schema: json!({
-                    "type": "object",
-                    "properties": {
-                        "title": { "type": "string" },
-                        "content": { "type": "string" },
-                        "folder": { "type": "string", "description": "Optional nested folder under notes/, using forward slashes." }
-                    },
-                    "additionalProperties": false
-                }),
-                execute: create_execute,
-            },
-            ExtensionTool {
-                id: "list-notes".to_string(),
-                name: "List Notes".to_string(),
-                description: Some("List notes sorted by last modified time.".to_string()),
-                input_schema: json!({
-                    "type": "object",
-                    "properties": {
-                        "limit": { "type": "integer", "minimum": 1, "maximum": 500, "default": 50 }
-                    },
-                    "additionalProperties": false
-                }),
-                execute: list_execute,
-            },
-            ExtensionTool {
-                id: "read-note".to_string(),
-                name: "Read Note".to_string(),
-                description: Some("Read a note by id.".to_string()),
-                input_schema: json!({
-                    "type": "object",
-                    "properties": {
-                        "id": { "type": "string" }
-                    },
-                    "required": ["id"],
-                    "additionalProperties": false
-                }),
-                execute: read_execute,
-            },
-            ExtensionTool {
-                id: "update-note".to_string(),
-                name: "Update Note".to_string(),
-                description: Some("Replace note content by id.".to_string()),
-                input_schema: json!({
-                    "type": "object",
-                    "properties": {
-                        "id": { "type": "string" },
-                        "content": { "type": "string" }
-                    },
-                    "required": ["id", "content"],
-                    "additionalProperties": false
-                }),
-                execute: update_execute,
-            },
-            ExtensionTool {
-                id: "delete-note".to_string(),
-                name: "Delete Note".to_string(),
-                description: Some("Delete a note by id.".to_string()),
-                input_schema: json!({
-                    "type": "object",
-                    "properties": {
-                        "id": { "type": "string" }
-                    },
-                    "required": ["id"],
-                    "additionalProperties": false
-                }),
-                execute: delete_execute,
-            },
-            ExtensionTool {
-                id: "search-notes".to_string(),
-                name: "Search Notes".to_string(),
-                description: Some(
-                    "Search notes using the shared filesystem index over workspace notes/."
-                        .to_string(),
-                ),
-                input_schema: json!({
-                    "type": "object",
-                    "properties": {
-                        "query": { "type": "string" },
-                        "includeHidden": { "type": "boolean", "default": false },
-                        "caseSensitive": { "type": "boolean", "default": false },
-                        "maxResults": { "type": "integer", "minimum": 1, "maximum": 200, "default": 20 },
-                        "maxDepth": { "type": "integer", "minimum": 0 }
-                    },
-                    "required": ["query"],
-                    "additionalProperties": false
-                }),
-                execute: search_execute,
-            },
-            ExtensionTool {
-                id: "index-status".to_string(),
-                name: "Index Status".to_string(),
-                description: Some("Inspect notes index status.".to_string()),
-                input_schema: json!({
-                    "type": "object",
-                    "properties": {},
-                    "additionalProperties": false
-                }),
-                execute: index_status_execute,
-            },
-            ExtensionTool {
-                id: "rescan-index".to_string(),
-                name: "Rescan Index".to_string(),
-                description: Some("Force a notes index rebuild.".to_string()),
-                input_schema: json!({
-                    "type": "object",
-                    "properties": {},
-                    "additionalProperties": false
-                }),
-                execute: rescan_index_execute,
-            },
-        ]
+        self.tools.clone()
     }
 }
 

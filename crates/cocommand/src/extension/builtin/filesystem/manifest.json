@@ -1,0 +1,170 @@
+{
+  "id": "filesystem",
+  "name": "File System",
+  "description": "Search, browse, and manage files and folders in the workspace",
+  "routing": {
+    "keywords": ["filesystem", "files", "folders", "search", "io"]
+  },
+  "tools": [
+    {
+      "id": "search",
+      "name": "Search Files",
+      "description": "Search files and folders with boolean expressions, ()/< > groups, wildcard/path segments (*, ?, **, slash modes), filters (ext:, type:, size:, file:, folder:, parent:, in:/infolder:, nosubfolders:), and macros (audio:, video:, doc:, exe:).",
+      "risk_level": "Safe",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "query": { "type": "string", "description": "Supports text terms, quoted phrases, AND/OR/NOT, groups with () or <>, wildcard/path segments (*, ?, ** with slash-sensitive matching), filters ext:/type:/size:/file:/folder:/parent:/in:/infolder:/nosubfolders:, and macros audio:/video:/doc:/exe:." },
+          "root": { "type": "string", "description": "Search root path (absolute, ~, or workspace-relative)." },
+          "ignorePaths": { "type": "array", "items": { "type": "string" }, "description": "Optional paths to exclude from indexing/search (absolute, ~, or root-relative)." },
+          "kind": { "type": "string", "enum": ["all", "file", "directory"], "default": "all" },
+          "includeHidden": { "type": "boolean", "default": true },
+          "caseSensitive": { "type": "boolean", "default": false },
+          "maxResults": { "type": "integer", "minimum": 1, "maximum": 500, "default": 50 },
+          "maxDepth": { "type": "integer", "minimum": 0, "description": "Optional maximum depth from root; omit to search all indexed descendants." }
+        },
+        "required": ["query"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "id": "list_directory",
+      "name": "List Directory",
+      "description": "List files and folders under a directory.",
+      "risk_level": "Safe",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "path": { "type": "string", "description": "Directory path (absolute, ~, or workspace-relative). Defaults to configured watch_root." },
+          "ignorePaths": { "type": "array", "items": { "type": "string" }, "description": "Optional paths to exclude from listing recursion (absolute, ~, or path-relative)." },
+          "recursive": { "type": "boolean", "default": false },
+          "includeHidden": { "type": "boolean", "default": false },
+          "kind": { "type": "string", "enum": ["all", "file", "directory"], "default": "all" },
+          "maxResults": { "type": "integer", "minimum": 1, "maximum": 2000, "default": 200 },
+          "maxDepth": { "type": "integer", "minimum": 0, "maximum": 64, "default": 8 },
+          "sortBy": { "type": "string", "enum": ["name", "path", "modified", "size", "type"], "default": "name" },
+          "sortOrder": { "type": "string", "enum": ["asc", "desc"], "default": "asc" }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "id": "index_status",
+      "name": "Index Status",
+      "description": "Inspect filesystem index state for a root and ignore set.",
+      "risk_level": "Safe",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "root": { "type": "string", "description": "Index root path (absolute, ~, or workspace-relative). Defaults to configured watch_root." },
+          "ignorePaths": { "type": "array", "items": { "type": "string" }, "description": "Optional paths to exclude from index (absolute, ~, or root-relative). Defaults to configured ignore_paths." }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "id": "rescan_index",
+      "name": "Rescan Index",
+      "description": "Force a full rebuild of the filesystem index for a root.",
+      "risk_level": "Safe",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "root": { "type": "string", "description": "Index root path (absolute, ~, or workspace-relative). Defaults to configured watch_root." },
+          "ignorePaths": { "type": "array", "items": { "type": "string" }, "description": "Optional paths to exclude from index (absolute, ~, or root-relative). Defaults to configured ignore_paths." }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "id": "read_file",
+      "name": "Read File",
+      "description": "Read UTF-8 text from a file with optional offset and byte limit.",
+      "risk_level": "Safe",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "path": { "type": "string" },
+          "offset": { "type": "integer", "minimum": 0, "default": 0 },
+          "maxBytes": { "type": "integer", "minimum": 1, "maximum": 1048576, "default": 16384 }
+        },
+        "required": ["path"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "id": "path_info",
+      "name": "Path Info",
+      "description": "Get metadata for a file or folder path.",
+      "risk_level": "Safe",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "path": { "type": "string" }
+        },
+        "required": ["path"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "id": "open_path",
+      "name": "Open Path",
+      "description": "Open a file or folder using the OS default handler.",
+      "risk_level": "Safe",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "path": { "type": "string" }
+        },
+        "required": ["path"],
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "status": { "type": "string" },
+          "path": { "type": "string" }
+        }
+      }
+    },
+    {
+      "id": "reveal_path",
+      "name": "Reveal Path",
+      "description": "Reveal a file in Finder (macOS) or open its parent directory.",
+      "risk_level": "Safe",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "path": { "type": "string" }
+        },
+        "required": ["path"],
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "status": { "type": "string" },
+          "path": { "type": "string" }
+        }
+      }
+    },
+    {
+      "id": "get_icons",
+      "name": "Get Icons",
+      "description": "Extract file/folder icons for a list of paths. Returns base64-encoded PNG data URIs. On macOS, uses NSWorkspace for system icons.",
+      "risk_level": "Safe",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "paths": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "List of file paths to get icons for."
+          }
+        },
+        "required": ["paths"],
+        "additionalProperties": false
+      }
+    }
+  ]
+}

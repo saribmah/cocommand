@@ -2,13 +2,10 @@
 //!
 //! Usage: `cargo run --bin generate_openapi`
 
-use cocommand::server::openapi::ApiDoc;
-use utoipa::OpenApi;
+use cocommand::server::openapi::generate_full_spec;
 
 fn main() {
-    let spec = ApiDoc::openapi()
-        .to_pretty_json()
-        .expect("failed to serialize OpenAPI spec");
+    let spec = generate_full_spec();
 
     let out_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../packages/api-client");

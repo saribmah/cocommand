@@ -5,7 +5,8 @@ pub struct ExtensionManifest {
     pub id: String,
     pub name: String,
     pub description: String,
-    pub entrypoint: String,
+    #[serde(default)]
+    pub entrypoint: Option<String>,
     pub routing: Option<ExtensionRouting>,
     pub tools: Option<Vec<ExtensionTool>>,
     pub view: Option<ViewConfig>,
@@ -36,6 +37,10 @@ pub struct ExtensionRouting {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExtensionTool {
     pub id: String,
+    #[serde(default)]
+    pub name: Option<String>,
+    #[serde(default)]
+    pub description: Option<String>,
     pub risk_level: String,
     pub input_schema: Option<serde_json::Value>,
     pub output_schema: Option<serde_json::Value>,

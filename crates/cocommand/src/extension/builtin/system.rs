@@ -1,232 +1,175 @@
 use std::any::Any;
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::error::CoreError;
+use crate::extension::manifest::ExtensionManifest;
 use crate::extension::{boxed_tool_future, Extension, ExtensionKind, ExtensionTool};
+
+use super::manifest_tools::{merge_manifest_tools, parse_builtin_manifest};
 
 #[cfg(target_os = "macos")]
 use platform_macos;
 
-#[derive(Debug, Default)]
-pub struct SystemExtension;
+pub struct SystemExtension {
+    manifest: ExtensionManifest,
+    tools: Vec<ExtensionTool>,
+}
 
-impl SystemExtension {
-    pub fn new() -> Self {
-        Self
+impl std::fmt::Debug for SystemExtension {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SystemExtension").finish()
     }
 }
 
-#[async_trait::async_trait]
-impl Extension for SystemExtension {
-    fn id(&self) -> &str {
-        "system"
+impl Default for SystemExtension {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl SystemExtension {
+    pub fn new() -> Self {
+        let manifest = parse_builtin_manifest(include_str!("system_manifest.json"));
+        let execute_map = Self::build_execute_map();
+        let tools = merge_manifest_tools(&manifest, execute_map);
+        Self { manifest, tools }
     }
 
-    fn name(&self) -> &str {
-        "System"
-    }
+    fn build_execute_map() -> HashMap<&'static str, crate::extension::ExtensionToolExecute> {
+        let mut map = HashMap::new();
 
-    fn kind(&self) -> ExtensionKind {
-        ExtensionKind::System
-    }
-
-    fn tags(&self) -> Vec<String> {
-        vec!["system".to_string(), "os".to_string()]
-    }
-
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
-
-    fn tools(&self) -> Vec<ExtensionTool> {
         #[cfg(target_os = "macos")]
         {
-            let list_open_execute = Arc::new(|input: serde_json::Value, _context| {
-                boxed_tool_future(async move {
-                    let visible_only = input
-                        .get("visibleOnly")
-                        .and_then(|value| value.as_bool())
-                        .unwrap_or(false);
-                    let apps = platform_macos::list_open_apps(visible_only)
-                        .map_err(CoreError::Internal)?;
-                    Ok(serde_json::to_value(apps).map_err(|error| {
-                        CoreError::Internal(format!("failed to serialize open apps: {error}"))
-                    })?)
-                })
-            });
-            let list_windows_execute = Arc::new(|input: serde_json::Value, _context| {
-                boxed_tool_future(async move {
-                    let visible_only = input
-                        .get("visibleOnly")
-                        .and_then(|value| value.as_bool())
-                        .unwrap_or(false);
-                    let snapshot = platform_macos::list_windows_snapshot(visible_only)
-                        .map_err(CoreError::Internal)?;
-                    Ok(serde_json::json!({
-                        "snapshotId": snapshot.snapshot_id,
-                        "windows": snapshot.windows,
-                    }))
-                })
-            });
-            let run_applescript_execute = Arc::new(|input: serde_json::Value, _context| {
-                boxed_tool_future(async move {
-                    let script = input
-                        .get("script")
-                        .and_then(|value| value.as_str())
-                        .ok_or_else(|| CoreError::Internal("missing script".to_string()))?;
-                    let output =
-                        platform_macos::run_applescript(script).map_err(CoreError::Internal)?;
-                    Ok(serde_json::json!({ "output": output }))
-                })
-            });
-            let app_action_execute = Arc::new(|input: serde_json::Value, _context| {
-                boxed_tool_future(async move {
-                    let action = input
-                        .get("action")
-                        .and_then(|value| value.as_str())
-                        .ok_or_else(|| CoreError::Internal("missing action".to_string()))?;
-                    let bundle_id = input.get("bundleId").and_then(|value| value.as_str());
-                    let pid = input
-                        .get("pid")
-                        .and_then(|value| value.as_i64())
-                        .map(|value| value as i32);
-                    if bundle_id.is_none() && pid.is_none() {
-                        return Err(CoreError::Internal(
-                            "bundleId or pid is required".to_string(),
-                        ));
-                    }
-                    platform_macos::perform_app_action(bundle_id, pid, action)
-                        .map_err(CoreError::Internal)?;
-                    Ok(serde_json::json!({ "status": "ok" }))
-                })
-            });
-            let window_action_execute = Arc::new(|input: serde_json::Value, _context| {
-                boxed_tool_future(async move {
-                    let action = input
-                        .get("action")
-                        .and_then(|value| value.as_str())
-                        .ok_or_else(|| CoreError::Internal("missing action".to_string()))?;
-                    let window_id = input
-                        .get("windowId")
-                        .and_then(|value| value.as_u64())
-                        .ok_or_else(|| CoreError::Internal("missing windowId".to_string()))?
-                        as u32;
-                    let snapshot_id = input
-                        .get("snapshotId")
-                        .and_then(|value| value.as_u64())
-                        .or_else(|| input.get("snapshot_id").and_then(|value| value.as_u64()));
-                    platform_macos::perform_window_action(window_id, action, snapshot_id)
-                        .map_err(CoreError::Internal)?;
-                    Ok(serde_json::json!({ "status": "ok" }))
-                })
-            });
-            let list_installed_execute = Arc::new(|_input: serde_json::Value, _context| {
-                boxed_tool_future(async move {
-                    let apps = platform_macos::list_installed_apps();
-                    Ok(serde_json::to_value(apps).map_err(|error| {
-                        CoreError::Internal(format!("failed to serialize installed apps: {error}"))
-                    })?)
-                })
-            });
+            map.insert(
+                "list_open_apps",
+                Arc::new(|input: serde_json::Value, _context| {
+                    boxed_tool_future(async move {
+                        let visible_only = input
+                            .get("visibleOnly")
+                            .and_then(|value| value.as_bool())
+                            .unwrap_or(false);
+                        let apps = platform_macos::list_open_apps(visible_only)
+                            .map_err(CoreError::Internal)?;
+                        Ok(serde_json::to_value(apps).map_err(|error| {
+                            CoreError::Internal(format!(
+                                "failed to serialize open apps: {error}"
+                            ))
+                        })?)
+                    })
+                }) as _,
+            );
 
-            vec![
-                ExtensionTool {
-                    id: "list_open_apps".to_string(),
-                    name: "List Open Apps".to_string(),
-                    description: Some("List running applications and their windows".to_string()),
-                    input_schema: serde_json::json!({
-                        "type": "object",
-                        "properties": {
-                            "visibleOnly": { "type": "boolean", "default": false }
-                        },
-                        "additionalProperties": false
-                    }),
-                    execute: list_open_execute,
-                },
-                ExtensionTool {
-                    id: "list_windows".to_string(),
-                    name: "List Windows".to_string(),
-                    description: Some("List windows from the CG window registry".to_string()),
-                    input_schema: serde_json::json!({
-                        "type": "object",
-                        "properties": {
-                            "visibleOnly": { "type": "boolean", "default": false }
-                        },
-                        "additionalProperties": false
-                    }),
-                    execute: list_windows_execute,
-                },
-                ExtensionTool {
-                    id: "run_applescript".to_string(),
-                    name: "Run AppleScript".to_string(),
-                    description: Some("Run AppleScript automation".to_string()),
-                    input_schema: serde_json::json!({
-                        "type": "object",
-                        "properties": {
-                            "script": { "type": "string" }
-                        },
-                        "required": ["script"],
-                        "additionalProperties": false
-                    }),
-                    execute: run_applescript_execute,
-                },
-                ExtensionTool {
-                    id: "list_installed_apps".to_string(),
-                    name: "List Installed Apps".to_string(),
-                    description: Some("List installed applications on this system".to_string()),
-                    input_schema: serde_json::json!({
-                        "type": "object",
-                        "properties": {},
-                        "additionalProperties": false
-                    }),
-                    execute: list_installed_execute,
-                },
-                ExtensionTool {
-                    id: "app_action".to_string(),
-                    name: "App Action".to_string(),
-                    description: Some("Perform an action on an application".to_string()),
-                    input_schema: serde_json::json!({
-                        "type": "object",
-                        "properties": {
-                            "bundleId": { "type": "string" },
-                            "pid": { "type": "integer" },
-                            "action": {
-                                "type": "string",
-                                "enum": ["activate", "hide", "quit"]
-                            }
-                        },
-                        "required": ["action"],
-                        "additionalProperties": false
-                    }),
-                    execute: app_action_execute,
-                },
-                ExtensionTool {
-                    id: "window_action".to_string(),
-                    name: "Window Action".to_string(),
-                    description: Some("Perform an action on a window".to_string()),
-                    input_schema: serde_json::json!({
-                        "type": "object",
-                        "properties": {
-                            "windowId": { "type": "integer" },
-                            "snapshotId": { "type": "integer" },
-                            "action": {
-                                "type": "string",
-                                "enum": ["minimize", "close", "focus"]
-                            }
-                        },
-                        "required": ["windowId", "action"],
-                        "additionalProperties": false
-                    }),
-                    execute: window_action_execute,
-                },
-            ]
+            map.insert(
+                "list_windows",
+                Arc::new(|input: serde_json::Value, _context| {
+                    boxed_tool_future(async move {
+                        let visible_only = input
+                            .get("visibleOnly")
+                            .and_then(|value| value.as_bool())
+                            .unwrap_or(false);
+                        let snapshot = platform_macos::list_windows_snapshot(visible_only)
+                            .map_err(CoreError::Internal)?;
+                        Ok(serde_json::json!({
+                            "snapshotId": snapshot.snapshot_id,
+                            "windows": snapshot.windows,
+                        }))
+                    })
+                }) as _,
+            );
+
+            map.insert(
+                "run_applescript",
+                Arc::new(|input: serde_json::Value, _context| {
+                    boxed_tool_future(async move {
+                        let script = input
+                            .get("script")
+                            .and_then(|value| value.as_str())
+                            .ok_or_else(|| CoreError::Internal("missing script".to_string()))?;
+                        let output = platform_macos::run_applescript(script)
+                            .map_err(CoreError::Internal)?;
+                        Ok(serde_json::json!({ "output": output }))
+                    })
+                }) as _,
+            );
+
+            map.insert(
+                "list_installed_apps",
+                Arc::new(|_input: serde_json::Value, _context| {
+                    boxed_tool_future(async move {
+                        let apps = platform_macos::list_installed_apps();
+                        Ok(serde_json::to_value(apps).map_err(|error| {
+                            CoreError::Internal(format!(
+                                "failed to serialize installed apps: {error}"
+                            ))
+                        })?)
+                    })
+                }) as _,
+            );
+
+            map.insert(
+                "app_action",
+                Arc::new(|input: serde_json::Value, _context| {
+                    boxed_tool_future(async move {
+                        let action = input
+                            .get("action")
+                            .and_then(|value| value.as_str())
+                            .ok_or_else(|| CoreError::Internal("missing action".to_string()))?;
+                        let bundle_id =
+                            input.get("bundleId").and_then(|value| value.as_str());
+                        let pid = input
+                            .get("pid")
+                            .and_then(|value| value.as_i64())
+                            .map(|value| value as i32);
+                        if bundle_id.is_none() && pid.is_none() {
+                            return Err(CoreError::Internal(
+                                "bundleId or pid is required".to_string(),
+                            ));
+                        }
+                        platform_macos::perform_app_action(bundle_id, pid, action)
+                            .map_err(CoreError::Internal)?;
+                        Ok(serde_json::json!({ "status": "ok" }))
+                    })
+                }) as _,
+            );
+
+            map.insert(
+                "window_action",
+                Arc::new(|input: serde_json::Value, _context| {
+                    boxed_tool_future(async move {
+                        let action = input
+                            .get("action")
+                            .and_then(|value| value.as_str())
+                            .ok_or_else(|| CoreError::Internal("missing action".to_string()))?;
+                        let window_id = input
+                            .get("windowId")
+                            .and_then(|value| value.as_u64())
+                            .ok_or_else(|| {
+                                CoreError::Internal("missing windowId".to_string())
+                            })? as u32;
+                        let snapshot_id = input
+                            .get("snapshotId")
+                            .and_then(|value| value.as_u64())
+                            .or_else(|| {
+                                input.get("snapshot_id").and_then(|value| value.as_u64())
+                            });
+                        platform_macos::perform_window_action(
+                            window_id,
+                            action,
+                            snapshot_id,
+                        )
+                        .map_err(CoreError::Internal)?;
+                        Ok(serde_json::json!({ "status": "ok" }))
+                    })
+                }) as _,
+            );
         }
+
         #[cfg(not(target_os = "macos"))]
         {
-            let unsupported = |tool_id: &str| {
-                let tool_id = tool_id.to_string();
+            let unsupported = |tool_id: &'static str| -> crate::extension::ExtensionToolExecute {
                 Arc::new(move |_input: serde_json::Value, _context| {
-                    let tool_id = tool_id.clone();
+                    let tool_id = tool_id.to_string();
                     boxed_tool_future(async move {
                         Err(CoreError::Internal(format!(
                             "system tool not supported: {tool_id}"
@@ -235,97 +178,45 @@ impl Extension for SystemExtension {
                 })
             };
 
-            vec![
-                ExtensionTool {
-                    id: "list_open_apps".to_string(),
-                    name: "List Open Apps".to_string(),
-                    description: Some("List running applications and their windows".to_string()),
-                    input_schema: serde_json::json!({
-                        "type": "object",
-                        "properties": {
-                            "visibleOnly": { "type": "boolean", "default": false }
-                        },
-                        "additionalProperties": false
-                    }),
-                    execute: unsupported("list_open_apps"),
-                },
-                ExtensionTool {
-                    id: "list_windows".to_string(),
-                    name: "List Windows".to_string(),
-                    description: Some("List windows from the CG window registry".to_string()),
-                    input_schema: serde_json::json!({
-                        "type": "object",
-                        "properties": {
-                            "visibleOnly": { "type": "boolean", "default": false }
-                        },
-                        "additionalProperties": false
-                    }),
-                    execute: unsupported("list_windows"),
-                },
-                ExtensionTool {
-                    id: "run_applescript".to_string(),
-                    name: "Run AppleScript".to_string(),
-                    description: Some("Run AppleScript automation".to_string()),
-                    input_schema: serde_json::json!({
-                    "type": "object",
-                        "properties": {
-                            "script": { "type": "string" }
-                        },
-                        "required": ["script"],
-                        "additionalProperties": false
-                    }),
-                    execute: unsupported("run_applescript"),
-                },
-                ExtensionTool {
-                    id: "list_installed_apps".to_string(),
-                    name: "List Installed Apps".to_string(),
-                    description: Some("List installed applications on this system".to_string()),
-                    input_schema: serde_json::json!({
-                        "type": "object",
-                        "properties": {},
-                        "additionalProperties": false
-                    }),
-                    execute: unsupported("list_installed_apps"),
-                },
-                ExtensionTool {
-                    id: "app_action".to_string(),
-                    name: "App Action".to_string(),
-                    description: Some("Perform an action on an application".to_string()),
-                    input_schema: serde_json::json!({
-                        "type": "object",
-                        "properties": {
-                            "bundleId": { "type": "string" },
-                            "pid": { "type": "integer" },
-                            "action": {
-                                "type": "string",
-                                "enum": ["activate", "hide", "quit"]
-                            }
-                        },
-                        "required": ["action"],
-                        "additionalProperties": false
-                    }),
-                    execute: unsupported("app_action"),
-                },
-                ExtensionTool {
-                    id: "window_action".to_string(),
-                    name: "Window Action".to_string(),
-                    description: Some("Perform an action on a window".to_string()),
-                    input_schema: serde_json::json!({
-                    "type": "object",
-                    "properties": {
-                        "windowId": { "type": "integer" },
-                        "snapshotId": { "type": "integer" },
-                        "action": {
-                            "type": "string",
-                            "enum": ["minimize", "close", "focus"]
-                        }
-                    },
-                        "required": ["windowId", "action"],
-                        "additionalProperties": false
-                    }),
-                    execute: unsupported("window_action"),
-                },
-            ]
+            map.insert("list_open_apps", unsupported("list_open_apps"));
+            map.insert("list_windows", unsupported("list_windows"));
+            map.insert("run_applescript", unsupported("run_applescript"));
+            map.insert("list_installed_apps", unsupported("list_installed_apps"));
+            map.insert("app_action", unsupported("app_action"));
+            map.insert("window_action", unsupported("window_action"));
         }
+
+        map
+    }
+}
+
+#[async_trait::async_trait]
+impl Extension for SystemExtension {
+    fn id(&self) -> &str {
+        &self.manifest.id
+    }
+
+    fn name(&self) -> &str {
+        &self.manifest.name
+    }
+
+    fn kind(&self) -> ExtensionKind {
+        ExtensionKind::System
+    }
+
+    fn tags(&self) -> Vec<String> {
+        self.manifest
+            .routing
+            .as_ref()
+            .and_then(|r| r.keywords.clone())
+            .unwrap_or_default()
+    }
+
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
+    fn tools(&self) -> Vec<ExtensionTool> {
+        self.tools.clone()
     }
 }

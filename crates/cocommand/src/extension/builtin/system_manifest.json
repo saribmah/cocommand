@@ -1,0 +1,117 @@
+{
+  "id": "system",
+  "name": "System",
+  "description": "System operations for managing applications and windows on macOS",
+  "routing": {
+    "keywords": ["system", "os"]
+  },
+  "tools": [
+    {
+      "id": "list_open_apps",
+      "name": "List Open Apps",
+      "description": "List running applications and their windows",
+      "risk_level": "Safe",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "visibleOnly": { "type": "boolean", "default": false }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "id": "list_windows",
+      "name": "List Windows",
+      "description": "List windows from the CG window registry",
+      "risk_level": "Safe",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "visibleOnly": { "type": "boolean", "default": false }
+        },
+        "additionalProperties": false
+      }
+    },
+    {
+      "id": "run_applescript",
+      "name": "Run AppleScript",
+      "description": "Run AppleScript automation",
+      "risk_level": "Confirm",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "script": { "type": "string" }
+        },
+        "required": ["script"],
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "output": { "type": "string" }
+        }
+      }
+    },
+    {
+      "id": "list_installed_apps",
+      "name": "List Installed Apps",
+      "description": "List installed applications on this system",
+      "risk_level": "Safe",
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "id": "app_action",
+      "name": "App Action",
+      "description": "Perform an action on an application",
+      "risk_level": "Confirm",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "bundleId": { "type": "string" },
+          "pid": { "type": "integer" },
+          "action": {
+            "type": "string",
+            "enum": ["activate", "hide", "quit"]
+          }
+        },
+        "required": ["action"],
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "status": { "type": "string" }
+        }
+      }
+    },
+    {
+      "id": "window_action",
+      "name": "Window Action",
+      "description": "Perform an action on a window",
+      "risk_level": "Confirm",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "windowId": { "type": "integer" },
+          "snapshotId": { "type": "integer" },
+          "action": {
+            "type": "string",
+            "enum": ["minimize", "close", "focus"]
+          }
+        },
+        "required": ["windowId", "action"],
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "status": { "type": "string" }
+        }
+      }
+    }
+  ]
+}
