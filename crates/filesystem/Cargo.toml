@@ -9,7 +9,7 @@ thiserror = "2"
 parking_lot = "0.12"
 fnv = "1.0"
 bitflags = "2"
-log = "0.4"
+tracing = "0.1"
 crossbeam-channel = "0.5"
 
 # Serialization

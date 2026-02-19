@@ -37,7 +37,7 @@ pub async fn load_custom_extensions(workspace_dir: &Path) -> CoreResult<Vec<Arc<
         let host = match ExtensionHost::start(&host_path).await {
             Ok(host) => host,
             Err(error) => {
-                log::warn!("extension host start failed for {}: {}", manifest.id, error);
+                tracing::warn!("extension host start failed for {}: {}", manifest.id, error);
                 continue;
             }
         };

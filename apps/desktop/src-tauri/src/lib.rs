@@ -1,5 +1,7 @@
 use tauri::{Manager, WindowEvent};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
+use tracing::info;
+use tracing_subscriber::EnvFilter;
 
 mod commands;
 mod state;
@@ -10,10 +12,14 @@ mod workspace_path;
 pub fn run() {
     // Load .env file from the crate root directory
     let _ = dotenvy::from_path(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(".env"));
-    let _ = env_logger::Builder::from_env(
-        env_logger::Env::default().default_filter_or("info"),
-    )
-    .try_init();
+    let builder = tracing_subscriber::fmt();
+    if let Ok(filter) = EnvFilter::try_from_default_env() {
+        builder.with_env_filter(filter).init();
+    } else {
+        builder
+            .with_env_filter(EnvFilter::new("info"))
+            .init();
+    }
 
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
@@ -33,7 +39,7 @@ pub fn run() {
             )?;
             let app_state = state::AppState::new(workspace_dir.clone())
                 .map_err(|error| std::io::Error::new(std::io::ErrorKind::Other, error))?;
-            println!("Workspace directory: {}", app_state.workspace_dir().display());
+            info!("Workspace directory: {}", app_state.workspace_dir().display());
             app.manage(app_state);
 
             let handle = app.handle().clone();
@@ -46,7 +52,7 @@ pub fn run() {
                             let _ = state.set_server(server_handle);
                             let _ = state.set_boot_status(state::BootStatus::Ready, None);
                             if let Some(addr) = state.server_addr() {
-                                println!("Backend server listening on {}", addr);
+                                info!("Backend server listening on {}", addr);
                             }
                         }
                     }

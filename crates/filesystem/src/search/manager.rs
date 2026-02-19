@@ -196,7 +196,7 @@ impl RootIndex {
                 Ok(watcher) => Some(watcher),
                 Err(error) => {
                     let _ = last_error_clone.lock().map(|mut e| *e = Some(error.to_string()));
-                    log::warn!(
+                    tracing::warn!(
                         "filesystem watcher disabled for {}: {}",
                         watcher_root.display(),
                         error
@@ -214,7 +214,7 @@ impl RootIndex {
                 Ok(watcher) => Some(watcher),
                 Err(error) => {
                     let _ = last_error_clone.lock().map(|mut e| *e = Some(error.to_string()));
-                    log::warn!(
+                    tracing::warn!(
                         "filesystem watcher disabled for {}: {}",
                         watcher_root.display(),
                         error
@@ -259,7 +259,7 @@ impl RootIndex {
             );
         });
 
-        log::info!(
+        tracing::info!(
             "filesystem index init root={} cache_loaded={} cache_load_ms={} cached_entries={} state={} total_init_ms={}",
             key.root.display(),
             cache_loaded,
@@ -365,7 +365,7 @@ fn run_index_thread(
                         build_progress.finished_at.store(finished_at, Ordering::Relaxed);
                         build_progress.last_update_at.store(finished_at, Ordering::Relaxed);
                         build_state.store(IndexBuildState::Ready as u8, Ordering::Relaxed);
-                        log::info!(
+                        tracing::info!(
                             "filesystem index build complete root={} entries={}",
                             config.root.display(),
                             data.len(),
@@ -403,6 +403,7 @@ fn run_index_thread(
                             // FSEvents batch is ~100ms of events so the coalesced
                             // set is small — the select loop stays responsive.
                             for changed_path in coalesce_event_paths(paths) {
+                                tracing::info!("Scanning path: {:?}", changed_path);
                                 apply_path_change(&config.root, config.root_is_dir, &config.ignored_roots, &mut data, &changed_path);
                             }
                             indexed_entries.store(data.len(), Ordering::Relaxed);
@@ -422,7 +423,7 @@ fn run_index_thread(
                         }
                     }
                     WatcherEvent::HistoryDone => {
-                        log::info!(
+                        tracing::info!(
                             "filesystem history replay complete root={}",
                             config.root.display(),
                         );
@@ -523,7 +524,7 @@ fn do_flush(
         rescan_count: rescan_count.load(Ordering::Relaxed),
     };
     if let Err(error) = write_index_snapshot(&ctx, data) {
-        log::warn!(
+        tracing::warn!(
             "filesystem index cache write failed for {}: {}",
             config.root.display(),
             error
@@ -570,7 +571,8 @@ fn execute_search(
         }));
     }
 
-    search_index_data(
+    let search_start = Instant::now();
+    let result = search_index_data(
         &config.root,
         data,
         query,
@@ -586,7 +588,9 @@ fn execute_search(
         progress.last_update_at,
         progress.finished_at,
         cancel_token,
-    )
+    );
+    tracing::info!("Search time: {:?}", search_start.elapsed());
+    result
 }
 
 fn build_status_payload_from_atomics(
@@ -776,7 +780,7 @@ impl FileSystemIndexManager {
             .first_status_timing_logged
             .swap(true, Ordering::Relaxed)
         {
-            log::info!(
+            tracing::info!(
                 "filesystem first index_status root={} elapsed_ms={} state={} indexed_entries={} scanned_files={} scanned_dirs={} watcher_enabled={}",
                 key.root.display(),
                 status_started.elapsed().as_millis(),

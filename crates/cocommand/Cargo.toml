@@ -16,7 +16,7 @@ chrono = { version = "0.4", features = ["serde"] }
 moka = { version = "0.12", features = ["sync"] }
 tower-http = { version = "0.6", features = ["cors"] }
 async-trait = "0.1"
-log = "0.4"
+tracing = "0.1"
 rayon = "1.10"
 llm-kit-core = { path = "../../../ai-sdk/llm-kit-core" }
 llm-kit-openai-compatible = { path = "../../../ai-sdk/llm-kit-openai-compatible" }

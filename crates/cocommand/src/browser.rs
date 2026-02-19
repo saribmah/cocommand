@@ -116,7 +116,7 @@ impl BrowserBridge {
         conn.generation += 1;
         conn.sender = Some(sender);
         let gen = conn.generation;
-        log::info!("browser extension connected (generation {gen})");
+        tracing::info!("browser extension connected (generation {gen})");
         gen
     }
 
@@ -127,7 +127,7 @@ impl BrowserBridge {
         let mut conn = self.connection.write().await;
         if conn.generation == generation {
             conn.sender = None;
-            log::info!("browser extension disconnected (generation {generation})");
+            tracing::info!("browser extension disconnected (generation {generation})");
 
             // Fail any pending requests.
             drop(conn);
@@ -143,7 +143,7 @@ impl BrowserBridge {
         let msg: Value = match serde_json::from_str(text) {
             Ok(v) => v,
             Err(e) => {
-                log::warn!("invalid message from browser extension: {e}");
+                tracing::warn!("invalid message from browser extension: {e}");
                 return;
             }
         };
@@ -151,7 +151,7 @@ impl BrowserBridge {
         let id = match msg.get("id").and_then(|v| v.as_str()) {
             Some(id) => id.to_string(),
             None => {
-                log::warn!("browser extension message missing 'id' field");
+                tracing::warn!("browser extension message missing 'id' field");
                 return;
             }
         };
@@ -170,7 +170,7 @@ impl BrowserBridge {
             req.result = Some(result);
             req.notify.notify_one();
         } else {
-            log::warn!("received response for unknown request id: {id}");
+            tracing::warn!("received response for unknown request id: {id}");
         }
     }
 

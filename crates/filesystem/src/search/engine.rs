@@ -889,7 +889,7 @@ fn evaluate_tag_filter_via_mdfind(
         Err(e) => {
             // If mdfind fails (e.g., forbidden characters, command not available),
             // fall back to xattr-based filtering
-            log::debug!("mdfind failed, falling back to xattr: {}", e);
+            tracing::debug!("mdfind failed, falling back to xattr: {}", e);
             return evaluate_tag_filter_via_xattr(
                 file_candidates,
                 tags,

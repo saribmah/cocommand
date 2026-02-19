@@ -187,7 +187,7 @@ pub fn write_index_snapshot(ctx: &FlushContext, data: &RootIndexData) -> Result<
         ))
     })?;
 
-    log::debug!(
+    tracing::debug!(
         "wrote filesystem cache to {} ({} nodes)",
         ctx.cache_path.display(),
         data.file_nodes.len()
@@ -233,7 +233,7 @@ pub fn load_index_snapshot(
         Ok(file) => file,
         Err(error) if error.kind() == ErrorKind::NotFound => return None,
         Err(error) => {
-            log::warn!(
+            tracing::warn!(
                 "filesystem cache read failed for {}: {}",
                 cache_path.display(),
                 error
@@ -245,7 +245,7 @@ pub fn load_index_snapshot(
     let decoder = match zstd::Decoder::new(input) {
         Ok(d) => d,
         Err(error) => {
-            log::warn!(
+            tracing::warn!(
                 "filesystem cache decompress failed for {}: {}",
                 cache_path.display(),
                 error
@@ -257,10 +257,11 @@ pub fn load_index_snapshot(
     let mut input = BufReader::new(decoder);
     let mut scratch = vec![0u8; 4 * 1024];
 
+    let cache_decode_start = std::time::Instant::now();
     let storage: PersistentStorage = match postcard::from_io((&mut input, &mut scratch)) {
         Ok((s, _)) => s,
         Err(error) => {
-            log::warn!(
+            tracing::warn!(
                 "filesystem cache decode failed for {}: {}",
                 cache_path.display(),
                 error
@@ -268,10 +269,11 @@ pub fn load_index_snapshot(
             return None;
         }
     };
+    tracing::info!("Cache decode time: {:?}", cache_decode_start.elapsed());
 
     // Validate version
     if storage.version != INDEX_CACHE_VERSION {
-        log::debug!(
+        tracing::debug!(
             "cache version mismatch: {} != {}",
             storage.version,
             INDEX_CACHE_VERSION
@@ -281,13 +283,13 @@ pub fn load_index_snapshot(
 
     // Validate root path
     if storage.path != root {
-        log::debug!("cache root mismatch: {:?} != {:?}", storage.path, root);
+        tracing::debug!("cache root mismatch: {:?} != {:?}", storage.path, root);
         return None;
     }
 
     // Validate root_is_dir
     if storage.root_is_dir != root_is_dir {
-        log::debug!(
+        tracing::debug!(
             "cache root_is_dir mismatch: {} != {}",
             storage.root_is_dir,
             root_is_dir
@@ -297,7 +299,7 @@ pub fn load_index_snapshot(
 
     // Validate ignore paths
     if storage.ignore_paths != ignored_roots {
-        log::debug!("cache ignore_paths mismatch");
+        tracing::debug!("cache ignore_paths mismatch");
         return None;
     }
 
@@ -322,7 +324,7 @@ pub fn load_index_snapshot(
     // Reconstruct RootIndexData from persisted storage
     let data = restore_from_storage(storage, root);
 
-    log::debug!(
+    tracing::debug!(
         "loaded filesystem cache from {} ({} nodes, event_id={})",
         cache_path.display(),
         data.file_nodes.len(),
@@ -371,7 +373,7 @@ fn restore_from_storage(storage: PersistentStorage, _root: &Path) -> RootIndexDa
 fn cache_is_stale(root: &Path, saved_at: u64) -> bool {
     let now = unix_now_secs();
     if now.saturating_sub(saved_at) > INDEX_CACHE_MAX_AGE_SECS {
-        log::debug!(
+        tracing::debug!(
             "cache stale: age {} secs > max {} secs",
             now.saturating_sub(saved_at),
             INDEX_CACHE_MAX_AGE_SECS
@@ -380,7 +382,7 @@ fn cache_is_stale(root: &Path, saved_at: u64) -> bool {
     }
 
     let Ok(metadata) = fs::symlink_metadata(root) else {
-        log::debug!("cache stale: cannot read root metadata");
+        tracing::debug!("cache stale: cannot read root metadata");
         return true;
     };
     let modified = metadata
@@ -390,7 +392,7 @@ fn cache_is_stale(root: &Path, saved_at: u64) -> bool {
         .map(|value| value.as_secs())
         .unwrap_or(0);
     if modified > saved_at {
-        log::debug!(
+        tracing::debug!(
             "cache stale: root mtime {} > saved_at {}",
             modified,
             saved_at

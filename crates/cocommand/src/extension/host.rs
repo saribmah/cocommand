@@ -122,7 +122,7 @@ impl ExtensionHost {
                         }
                     }
                     Err(error) => {
-                        log::warn!("extension-host stdout parse error: {} line={}", error, line);
+                        tracing::warn!("extension-host stdout parse error: {} line={}", error, line);
                     }
                 }
             }
@@ -134,7 +134,7 @@ impl ExtensionHost {
                 if line.trim().is_empty() {
                     continue;
                 }
-                log::warn!("extension-host stderr: {}", line);
+                tracing::warn!("extension-host stderr: {}", line);
             }
         });
 

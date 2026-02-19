@@ -78,7 +78,7 @@ impl WorkspaceInstance {
 
         for extension in extensions {
             if let Err(error) = extension.initialize(context.clone()).await {
-                log::warn!(
+                tracing::warn!(
                     "failed to initialize extension {}: {}",
                     extension.id(),
                     error

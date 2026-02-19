@@ -113,7 +113,7 @@ impl Extension for CustomExtension {
             ))
         })??;
         if init.tools.is_empty() {
-            log::warn!("extension {} initialized with no tools", extension_id);
+            tracing::warn!("extension {} initialized with no tools", extension_id);
         }
         *guard = true;
         Ok(())
