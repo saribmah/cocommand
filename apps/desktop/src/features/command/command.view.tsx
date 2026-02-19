@@ -75,6 +75,16 @@ function cloneMessagePartInputs(parts: MessagePartInput[]): MessagePartInput[] {
   return parts.map(cloneMessagePartInput);
 }
 
+function normalizeErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "string") return error;
+  try {
+    return JSON.stringify(error);
+  } catch {
+    return String(error);
+  }
+}
+
 export function CommandView() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -96,10 +106,12 @@ export function CommandView() {
   const messages = useCommandContext((state) => state.messages);
   const error = useCommandContext((state) => state.error);
   const setError = useCommandContext((state) => state.setError);
+  const hydrateMessages = useCommandContext((state) => state.hydrateMessages);
   const submit = useCommandContext((state) => state.submit);
   const dismiss = useCommandContext((state) => state.dismiss);
   const reset = useCommandContext((state) => state.reset);
   const sendMessage = useSessionContext((state) => state.sendMessage);
+  const loadMessageHistory = useSessionContext((state) => state.loadMessageHistory);
   const serverInfo = useServerContext((state) => state.info);
   const extensions = useExtensionContext((state) => state.extensions);
   const extensionsLoaded = useExtensionContext((state) => state.isLoaded);
@@ -220,6 +232,25 @@ export function CommandView() {
     if (!serverInfo) return;
     fetchExtensions();
   }, [serverInfo, fetchExtensions]);
+
+  useEffect(() => {
+    if (!serverInfo?.addr) return;
+    let cancelled = false;
+
+    loadMessageHistory()
+      .then((history) => {
+        if (cancelled) return;
+        hydrateMessages(history);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setError(normalizeErrorMessage(err));
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [serverInfo?.addr, loadMessageHistory, hydrateMessages, setError]);
 
   useEffect(() => {
     if (!mentionState) return;

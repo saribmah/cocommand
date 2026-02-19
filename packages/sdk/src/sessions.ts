@@ -7,7 +7,7 @@ import type {
   SessionContextData,
   Client,
 } from "@cocommand/api";
-import { sessionContext } from "@cocommand/api";
+import { sessionCommandHistory, sessionContext } from "@cocommand/api";
 import { SdkError } from "./errors";
 import { fetchSse } from "./request";
 import { readSse } from "./sse";
@@ -75,6 +75,7 @@ export interface SessionsApi {
     parts: SessionCommandInputPart[],
     options?: SessionCommandOptions,
   ): Promise<RecordMessageResponse>;
+  history(): Promise<Message[]>;
   context(query?: SessionContextData["query"]): Promise<ApiSessionContext>;
 }
 
@@ -195,6 +196,13 @@ export function createSessionsApi(client: Client): SessionsApi {
       }
 
       return final;
+    },
+
+    async history() {
+      const result = await sessionCommandHistory({
+        client,
+      });
+      return unwrapApiResponse("sessions.history", result);
     },
 
     async context(query) {

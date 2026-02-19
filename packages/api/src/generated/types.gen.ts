@@ -1207,6 +1207,28 @@ export type SetTokensResponses = {
     200: unknown;
 };
 
+export type SessionCommandHistoryData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/session/command';
+};
+
+export type SessionCommandHistoryErrors = {
+    500: ApiErrorResponse;
+};
+
+export type SessionCommandHistoryError = SessionCommandHistoryErrors[keyof SessionCommandHistoryErrors];
+
+export type SessionCommandHistoryResponses = {
+    /**
+     * Current session message history
+     */
+    200: Array<Message>;
+};
+
+export type SessionCommandHistoryResponse = SessionCommandHistoryResponses[keyof SessionCommandHistoryResponses];
+
 export type SessionCommandData = {
     body: RecordMessageRequest;
     path?: never;

@@ -26,6 +26,73 @@ function createSseResponse(frames: string[]): Response {
 const commandParts: SessionCommandInputPart[] = [{ type: "text", text: "Hello" }];
 
 describe("sessions.commandStream", () => {
+  it("loads session history as messages", async () => {
+    globalThis.fetch = ((input: RequestInfo | URL) => {
+      const url =
+        typeof input === "string"
+          ? input
+          : input instanceof Request
+            ? input.url
+            : String(input);
+
+      if (url.endsWith("/session/command")) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify([
+              {
+                info: {
+                  id: "m1",
+                  sessionId: "s1",
+                  role: "user",
+                  createdAt: "2025-01-01T00:00:00Z",
+                },
+                parts: [
+                  {
+                    type: "text",
+                    id: "u1",
+                    messageId: "m1",
+                    sessionId: "s1",
+                    text: "Hello",
+                  },
+                ],
+              },
+              {
+                info: {
+                  id: "m2",
+                  sessionId: "s1",
+                  role: "assistant",
+                  createdAt: "2025-01-01T00:00:01Z",
+                },
+                parts: [
+                  {
+                    type: "text",
+                    id: "r1",
+                    messageId: "m2",
+                    sessionId: "s1",
+                    text: "Hi there",
+                  },
+                ],
+              },
+            ]),
+            {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            },
+          ),
+        );
+      }
+
+      return Promise.resolve(new Response("Not Found", { status: 404 }));
+    }) as typeof fetch;
+
+    const sessions = createSessionsApi(createApiClient("http://localhost:8080"));
+    const history = await sessions.history();
+
+    expect(history.length).toBe(2);
+    expect(history[0]?.info.role).toBe("user");
+    expect(history[1]?.info.role).toBe("assistant");
+  });
+
   it("returns final response from done event", async () => {
     globalThis.fetch = (() =>
       Promise.resolve(

@@ -47,6 +47,30 @@ pub struct RecordMessageResponse {
 }
 
 #[utoipa::path(
+    get,
+    path = "/session/command",
+    tag = "sessions",
+    responses(
+        (status = 200, description = "Current session message history", body = [Message]),
+        (status = 500, body = ApiErrorResponse),
+    ),
+    description = "Load message history for the current session."
+)]
+pub(crate) async fn session_command_history(
+    State(state): State<Arc<ServerState>>,
+) -> Result<Json<Vec<Message>>, ApiError> {
+    let context = state
+        .sessions
+        .with_session_mut(|session| Box::pin(async move { session.context(None).await }))
+        .await
+        .map_err(ApiError::from)?;
+    let messages = Message::load(&state.workspace.storage, &context.session_id)
+        .await
+        .map_err(ApiError::from)?;
+    Ok(Json(messages))
+}
+
+#[utoipa::path(
     post,
     path = "/sessions/command",
     tag = "sessions",

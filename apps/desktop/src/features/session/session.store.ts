@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import {
   type ApiSessionContext,
+  type Message,
   type RecordMessageResponse,
   type Sdk,
   type SessionCommandEvent,
@@ -17,6 +18,7 @@ export interface SessionState {
     parts: SessionCommandInputPart[],
     onEvent?: (event: StreamEvent) => void
   ) => Promise<RecordMessageResponse>;
+  loadMessageHistory: () => Promise<Message[]>;
   getContext: () => ApiSessionContext | null;
 }
 
@@ -51,6 +53,7 @@ export const createSessionStore = (sdk: Sdk) => {
       }
       return finalResponse;
     },
+    loadMessageHistory: async () => sdk.sessions.history(),
     getContext: () => get().context,
   }));
 };

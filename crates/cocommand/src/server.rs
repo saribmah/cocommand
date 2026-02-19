@@ -92,6 +92,7 @@ impl Server {
             .route("/health", get(health))
             .route("/openapi.json", get(serve_openapi))
             .route("/events", get(events::stream_events))
+            .route("/session/command", get(session::session_command_history))
             .route("/sessions/command", post(session::session_command))
             .route("/sessions/context", get(session::session_context))
             .route("/workspace/extensions", get(extension::list_extensions))

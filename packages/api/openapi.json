@@ -3824,6 +3824,40 @@
         ]
       }
     },
+    "/session/command": {
+      "get": {
+        "description": "Load message history for the current session.",
+        "operationId": "session_command_history",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Message"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Current session message history"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": ""
+          }
+        },
+        "tags": [
+          "sessions"
+        ]
+      }
+    },
     "/sessions/command": {
       "post": {
         "description": "Process a user command. Returns an SSE stream of part.updated, context, and done events.",

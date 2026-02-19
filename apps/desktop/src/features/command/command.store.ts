@@ -76,6 +76,12 @@ function findPartIndexToUpdate(parts: MessagePart[], nextPart: MessagePart): num
   );
 }
 
+function sortMessagesChronologically(messages: Message[]): Message[] {
+  return [...messages].sort((left, right) =>
+    left.info.createdAt.localeCompare(right.info.createdAt)
+  );
+}
+
 function mergeMessages(existing: Message[], incoming: Message[]): Message[] {
   if (incoming.length === 0) return existing;
   const merged = [...existing];
@@ -89,7 +95,21 @@ function mergeMessages(existing: Message[], incoming: Message[]): Message[] {
       merged.push(nextMessage);
     }
   }
-  return merged;
+  return sortMessagesChronologically(merged);
+}
+
+function mergeHistoryMessages(existing: Message[], incoming: Message[]): Message[] {
+  if (incoming.length === 0) return existing;
+  if (existing.length === 0) return sortMessagesChronologically(incoming);
+
+  const existingIds = new Set(existing.map((message) => message.info.id));
+  const merged = [...existing];
+  for (const nextMessage of incoming) {
+    if (!existingIds.has(nextMessage.info.id)) {
+      merged.push(nextMessage);
+    }
+  }
+  return sortMessagesChronologically(merged);
 }
 
 function updateMessagePart(
@@ -119,6 +139,7 @@ export interface CommandState {
   error: string | null;
   setDraftParts: (parts: MessagePartInput[]) => void;
   setError: (error: string | null) => void;
+  hydrateMessages: (messages: Message[]) => void;
   reset: () => void;
   dismiss: () => void;
   submit: (sendMessage: SendMessageFn) => Promise<boolean>;
@@ -137,6 +158,11 @@ export const createCommandStore = () => {
     setDraftParts: (parts) => set({ draftParts: normalizeDraftParts(parts) }),
 
     setError: (error) => set({ error }),
+
+    hydrateMessages: (messages) =>
+      set((state) => ({
+        messages: mergeHistoryMessages(state.messages, messages),
+      })),
 
     reset: () =>
       set({

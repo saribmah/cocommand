@@ -36,6 +36,7 @@ use crate::session::SessionContext;
         description = "AI-native command bar for macOS"
     ),
     paths(
+        crate::server::session::session_command_history,
         crate::server::session::session_command,
         crate::server::session::session_context,
         crate::server::extension::list_extensions,
