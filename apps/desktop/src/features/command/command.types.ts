@@ -1,10 +1,10 @@
 import type {
     MessagePart,
     SessionCommandInputPart,
-} from "@cocommand/api";
+} from "@cocommand/sdk";
 
 // ---------------------------------------------------------------------------
-// Re-exports from @cocommand/api
+// Re-exports from @cocommand/sdk
 // ---------------------------------------------------------------------------
 
 export type {
@@ -17,7 +17,7 @@ export type {
     ToolStateCompleted,
     ToolStateError,
     MessagePart
-} from "@cocommand/api";
+} from "@cocommand/sdk";
 
 // ---------------------------------------------------------------------------
 // Input part types (discriminated variants extracted from the API union)

@@ -1,9 +1,9 @@
 export interface ApplicationInfo {
   id: string;
   name: string;
-  bundleId?: string;
+  bundleId?: string | null;
   path: string;
-  icon?: string;
+  icon?: string | null;
 }
 
 export interface ApplicationsResponse {

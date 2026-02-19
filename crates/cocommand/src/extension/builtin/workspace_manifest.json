@@ -15,6 +15,11 @@
         "type": "object",
         "properties": {},
         "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "description": "Workspace configuration document",
+        "additionalProperties": true
       }
     },
     {
@@ -32,6 +37,11 @@
         },
         "required": ["config"],
         "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "description": "Updated workspace configuration document",
+        "additionalProperties": true
       }
     },
     {
@@ -42,6 +52,28 @@
       "input_schema": {
         "type": "object",
         "properties": {},
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "platform": { "type": "string" },
+          "permissions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string" },
+                "label": { "type": "string" },
+                "granted": { "type": "boolean" },
+                "required": { "type": "boolean" }
+              },
+              "required": ["id", "label", "granted", "required"],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["platform", "permissions"],
         "additionalProperties": false
       }
     },

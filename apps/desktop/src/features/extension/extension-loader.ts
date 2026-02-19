@@ -20,7 +20,7 @@ export async function loadDynamicExtensionViews(
         registerExtensionView(ext.id, {
           component: mod.default,
           label: ext.view!.label,
-          popout: ext.view!.popout,
+          popout: ext.view!.popout ?? undefined,
         });
       }
 

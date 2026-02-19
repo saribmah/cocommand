@@ -15,6 +15,21 @@
         "type": "object",
         "properties": {},
         "additionalProperties": false
+      },
+      "output_schema": {
+        "type": ["object", "null"],
+        "properties": {
+          "id": { "type": "string" },
+          "created_at": { "type": "string" },
+          "kind": { "type": "string", "enum": ["text", "image", "files"] },
+          "text": { "type": "string" },
+          "image_path": { "type": "string" },
+          "image_format": { "type": "string" },
+          "files": { "type": "array", "items": { "type": "string" } },
+          "source": { "type": "string" }
+        },
+        "required": ["id", "created_at", "kind"],
+        "additionalProperties": false
       }
     },
     {
@@ -49,6 +64,21 @@
         "type": "object",
         "properties": {},
         "additionalProperties": false
+      },
+      "output_schema": {
+        "type": ["object", "null"],
+        "properties": {
+          "id": { "type": "string" },
+          "created_at": { "type": "string" },
+          "kind": { "type": "string", "enum": ["text", "image", "files"] },
+          "text": { "type": "string" },
+          "image_path": { "type": "string" },
+          "image_format": { "type": "string" },
+          "files": { "type": "array", "items": { "type": "string" } },
+          "source": { "type": "string" }
+        },
+        "required": ["id", "created_at", "kind"],
+        "additionalProperties": false
       }
     },
     {
@@ -62,6 +92,24 @@
           "limit": { "type": "integer", "minimum": 1 }
         },
         "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": { "type": "string" },
+            "created_at": { "type": "string" },
+            "kind": { "type": "string", "enum": ["text", "image", "files"] },
+            "text": { "type": "string" },
+            "image_path": { "type": "string" },
+            "image_format": { "type": "string" },
+            "files": { "type": "array", "items": { "type": "string" } },
+            "source": { "type": "string" }
+          },
+          "required": ["id", "created_at", "kind"],
+          "additionalProperties": false
+        }
       }
     },
     {

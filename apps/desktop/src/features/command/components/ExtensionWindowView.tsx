@@ -4,7 +4,7 @@ import { closeExtensionWindow } from "../../../lib/ipc";
 import { getExtensionView } from "../../extension/extension-views";
 import { useExtensionContext } from "../../extension/extension.context";
 import { useServerContext } from "../../server/server.context";
-import { ApiProvider } from "@cocommand/sdk";
+import { ExtensionSdkProvider } from "@cocommand/sdk/react";
 import { Text } from "@cocommand/ui";
 
 export function ExtensionWindowView() {
@@ -53,9 +53,9 @@ export function ExtensionWindowView() {
   const Component = config.component;
   return (
     <div className="app-shell" style={{ width: "100%", height: "100%", "--cc-extension-bg": "var(--cc-surface-primary)" } as React.CSSProperties}>
-      <ApiProvider baseUrl={baseUrl} extensionId={extensionId}>
+      <ExtensionSdkProvider baseUrl={baseUrl} extensionId={extensionId}>
         <Component mode="popout" />
-      </ApiProvider>
+      </ExtensionSdkProvider>
     </div>
   );
 }

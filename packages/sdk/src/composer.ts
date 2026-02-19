@@ -1,5 +1,6 @@
-import type { ComposerActionsBridge } from "../configure";
-import type { FilePartInput, ExtensionPartInput } from "../types";
+import type { ComposerActionsBridge } from "./configure";
+import type { FilePartInput, ExtensionPartInput } from "./types";
+import { SdkError } from "./errors";
 
 export interface ComposerApi {
   addFile(part: FilePartInput): void;
@@ -9,12 +10,14 @@ export interface ComposerApi {
   focusInput(): void;
 }
 
-export function createComposer(bridge?: ComposerActionsBridge): ComposerApi {
+export function createComposerApi(bridge?: ComposerActionsBridge): ComposerApi {
   function getBridge(): ComposerActionsBridge {
     if (!bridge) {
-      throw new Error(
-        "@cocommand/sdk: Composer is only available in view context with a composer bridge.",
-      );
+      throw new SdkError({
+        code: "invalid_response",
+        message: "Composer bridge is only available inside extension view context",
+        source: "composer",
+      });
     }
     return bridge;
   }

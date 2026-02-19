@@ -179,6 +179,7 @@ fn to_pascal_case(s: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::extension::builtin::manifest_tools::all_builtin_manifests;
 
     #[test]
     fn checked_in_spec_matches_code() {
@@ -199,5 +200,29 @@ mod tests {
             on_disk.trim(),
             "The checked-in openapi.json is stale. Run `cargo run --bin generate_openapi` to update it."
         );
+    }
+
+    #[test]
+    fn builtin_tool_manifests_define_input_and_output_schemas() {
+        for manifest in all_builtin_manifests() {
+            let tools = manifest.tools.as_ref().unwrap_or_else(|| {
+                panic!("manifest '{}' must declare tools", manifest.id);
+            });
+
+            for tool in tools {
+                assert!(
+                    tool.input_schema.is_some(),
+                    "manifest '{}' tool '{}' is missing input_schema",
+                    manifest.id,
+                    tool.id
+                );
+                assert!(
+                    tool.output_schema.is_some(),
+                    "manifest '{}' tool '{}' is missing output_schema",
+                    manifest.id,
+                    tool.id
+                );
+            }
+        }
     }
 }

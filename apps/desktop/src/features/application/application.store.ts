@@ -1,10 +1,8 @@
 import { create } from "zustand";
 import type { ServerInfo } from "../../lib/ipc";
-import { createApiClient } from "@cocommand/api";
-import { listApplications, openApplication } from "@cocommand/api";
+import { createSdk, createSdkClient } from "@cocommand/sdk";
 import type {
   ApplicationInfo,
-  ApplicationsResponse,
   OpenApplicationRequest,
   OpenApplicationResponse,
 } from "./application.types";
@@ -21,10 +19,10 @@ export interface ApplicationState {
   clear: () => void;
 }
 
-function getClient(getServer: () => ServerInfo | null) {
+function getSdk(getServer: () => ServerInfo | null) {
   const server = getServer();
   if (!server?.addr) return null;
-  return createApiClient(server.addr);
+  return createSdk({ client: createSdkClient(server.addr) });
 }
 
 export type ApplicationStore = ReturnType<typeof createApplicationStore>;
@@ -39,8 +37,8 @@ export const createApplicationStore = (getServer: () => ServerInfo | null) => {
     error: null,
 
     fetchApplications: async () => {
-      const client = getClient(getServer);
-      if (!client) {
+      const sdk = getSdk(getServer);
+      if (!sdk) {
         set({
           applications: [],
           count: 0,
@@ -53,14 +51,10 @@ export const createApplicationStore = (getServer: () => ServerInfo | null) => {
 
       set({ isLoading: true, error: null });
       try {
-        const { data, error: fetchError } = await listApplications({ client });
-        if (fetchError) {
-          throw new Error(fetchError.error?.message ?? "Server error");
-        }
-        const response = data as ApplicationsResponse;
+        const applications = await sdk.applications.list();
         set({
-          applications: response.applications,
-          count: response.count,
+          applications,
+          count: applications.length,
           isLoaded: true,
           isLoading: false,
           error: null,
@@ -77,22 +71,16 @@ export const createApplicationStore = (getServer: () => ServerInfo | null) => {
     },
 
     openApplication: async (request) => {
-      const client = getClient(getServer);
-      if (!client) {
+      const sdk = getSdk(getServer);
+      if (!sdk) {
         throw new Error("Server unavailable");
       }
 
       set({ isOpening: true, error: null });
       try {
-        const { data, error: fetchError } = await openApplication({
-          client,
-          body: request,
-        });
-        if (fetchError) {
-          throw new Error(fetchError.error?.message ?? "Server error");
-        }
+        const response = await sdk.applications.open(request.id);
         set({ isOpening: false, error: null });
-        return data as OpenApplicationResponse;
+        return response as OpenApplicationResponse;
       } catch (error) {
         const message = String(error);
         set({ isOpening: false, error: message });

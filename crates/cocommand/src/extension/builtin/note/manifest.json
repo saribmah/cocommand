@@ -19,6 +19,20 @@
           "folder": { "type": "string", "description": "Optional nested folder under notes/, using forward slashes." }
         },
         "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "title": { "type": "string" },
+          "preview": { "type": "string" },
+          "content": { "type": "string" },
+          "path": { "type": "string" },
+          "modifiedAt": { "type": "integer" },
+          "size": { "type": "integer" }
+        },
+        "required": ["id", "title", "preview", "content", "path"],
+        "additionalProperties": false
       }
     },
     {
@@ -31,6 +45,33 @@
         "properties": {
           "limit": { "type": "integer", "minimum": 1, "maximum": 500, "default": 50 }
         },
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "root": { "type": "string" },
+          "notes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string" },
+                "title": { "type": "string" },
+                "preview": { "type": "string" },
+                "path": { "type": "string" },
+                "modifiedAt": { "type": "integer" },
+                "size": { "type": "integer" }
+              },
+              "required": ["id", "title", "preview", "path"],
+              "additionalProperties": false
+            }
+          },
+          "count": { "type": "integer" },
+          "truncated": { "type": "boolean" },
+          "errors": { "type": "integer" }
+        },
+        "required": ["root", "notes", "count", "truncated", "errors"],
         "additionalProperties": false
       }
     },
@@ -46,6 +87,20 @@
         },
         "required": ["id"],
         "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "title": { "type": "string" },
+          "preview": { "type": "string" },
+          "content": { "type": "string" },
+          "path": { "type": "string" },
+          "modifiedAt": { "type": "integer" },
+          "size": { "type": "integer" }
+        },
+        "required": ["id", "title", "preview", "content", "path"],
+        "additionalProperties": false
       }
     },
     {
@@ -60,6 +115,20 @@
           "content": { "type": "string" }
         },
         "required": ["id", "content"],
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "title": { "type": "string" },
+          "preview": { "type": "string" },
+          "content": { "type": "string" },
+          "path": { "type": "string" },
+          "modifiedAt": { "type": "integer" },
+          "size": { "type": "integer" }
+        },
+        "required": ["id", "title", "preview", "content", "path"],
         "additionalProperties": false
       }
     },
@@ -100,6 +169,54 @@
         },
         "required": ["query"],
         "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "query": { "type": "string" },
+          "root": { "type": "string" },
+          "notes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string" },
+                "title": { "type": "string" },
+                "preview": { "type": "string" },
+                "path": { "type": "string" },
+                "modifiedAt": { "type": "integer" },
+                "size": { "type": "integer" }
+              },
+              "required": ["id", "title", "preview", "path"],
+              "additionalProperties": false
+            }
+          },
+          "count": { "type": "integer" },
+          "truncated": { "type": "boolean" },
+          "scanned": { "type": "integer" },
+          "errors": { "type": "integer" },
+          "indexState": { "type": "string" },
+          "indexScannedFiles": { "type": "integer" },
+          "indexScannedDirs": { "type": "integer" },
+          "indexStartedAt": { "type": "integer" },
+          "indexLastUpdateAt": { "type": "integer" },
+          "indexFinishedAt": { "type": "integer" },
+          "highlightTerms": { "type": "array", "items": { "type": "string" } }
+        },
+        "required": [
+          "query",
+          "root",
+          "notes",
+          "count",
+          "truncated",
+          "scanned",
+          "errors",
+          "indexState",
+          "indexScannedFiles",
+          "indexScannedDirs",
+          "highlightTerms"
+        ],
+        "additionalProperties": false
       }
     },
     {
@@ -111,6 +228,38 @@
         "type": "object",
         "properties": {},
         "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "state": { "type": "string" },
+          "root": { "type": "string" },
+          "ignoredPaths": { "type": "array", "items": { "type": "string" } },
+          "indexedEntries": { "type": "integer" },
+          "scannedFiles": { "type": "integer" },
+          "scannedDirs": { "type": "integer" },
+          "startedAt": { "type": "integer" },
+          "lastUpdateAt": { "type": "integer" },
+          "finishedAt": { "type": "integer" },
+          "errors": { "type": "integer" },
+          "watcherEnabled": { "type": "boolean" },
+          "cachePath": { "type": "string" },
+          "rescanCount": { "type": "integer" },
+          "lastError": { "type": "string" }
+        },
+        "required": [
+          "state",
+          "root",
+          "ignoredPaths",
+          "indexedEntries",
+          "scannedFiles",
+          "scannedDirs",
+          "errors",
+          "watcherEnabled",
+          "cachePath",
+          "rescanCount"
+        ],
+        "additionalProperties": false
       }
     },
     {
@@ -121,6 +270,46 @@
       "input_schema": {
         "type": "object",
         "properties": {},
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "status": { "type": "string" },
+          "indexStatus": {
+            "type": "object",
+            "properties": {
+              "state": { "type": "string" },
+              "root": { "type": "string" },
+              "ignoredPaths": { "type": "array", "items": { "type": "string" } },
+              "indexedEntries": { "type": "integer" },
+              "scannedFiles": { "type": "integer" },
+              "scannedDirs": { "type": "integer" },
+              "startedAt": { "type": "integer" },
+              "lastUpdateAt": { "type": "integer" },
+              "finishedAt": { "type": "integer" },
+              "errors": { "type": "integer" },
+              "watcherEnabled": { "type": "boolean" },
+              "cachePath": { "type": "string" },
+              "rescanCount": { "type": "integer" },
+              "lastError": { "type": "string" }
+            },
+            "required": [
+              "state",
+              "root",
+              "ignoredPaths",
+              "indexedEntries",
+              "scannedFiles",
+              "scannedDirs",
+              "errors",
+              "watcherEnabled",
+              "cachePath",
+              "rescanCount"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": ["status", "indexStatus"],
         "additionalProperties": false
       }
     }

@@ -1,15 +1,15 @@
-import type { Client } from "../client";
+import type { Client } from "@cocommand/api";
 import {
   startFlow,
   pollFlow,
   getTokens,
   setTokens,
   deleteTokens,
-  type StartFlowResponse,
   type PollResponse,
+  type StartFlowResponse,
 } from "@cocommand/api";
-
-// ---------- Types ----------
+import { SdkError } from "./errors";
+import { unwrapApiResponse } from "./request";
 
 export interface PKCEClientOptions {
   providerName: string;
@@ -45,8 +45,6 @@ export interface TokenSet extends TokenSetOptions {
   createdAt: number;
 }
 
-// ---------- PKCE Crypto Helpers ----------
-
 function base64url(buffer: ArrayBuffer): string {
   const bytes = new Uint8Array(buffer);
   let binary = "";
@@ -75,15 +73,11 @@ function generateState(): string {
   return base64url(bytes.buffer);
 }
 
-// ---------- Helper ----------
-
 export function isTokenExpired(tokenSet: TokenSet): boolean {
   if (!tokenSet.expiresIn) return false;
   const now = Math.floor(Date.now() / 1000);
   return now >= tokenSet.createdAt + tokenSet.expiresIn;
 }
-
-// ---------- PKCEClient ----------
 
 export class PKCEClient {
   private client: Client;
@@ -103,16 +97,13 @@ export class PKCEClient {
     const codeChallenge = await generateCodeChallenge(codeVerifier);
     const state = generateState();
 
-    const { data, error } = await startFlow({
+    const start = await startFlow({
       client: this.client,
       body: { state },
     });
+    const data = unwrapApiResponse<StartFlowResponse>("oauth.startFlow", start);
 
-    if (error || !data) {
-      throw new Error("Failed to start OAuth flow");
-    }
-
-    const redirectUri = (data as StartFlowResponse).redirect_uri;
+    const redirectUri = data.redirect_uri;
 
     const params = new URLSearchParams({
       client_id: opts.clientId,
@@ -133,22 +124,28 @@ export class PKCEClient {
   async authorize(request: AuthorizationRequest): Promise<AuthorizationResponse> {
     window.open(request.authorizationUrl, "_blank");
 
-    const deadline = Date.now() + 5 * 60 * 1000; // 5 min timeout
+    const deadline = Date.now() + 5 * 60 * 1000;
     while (Date.now() < deadline) {
-      const { data, error } = await pollFlow({
+      const poll = await pollFlow({
         client: this.client,
         query: { state: request.state, wait: 25 },
       });
 
-      if (error) continue;
+      if (poll.error) {
+        continue;
+      }
 
-      const res = data as PollResponse | undefined;
+      const res = poll.data as PollResponse | undefined;
       if (res?.status === "completed" && res.authorization_code) {
         return { authorizationCode: res.authorization_code };
       }
     }
 
-    throw new Error("OAuth authorization timed out after 5 minutes");
+    throw new SdkError({
+      code: "timeout",
+      message: "OAuth authorization timed out after 5 minutes",
+      source: "oauth.authorize",
+    });
   }
 
   async setTokens(opts: TokenSetOptions): Promise<void> {
@@ -160,55 +157,51 @@ export class PKCEClient {
       id_token: opts.idToken ?? null,
       created_at: Math.floor(Date.now() / 1000),
     };
-    const { error } = await setTokens({
+
+    const result = await setTokens({
       client: this.client,
       path: { ext: this.extensionId, provider: this.providerName },
       body,
     });
-    if (error) {
-      throw new Error("Failed to store tokens");
-    }
+
+    unwrapApiResponse("oauth.setTokens", result, { allowNull: true });
   }
 
-  async getTokens(): Promise<TokenSet | null> {
-    try {
-      const { data, error } = await getTokens({
-        client: this.client,
-        path: { ext: this.extensionId, provider: this.providerName },
-      });
-      if (error || !data) return null;
-      const raw = data as Record<string, unknown>;
-      return {
-        accessToken: raw.access_token as string,
-        refreshToken: (raw.refresh_token as string) ?? undefined,
-        expiresIn: (raw.expires_in as number) ?? undefined,
-        scope: (raw.scope as string) ?? undefined,
-        idToken: (raw.id_token as string) ?? undefined,
-        createdAt: raw.created_at as number,
-      };
-    } catch {
-      return null;
-    }
-  }
-
-  async removeTokens(): Promise<void> {
-    const { error } = await deleteTokens({
+  async getTokensValue(): Promise<TokenSet | null> {
+    const result = await getTokens({
       client: this.client,
       path: { ext: this.extensionId, provider: this.providerName },
     });
-    if (error) {
-      throw new Error("Failed to delete tokens");
+
+    if (result.error || !result.response.ok || !result.data) {
+      return null;
     }
+
+    const raw = result.data as Record<string, unknown>;
+    return {
+      accessToken: raw.access_token as string,
+      refreshToken: (raw.refresh_token as string | null) ?? undefined,
+      expiresIn: (raw.expires_in as number | null) ?? undefined,
+      scope: (raw.scope as string | null) ?? undefined,
+      idToken: (raw.id_token as string | null) ?? undefined,
+      createdAt: raw.created_at as number,
+    };
+  }
+
+  async removeTokens(): Promise<void> {
+    const result = await deleteTokens({
+      client: this.client,
+      path: { ext: this.extensionId, provider: this.providerName },
+    });
+    unwrapApiResponse("oauth.deleteTokens", result, { allowNull: true });
   }
 }
-
-// ---------- OAuthApi ----------
 
 export interface OAuthApi {
   createClient(options: PKCEClientOptions): PKCEClient;
 }
 
-export function createOAuth(client: Client, extensionId: string): OAuthApi {
+export function createOAuthApi(client: Client, extensionId: string): OAuthApi {
   return {
     createClient(options: PKCEClientOptions): PKCEClient {
       return new PKCEClient(client, extensionId, options.providerName);

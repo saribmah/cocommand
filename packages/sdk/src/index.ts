@@ -1,56 +1,50 @@
-export type { ComposerActionsBridge } from "./configure";
+export { createApiClient as createSdkClient, type Client } from "./client";
+export { invokeToolUnwrap, invokeExtensionTool } from "./client";
+export type { RequestOptions, InvokeResponse } from "./client";
 
-export { createApiClient } from "./client";
-export type { Client } from "./client";
-export { invokeToolUnwrap } from "./client";
+export { SdkError, SdkNotImplementedError, toSdkError } from "./errors";
+export type { SdkErrorCode, SdkErrorOptions } from "./errors";
+
+export { createSdk, createExtensionSdk } from "./sdk";
+export type {
+  CreateSdkOptions,
+  Sdk,
+  ExtensionSdk,
+  ExtensionToolsApi,
+} from "./sdk";
 
 export type {
-  TextSource,
-  FilePartInput,
-  ExtensionPartInput,
-  Application,
-  WorkspaceConfig,
-  ClipboardSnapshot,
-  ClipboardEntry,
-  InvokeResponse,
-} from "./types";
+  ApplicationsApi,
+} from "./applications";
 
 export type {
-  ApplicationInfo,
-  FilePartSourceText,
-  ExtensionInfo,
-  ExtensionToolInfo,
-  StartFlowResponse,
-  PollResponse,
-} from "@cocommand/api";
+  ExtensionsApi,
+} from "./extensions";
 
-export { createClipboard } from "./modules/clipboard";
-export type { ClipboardApi } from "./modules/clipboard";
+export type { ToolsApi } from "./tools";
+export type { SessionsApi, SessionCommandEvent, SessionCommandOptions } from "./sessions";
+export type { EventsApi } from "./events";
 
-export { createApplications } from "./modules/applications";
-export type { ApplicationsApi } from "./modules/applications";
+export {
+  createClipboardApi,
+  createWorkspaceApi,
+  createBrowserApi,
+  createSystemApi,
+  createScreenshotApi,
+  createFilesystemApi,
+  createNotesApi,
+} from "./builtins";
+export type {
+  ClipboardApi,
+  WorkspaceApi,
+  BrowserApi,
+  SystemApi,
+  ScreenshotApi,
+  FilesystemApi,
+  NotesApi,
+} from "./builtins";
 
-export { createWorkspace } from "./modules/workspace";
-export type { WorkspaceApi } from "./modules/workspace";
-
-export { Cache } from "./modules/cache";
-
-export { createComposer } from "./modules/composer";
-export type { ComposerApi } from "./modules/composer";
-
-export { createAI } from "./modules/ai";
-export type { GenerateOptions, GenerateResult, AIApi } from "./modules/ai";
-
-export { createLocalStorage } from "./modules/local-storage";
-export type { LocalStorageApi } from "./modules/local-storage";
-
-export { createWindowManagement } from "./modules/window";
-export type { ToastOptions, WindowManagementApi } from "./modules/window";
-
-export { createTools } from "./modules/tools";
-export type { ToolsApi } from "./modules/tools";
-
-export { createOAuth, isTokenExpired, PKCEClient } from "./modules/oauth";
+export { createOAuthApi, PKCEClient, isTokenExpired } from "./oauth";
 export type {
   OAuthApi,
   PKCEClientOptions,
@@ -59,10 +53,75 @@ export type {
   AuthorizationResponse,
   TokenSet,
   TokenSetOptions,
-} from "./modules/oauth";
+} from "./oauth";
 
-export { createApi } from "./create-api";
-export type { CocommandApi, CreateApiOptions } from "./create-api";
+export {
+  createDeferredAI,
+  createDeferredLocalStorage,
+  createDeferredUiApi,
+} from "./deferred";
+export type {
+  AIApi,
+  GenerateOptions,
+  GenerateResult,
+  LocalStorageApi,
+  ToastOptions,
+  WindowManagementApi,
+  UiApi,
+} from "./deferred";
 
-export { ApiProvider, useApi } from "./react";
-export type { ApiProviderProps } from "./react";
+export { createComposerApi } from "./composer";
+export type { ComposerApi } from "./composer";
+
+export { Cache } from "./cache";
+
+export type { ComposerActionsBridge } from "./configure";
+
+export type {
+  ApiErrorBody,
+  ApiErrorResponse,
+  ApiSessionContext,
+  ApplicationInfo,
+  OpenApplicationRequest,
+  OpenApplicationResponse,
+  ApplicationsResponse,
+  CoreEvent,
+  ExtensionInfo,
+  ExtensionToolInfo,
+  ExtensionViewInfo,
+  ExtensionViewPopoutInfo,
+  FilePart,
+  FilePartInput,
+  FilePartSourceText,
+  MessagePart,
+  MessagePartInput,
+  NotesCreateNoteInput,
+  NotesCreateNoteOutput,
+  NotesDeleteNoteInput,
+  NotesDeleteNoteOutput,
+  NotesIndexStatusInput,
+  NotesIndexStatusOutput,
+  NotesListNotesInput,
+  NotesListNotesOutput,
+  NotesReadNoteInput,
+  NotesReadNoteOutput,
+  NotesRescanIndexInput,
+  NotesRescanIndexOutput,
+  NotesSearchNotesInput,
+  NotesSearchNotesOutput,
+  NotesUpdateNoteInput,
+  NotesUpdateNoteOutput,
+  PartBase,
+  RecordMessageResponse,
+  SessionCommandInputPart,
+  SessionContext,
+  ToolState,
+  ToolStateCompleted,
+  ToolStateError,
+  ToolStatePending,
+  ToolStateRunning,
+  TextPartInput,
+} from "./types";
+
+// Backward-compatible alias for older consumers that used createApiClient name.
+export { createApiClient } from "./client";

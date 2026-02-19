@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { ListSection, ListItem, Text, IconContainer, Icon } from "@cocommand/ui";
-import { useApi } from "@cocommand/sdk";
+import { useExtensionSdk } from "@cocommand/sdk/react";
 
 interface Item {
   id: string;
@@ -16,7 +16,7 @@ const ItemIcon = (
 );
 
 function SampleView() {
-  const { tools } = useApi();
+  const { tools } = useExtensionSdk();
   const [items, setItems] = useState<Item[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

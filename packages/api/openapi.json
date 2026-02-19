@@ -115,6 +115,27 @@
         "properties": {},
         "type": "object"
       },
+      "BrowserGetActiveTabOutput": {
+        "additionalProperties": true,
+        "properties": {
+          "active": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "type": [
+          "object",
+          "null"
+        ]
+      },
       "BrowserGetContentInput": {
         "additionalProperties": false,
         "properties": {
@@ -138,10 +159,57 @@
         },
         "type": "object"
       },
+      "BrowserGetContentOutput": {
+        "additionalProperties": true,
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "format": {
+            "enum": [
+              "html",
+              "text",
+              "markdown"
+            ],
+            "type": "string"
+          },
+          "tabId": {
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "BrowserGetTabsInput": {
         "additionalProperties": false,
         "properties": {},
         "type": "object"
+      },
+      "BrowserGetTabsOutput": {
+        "items": {
+          "additionalProperties": true,
+          "properties": {
+            "active": {
+              "type": "boolean"
+            },
+            "id": {
+              "type": "integer"
+            },
+            "title": {
+              "type": "string"
+            },
+            "url": {
+              "type": "string"
+            }
+          },
+          "type": "object"
+        },
+        "type": "array"
       },
       "BrowserStatus": {
         "properties": {
@@ -172,6 +240,52 @@
         "properties": {},
         "type": "object"
       },
+      "ClipboardGetClipboardOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "created_at": {
+            "type": "string"
+          },
+          "files": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "id": {
+            "type": "string"
+          },
+          "image_format": {
+            "type": "string"
+          },
+          "image_path": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "text",
+              "image",
+              "files"
+            ],
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "created_at",
+          "kind"
+        ],
+        "type": [
+          "object",
+          "null"
+        ]
+      },
       "ClipboardListClipboardHistoryInput": {
         "additionalProperties": false,
         "properties": {
@@ -182,10 +296,102 @@
         },
         "type": "object"
       },
+      "ClipboardListClipboardHistoryOutput": {
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "created_at": {
+              "type": "string"
+            },
+            "files": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "id": {
+              "type": "string"
+            },
+            "image_format": {
+              "type": "string"
+            },
+            "image_path": {
+              "type": "string"
+            },
+            "kind": {
+              "enum": [
+                "text",
+                "image",
+                "files"
+              ],
+              "type": "string"
+            },
+            "source": {
+              "type": "string"
+            },
+            "text": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "created_at",
+            "kind"
+          ],
+          "type": "object"
+        },
+        "type": "array"
+      },
       "ClipboardRecordClipboardInput": {
         "additionalProperties": false,
         "properties": {},
         "type": "object"
+      },
+      "ClipboardRecordClipboardOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "created_at": {
+            "type": "string"
+          },
+          "files": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "id": {
+            "type": "string"
+          },
+          "image_format": {
+            "type": "string"
+          },
+          "image_path": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "text",
+              "image",
+              "files"
+            ],
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "text": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "created_at",
+          "kind"
+        ],
+        "type": [
+          "object",
+          "null"
+        ]
       },
       "ClipboardSetClipboardInput": {
         "additionalProperties": false,
@@ -588,6 +794,33 @@
         ],
         "type": "object"
       },
+      "FilesystemGetIconsOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "icons": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "icon": {
+                  "type": "string"
+                },
+                "path": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "path"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "icons"
+        ],
+        "type": "object"
+      },
       "FilesystemIndexStatusInput": {
         "additionalProperties": false,
         "properties": {
@@ -603,6 +836,69 @@
             "type": "string"
           }
         },
+        "type": "object"
+      },
+      "FilesystemIndexStatusOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "cachePath": {
+            "type": "string"
+          },
+          "errors": {
+            "type": "integer"
+          },
+          "finishedAt": {
+            "type": "integer"
+          },
+          "ignoredPaths": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "indexedEntries": {
+            "type": "integer"
+          },
+          "lastError": {
+            "type": "string"
+          },
+          "lastUpdateAt": {
+            "type": "integer"
+          },
+          "rescanCount": {
+            "type": "integer"
+          },
+          "root": {
+            "type": "string"
+          },
+          "scannedDirs": {
+            "type": "integer"
+          },
+          "scannedFiles": {
+            "type": "integer"
+          },
+          "startedAt": {
+            "type": "integer"
+          },
+          "state": {
+            "type": "string"
+          },
+          "watcherEnabled": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "state",
+          "root",
+          "ignoredPaths",
+          "indexedEntries",
+          "scannedFiles",
+          "scannedDirs",
+          "errors",
+          "watcherEnabled",
+          "cachePath",
+          "rescanCount"
+        ],
         "type": "object"
       },
       "FilesystemListDirectoryInput": {
@@ -670,6 +966,73 @@
         },
         "type": "object"
       },
+      "FilesystemListDirectoryOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "count": {
+            "type": "integer"
+          },
+          "errors": {
+            "type": "integer"
+          },
+          "path": {
+            "type": "string"
+          },
+          "recursive": {
+            "type": "boolean"
+          },
+          "results": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "icon": {
+                  "type": "string"
+                },
+                "modifiedAt": {
+                  "type": "integer"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "path": {
+                  "type": "string"
+                },
+                "size": {
+                  "type": "integer"
+                },
+                "type": {
+                  "enum": [
+                    "file",
+                    "directory",
+                    "symlink",
+                    "other"
+                  ],
+                  "type": "string"
+                }
+              },
+              "required": [
+                "path",
+                "name",
+                "type"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "path",
+          "recursive",
+          "results",
+          "count",
+          "truncated",
+          "errors"
+        ],
+        "type": "object"
+      },
       "FilesystemOpenPathInput": {
         "additionalProperties": false,
         "properties": {
@@ -705,6 +1068,52 @@
         ],
         "type": "object"
       },
+      "FilesystemPathInfoOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "exists": {
+            "type": "boolean"
+          },
+          "extension": {
+            "type": "string"
+          },
+          "hidden": {
+            "type": "boolean"
+          },
+          "modifiedAt": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "parent": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "readonly": {
+            "type": "boolean"
+          },
+          "size": {
+            "type": "integer"
+          },
+          "type": {
+            "enum": [
+              "file",
+              "directory",
+              "symlink",
+              "other"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "exists"
+        ],
+        "type": "object"
+      },
       "FilesystemReadFileInput": {
         "additionalProperties": false,
         "properties": {
@@ -728,6 +1137,38 @@
         ],
         "type": "object"
       },
+      "FilesystemReadFileOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "bytesRead": {
+            "type": "integer"
+          },
+          "content": {
+            "type": "string"
+          },
+          "offset": {
+            "type": "integer"
+          },
+          "path": {
+            "type": "string"
+          },
+          "totalBytes": {
+            "type": "integer"
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "path",
+          "content",
+          "offset",
+          "bytesRead",
+          "totalBytes",
+          "truncated"
+        ],
+        "type": "object"
+      },
       "FilesystemRescanIndexInput": {
         "additionalProperties": false,
         "properties": {
@@ -743,6 +1184,82 @@
             "type": "string"
           }
         },
+        "type": "object"
+      },
+      "FilesystemRescanIndexOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "indexStatus": {
+            "additionalProperties": false,
+            "properties": {
+              "cachePath": {
+                "type": "string"
+              },
+              "errors": {
+                "type": "integer"
+              },
+              "finishedAt": {
+                "type": "integer"
+              },
+              "ignoredPaths": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "indexedEntries": {
+                "type": "integer"
+              },
+              "lastError": {
+                "type": "string"
+              },
+              "lastUpdateAt": {
+                "type": "integer"
+              },
+              "rescanCount": {
+                "type": "integer"
+              },
+              "root": {
+                "type": "string"
+              },
+              "scannedDirs": {
+                "type": "integer"
+              },
+              "scannedFiles": {
+                "type": "integer"
+              },
+              "startedAt": {
+                "type": "integer"
+              },
+              "state": {
+                "type": "string"
+              },
+              "watcherEnabled": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "state",
+              "root",
+              "ignoredPaths",
+              "indexedEntries",
+              "scannedFiles",
+              "scannedDirs",
+              "errors",
+              "watcherEnabled",
+              "cachePath",
+              "rescanCount"
+            ],
+            "type": "object"
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "indexStatus"
+        ],
         "type": "object"
       },
       "FilesystemRevealPathInput": {
@@ -817,6 +1334,105 @@
         },
         "required": [
           "query"
+        ],
+        "type": "object"
+      },
+      "FilesystemSearchOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "count": {
+            "type": "integer"
+          },
+          "errors": {
+            "type": "integer"
+          },
+          "highlightTerms": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "indexFinishedAt": {
+            "type": "integer"
+          },
+          "indexLastUpdateAt": {
+            "type": "integer"
+          },
+          "indexScannedDirs": {
+            "type": "integer"
+          },
+          "indexScannedFiles": {
+            "type": "integer"
+          },
+          "indexStartedAt": {
+            "type": "integer"
+          },
+          "indexState": {
+            "type": "string"
+          },
+          "query": {
+            "type": "string"
+          },
+          "results": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "icon": {
+                  "type": "string"
+                },
+                "modifiedAt": {
+                  "type": "integer"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "path": {
+                  "type": "string"
+                },
+                "size": {
+                  "type": "integer"
+                },
+                "type": {
+                  "enum": [
+                    "file",
+                    "directory",
+                    "symlink",
+                    "other"
+                  ],
+                  "type": "string"
+                }
+              },
+              "required": [
+                "path",
+                "name",
+                "type"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "root": {
+            "type": "string"
+          },
+          "scanned": {
+            "type": "integer"
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "query",
+          "root",
+          "results",
+          "count",
+          "truncated",
+          "scanned",
+          "errors",
+          "indexState",
+          "indexScannedFiles",
+          "indexScannedDirs",
+          "highlightTerms"
         ],
         "type": "object"
       },
@@ -945,6 +1561,40 @@
         },
         "type": "object"
       },
+      "NotesCreateNoteOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "modifiedAt": {
+            "type": "integer"
+          },
+          "path": {
+            "type": "string"
+          },
+          "preview": {
+            "type": "string"
+          },
+          "size": {
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "preview",
+          "content",
+          "path"
+        ],
+        "type": "object"
+      },
       "NotesDeleteNoteInput": {
         "additionalProperties": false,
         "properties": {
@@ -973,6 +1623,69 @@
         "properties": {},
         "type": "object"
       },
+      "NotesIndexStatusOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "cachePath": {
+            "type": "string"
+          },
+          "errors": {
+            "type": "integer"
+          },
+          "finishedAt": {
+            "type": "integer"
+          },
+          "ignoredPaths": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "indexedEntries": {
+            "type": "integer"
+          },
+          "lastError": {
+            "type": "string"
+          },
+          "lastUpdateAt": {
+            "type": "integer"
+          },
+          "rescanCount": {
+            "type": "integer"
+          },
+          "root": {
+            "type": "string"
+          },
+          "scannedDirs": {
+            "type": "integer"
+          },
+          "scannedFiles": {
+            "type": "integer"
+          },
+          "startedAt": {
+            "type": "integer"
+          },
+          "state": {
+            "type": "string"
+          },
+          "watcherEnabled": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "state",
+          "root",
+          "ignoredPaths",
+          "indexedEntries",
+          "scannedFiles",
+          "scannedDirs",
+          "errors",
+          "watcherEnabled",
+          "cachePath",
+          "rescanCount"
+        ],
+        "type": "object"
+      },
       "NotesListNotesInput": {
         "additionalProperties": false,
         "properties": {
@@ -983,6 +1696,64 @@
             "type": "integer"
           }
         },
+        "type": "object"
+      },
+      "NotesListNotesOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "count": {
+            "type": "integer"
+          },
+          "errors": {
+            "type": "integer"
+          },
+          "notes": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "modifiedAt": {
+                  "type": "integer"
+                },
+                "path": {
+                  "type": "string"
+                },
+                "preview": {
+                  "type": "string"
+                },
+                "size": {
+                  "type": "integer"
+                },
+                "title": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "title",
+                "preview",
+                "path"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "root": {
+            "type": "string"
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "root",
+          "notes",
+          "count",
+          "truncated",
+          "errors"
+        ],
         "type": "object"
       },
       "NotesReadNoteInput": {
@@ -997,9 +1768,119 @@
         ],
         "type": "object"
       },
+      "NotesReadNoteOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "modifiedAt": {
+            "type": "integer"
+          },
+          "path": {
+            "type": "string"
+          },
+          "preview": {
+            "type": "string"
+          },
+          "size": {
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "preview",
+          "content",
+          "path"
+        ],
+        "type": "object"
+      },
       "NotesRescanIndexInput": {
         "additionalProperties": false,
         "properties": {},
+        "type": "object"
+      },
+      "NotesRescanIndexOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "indexStatus": {
+            "additionalProperties": false,
+            "properties": {
+              "cachePath": {
+                "type": "string"
+              },
+              "errors": {
+                "type": "integer"
+              },
+              "finishedAt": {
+                "type": "integer"
+              },
+              "ignoredPaths": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "indexedEntries": {
+                "type": "integer"
+              },
+              "lastError": {
+                "type": "string"
+              },
+              "lastUpdateAt": {
+                "type": "integer"
+              },
+              "rescanCount": {
+                "type": "integer"
+              },
+              "root": {
+                "type": "string"
+              },
+              "scannedDirs": {
+                "type": "integer"
+              },
+              "scannedFiles": {
+                "type": "integer"
+              },
+              "startedAt": {
+                "type": "integer"
+              },
+              "state": {
+                "type": "string"
+              },
+              "watcherEnabled": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "state",
+              "root",
+              "ignoredPaths",
+              "indexedEntries",
+              "scannedFiles",
+              "scannedDirs",
+              "errors",
+              "watcherEnabled",
+              "cachePath",
+              "rescanCount"
+            ],
+            "type": "object"
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "indexStatus"
+        ],
         "type": "object"
       },
       "NotesSearchNotesInput": {
@@ -1032,6 +1913,100 @@
         ],
         "type": "object"
       },
+      "NotesSearchNotesOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "count": {
+            "type": "integer"
+          },
+          "errors": {
+            "type": "integer"
+          },
+          "highlightTerms": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "indexFinishedAt": {
+            "type": "integer"
+          },
+          "indexLastUpdateAt": {
+            "type": "integer"
+          },
+          "indexScannedDirs": {
+            "type": "integer"
+          },
+          "indexScannedFiles": {
+            "type": "integer"
+          },
+          "indexStartedAt": {
+            "type": "integer"
+          },
+          "indexState": {
+            "type": "string"
+          },
+          "notes": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "modifiedAt": {
+                  "type": "integer"
+                },
+                "path": {
+                  "type": "string"
+                },
+                "preview": {
+                  "type": "string"
+                },
+                "size": {
+                  "type": "integer"
+                },
+                "title": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "title",
+                "preview",
+                "path"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "query": {
+            "type": "string"
+          },
+          "root": {
+            "type": "string"
+          },
+          "scanned": {
+            "type": "integer"
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "query",
+          "root",
+          "notes",
+          "count",
+          "truncated",
+          "scanned",
+          "errors",
+          "indexState",
+          "indexScannedFiles",
+          "indexScannedDirs",
+          "highlightTerms"
+        ],
+        "type": "object"
+      },
       "NotesUpdateNoteInput": {
         "additionalProperties": false,
         "properties": {
@@ -1045,6 +2020,40 @@
         "required": [
           "id",
           "content"
+        ],
+        "type": "object"
+      },
+      "NotesUpdateNoteOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "modifiedAt": {
+            "type": "integer"
+          },
+          "path": {
+            "type": "string"
+          },
+          "preview": {
+            "type": "string"
+          },
+          "size": {
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "preview",
+          "content",
+          "path"
         ],
         "type": "object"
       },
@@ -1323,6 +2332,37 @@
         },
         "type": "object"
       },
+      "ScreenshotListScreenshotsOutput": {
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "created_at": {
+              "type": "integer"
+            },
+            "filename": {
+              "type": "string"
+            },
+            "format": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            },
+            "size": {
+              "type": "integer"
+            }
+          },
+          "required": [
+            "filename",
+            "path",
+            "format",
+            "size",
+            "created_at"
+          ],
+          "type": "object"
+        },
+        "type": "array"
+      },
       "SessionCommandExtensionPartInput": {
         "properties": {
           "extensionId": {
@@ -1592,6 +2632,31 @@
         "properties": {},
         "type": "object"
       },
+      "SystemListInstalledAppsOutput": {
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "bundle_id": {
+              "type": "string"
+            },
+            "icon": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "name",
+            "path"
+          ],
+          "type": "object"
+        },
+        "type": "array"
+      },
       "SystemListOpenAppsInput": {
         "additionalProperties": false,
         "properties": {
@@ -1602,6 +2667,110 @@
         },
         "type": "object"
       },
+      "SystemListOpenAppsOutput": {
+        "items": {
+          "additionalProperties": false,
+          "properties": {
+            "bundle_id": {
+              "type": "string"
+            },
+            "has_windows": {
+              "type": "boolean"
+            },
+            "is_active": {
+              "type": "boolean"
+            },
+            "is_hidden": {
+              "type": "boolean"
+            },
+            "name": {
+              "type": "string"
+            },
+            "pid": {
+              "type": "integer"
+            },
+            "windows": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "bounds": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "height": {
+                        "type": "number"
+                      },
+                      "width": {
+                        "type": "number"
+                      },
+                      "x": {
+                        "type": "number"
+                      },
+                      "y": {
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "x",
+                      "y",
+                      "width",
+                      "height"
+                    ],
+                    "type": "object"
+                  },
+                  "is_onscreen": {
+                    "type": "boolean"
+                  },
+                  "kind": {
+                    "type": "string"
+                  },
+                  "layer": {
+                    "type": "integer"
+                  },
+                  "minimized": {
+                    "type": "boolean"
+                  },
+                  "owner_name": {
+                    "type": "string"
+                  },
+                  "owner_pid": {
+                    "type": "integer"
+                  },
+                  "state": {
+                    "type": "string"
+                  },
+                  "title": {
+                    "type": "string"
+                  },
+                  "window_id": {
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "window_id",
+                  "bounds",
+                  "layer",
+                  "is_onscreen",
+                  "state",
+                  "kind",
+                  "owner_pid"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "name",
+            "pid",
+            "is_active",
+            "is_hidden",
+            "has_windows",
+            "windows"
+          ],
+          "type": "object"
+        },
+        "type": "array"
+      },
       "SystemListWindowsInput": {
         "additionalProperties": false,
         "properties": {
@@ -1610,6 +2779,88 @@
             "type": "boolean"
           }
         },
+        "type": "object"
+      },
+      "SystemListWindowsOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "snapshotId": {
+            "type": "integer"
+          },
+          "windows": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "bounds": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "height": {
+                      "type": "number"
+                    },
+                    "width": {
+                      "type": "number"
+                    },
+                    "x": {
+                      "type": "number"
+                    },
+                    "y": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "x",
+                    "y",
+                    "width",
+                    "height"
+                  ],
+                  "type": "object"
+                },
+                "is_onscreen": {
+                  "type": "boolean"
+                },
+                "kind": {
+                  "type": "string"
+                },
+                "layer": {
+                  "type": "integer"
+                },
+                "minimized": {
+                  "type": "boolean"
+                },
+                "owner_name": {
+                  "type": "string"
+                },
+                "owner_pid": {
+                  "type": "integer"
+                },
+                "state": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "window_id": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "window_id",
+                "bounds",
+                "layer",
+                "is_onscreen",
+                "state",
+                "kind",
+                "owner_pid"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "snapshotId",
+          "windows"
+        ],
         "type": "object"
       },
       "SystemRunApplescriptInput": {
@@ -2001,9 +3252,54 @@
         "properties": {},
         "type": "object"
       },
+      "WorkspaceGetConfigOutput": {
+        "additionalProperties": true,
+        "description": "Workspace configuration document",
+        "type": "object"
+      },
       "WorkspaceGetPermissionsInput": {
         "additionalProperties": false,
         "properties": {},
+        "type": "object"
+      },
+      "WorkspaceGetPermissionsOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "permissions": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "granted": {
+                  "type": "boolean"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string"
+                },
+                "required": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "id",
+                "label",
+                "granted",
+                "required"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "platform": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "platform",
+          "permissions"
+        ],
         "type": "object"
       },
       "WorkspaceOpenPermissionInput": {
@@ -2038,6 +3334,11 @@
         "required": [
           "config"
         ],
+        "type": "object"
+      },
+      "WorkspaceUpdateConfigOutput": {
+        "additionalProperties": true,
+        "description": "Updated workspace configuration document",
         "type": "object"
       }
     }

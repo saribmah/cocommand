@@ -3,12 +3,13 @@ export interface ExtensionToolInfo {
   name: string;
   description?: string | null;
   input_schema: unknown;
+  output_schema?: unknown | null;
 }
 
 export interface ExtensionViewInfo {
   entry: string;
   label: string;
-  popout?: { width: number; height: number; title: string };
+  popout?: { width: number; height: number; title: string } | null;
 }
 
 export interface ExtensionInfo {
@@ -18,7 +19,7 @@ export interface ExtensionInfo {
   status: string;
   tags: string[];
   tools: ExtensionToolInfo[];
-  view?: ExtensionViewInfo;
+  view?: ExtensionViewInfo | null;
 }
 
 export type ExtensionInvokeFn = <T = unknown>(

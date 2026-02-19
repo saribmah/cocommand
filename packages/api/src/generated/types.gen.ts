@@ -34,6 +34,14 @@ export type BrowserGetActiveTabInput = {
     [key: string]: never;
 };
 
+export type BrowserGetActiveTabOutput = {
+    active?: boolean;
+    id?: number;
+    title?: string;
+    url?: string;
+    [key: string]: unknown | boolean | number | string | undefined;
+} | null;
+
 export type BrowserGetContentInput = {
     /**
      * A CSS selector to narrow the content extraction to a specific element.
@@ -49,9 +57,26 @@ export type BrowserGetContentInput = {
     tabId?: number;
 };
 
+export type BrowserGetContentOutput = {
+    content?: string;
+    format?: 'html' | 'text' | 'markdown';
+    tabId?: number;
+    title?: string;
+    url?: string;
+    [key: string]: unknown | string | ('html' | 'text' | 'markdown') | number | undefined;
+};
+
 export type BrowserGetTabsInput = {
     [key: string]: never;
 };
+
+export type BrowserGetTabsOutput = Array<{
+    active?: boolean;
+    id?: number;
+    title?: string;
+    url?: string;
+    [key: string]: unknown | boolean | number | string | undefined;
+}>;
 
 export type BrowserStatus = {
     connected: boolean;
@@ -69,13 +94,46 @@ export type ClipboardGetClipboardInput = {
     [key: string]: never;
 };
 
+export type ClipboardGetClipboardOutput = {
+    created_at: string;
+    files?: Array<string>;
+    id: string;
+    image_format?: string;
+    image_path?: string;
+    kind: 'text' | 'image' | 'files';
+    source?: string;
+    text?: string;
+} | null;
+
 export type ClipboardListClipboardHistoryInput = {
     limit?: number;
 };
 
+export type ClipboardListClipboardHistoryOutput = Array<{
+    created_at: string;
+    files?: Array<string>;
+    id: string;
+    image_format?: string;
+    image_path?: string;
+    kind: 'text' | 'image' | 'files';
+    source?: string;
+    text?: string;
+}>;
+
 export type ClipboardRecordClipboardInput = {
     [key: string]: never;
 };
+
+export type ClipboardRecordClipboardOutput = {
+    created_at: string;
+    files?: Array<string>;
+    id: string;
+    image_format?: string;
+    image_path?: string;
+    kind: 'text' | 'image' | 'files';
+    source?: string;
+    text?: string;
+} | null;
 
 export type ClipboardSetClipboardInput = {
     files?: Array<string>;
@@ -175,6 +233,13 @@ export type FilesystemGetIconsInput = {
     paths: Array<string>;
 };
 
+export type FilesystemGetIconsOutput = {
+    icons: Array<{
+        icon?: string;
+        path: string;
+    }>;
+};
+
 export type FilesystemIndexStatusInput = {
     /**
      * Optional paths to exclude from index (absolute, ~, or root-relative). Defaults to configured ignore_paths.
@@ -184,6 +249,23 @@ export type FilesystemIndexStatusInput = {
      * Index root path (absolute, ~, or workspace-relative). Defaults to configured watch_root.
      */
     root?: string;
+};
+
+export type FilesystemIndexStatusOutput = {
+    cachePath: string;
+    errors: number;
+    finishedAt?: number;
+    ignoredPaths: Array<string>;
+    indexedEntries: number;
+    lastError?: string;
+    lastUpdateAt?: number;
+    rescanCount: number;
+    root: string;
+    scannedDirs: number;
+    scannedFiles: number;
+    startedAt?: number;
+    state: string;
+    watcherEnabled: boolean;
 };
 
 export type FilesystemListDirectoryInput = {
@@ -204,6 +286,22 @@ export type FilesystemListDirectoryInput = {
     sortOrder?: 'asc' | 'desc';
 };
 
+export type FilesystemListDirectoryOutput = {
+    count: number;
+    errors: number;
+    path: string;
+    recursive: boolean;
+    results: Array<{
+        icon?: string;
+        modifiedAt?: number;
+        name: string;
+        path: string;
+        size?: number;
+        type: 'file' | 'directory' | 'symlink' | 'other';
+    }>;
+    truncated: boolean;
+};
+
 export type FilesystemOpenPathInput = {
     path: string;
 };
@@ -217,10 +315,32 @@ export type FilesystemPathInfoInput = {
     path: string;
 };
 
+export type FilesystemPathInfoOutput = {
+    exists: boolean;
+    extension?: string;
+    hidden?: boolean;
+    modifiedAt?: number;
+    name?: string;
+    parent?: string;
+    path: string;
+    readonly?: boolean;
+    size?: number;
+    type?: 'file' | 'directory' | 'symlink' | 'other';
+};
+
 export type FilesystemReadFileInput = {
     maxBytes?: number;
     offset?: number;
     path: string;
+};
+
+export type FilesystemReadFileOutput = {
+    bytesRead: number;
+    content: string;
+    offset: number;
+    path: string;
+    totalBytes: number;
+    truncated: boolean;
 };
 
 export type FilesystemRescanIndexInput = {
@@ -232,6 +352,26 @@ export type FilesystemRescanIndexInput = {
      * Index root path (absolute, ~, or workspace-relative). Defaults to configured watch_root.
      */
     root?: string;
+};
+
+export type FilesystemRescanIndexOutput = {
+    indexStatus: {
+        cachePath: string;
+        errors: number;
+        finishedAt?: number;
+        ignoredPaths: Array<string>;
+        indexedEntries: number;
+        lastError?: string;
+        lastUpdateAt?: number;
+        rescanCount: number;
+        root: string;
+        scannedDirs: number;
+        scannedFiles: number;
+        startedAt?: number;
+        state: string;
+        watcherEnabled: boolean;
+    };
+    status: string;
 };
 
 export type FilesystemRevealPathInput = {
@@ -266,6 +406,30 @@ export type FilesystemSearchInput = {
     root?: string;
 };
 
+export type FilesystemSearchOutput = {
+    count: number;
+    errors: number;
+    highlightTerms: Array<string>;
+    indexFinishedAt?: number;
+    indexLastUpdateAt?: number;
+    indexScannedDirs: number;
+    indexScannedFiles: number;
+    indexStartedAt?: number;
+    indexState: string;
+    query: string;
+    results: Array<{
+        icon?: string;
+        modifiedAt?: number;
+        name: string;
+        path: string;
+        size?: number;
+        type: 'file' | 'directory' | 'symlink' | 'other';
+    }>;
+    root: string;
+    scanned: number;
+    truncated: boolean;
+};
+
 export type MessagePart = (TextPart & {
     type: 'text';
 }) | (ReasoningPart & {
@@ -287,6 +451,16 @@ export type NotesCreateNoteInput = {
     title?: string;
 };
 
+export type NotesCreateNoteOutput = {
+    content: string;
+    id: string;
+    modifiedAt?: number;
+    path: string;
+    preview: string;
+    size?: number;
+    title: string;
+};
+
 export type NotesDeleteNoteInput = {
     id: string;
 };
@@ -300,16 +474,78 @@ export type NotesIndexStatusInput = {
     [key: string]: never;
 };
 
+export type NotesIndexStatusOutput = {
+    cachePath: string;
+    errors: number;
+    finishedAt?: number;
+    ignoredPaths: Array<string>;
+    indexedEntries: number;
+    lastError?: string;
+    lastUpdateAt?: number;
+    rescanCount: number;
+    root: string;
+    scannedDirs: number;
+    scannedFiles: number;
+    startedAt?: number;
+    state: string;
+    watcherEnabled: boolean;
+};
+
 export type NotesListNotesInput = {
     limit?: number;
+};
+
+export type NotesListNotesOutput = {
+    count: number;
+    errors: number;
+    notes: Array<{
+        id: string;
+        modifiedAt?: number;
+        path: string;
+        preview: string;
+        size?: number;
+        title: string;
+    }>;
+    root: string;
+    truncated: boolean;
 };
 
 export type NotesReadNoteInput = {
     id: string;
 };
 
+export type NotesReadNoteOutput = {
+    content: string;
+    id: string;
+    modifiedAt?: number;
+    path: string;
+    preview: string;
+    size?: number;
+    title: string;
+};
+
 export type NotesRescanIndexInput = {
     [key: string]: never;
+};
+
+export type NotesRescanIndexOutput = {
+    indexStatus: {
+        cachePath: string;
+        errors: number;
+        finishedAt?: number;
+        ignoredPaths: Array<string>;
+        indexedEntries: number;
+        lastError?: string;
+        lastUpdateAt?: number;
+        rescanCount: number;
+        root: string;
+        scannedDirs: number;
+        scannedFiles: number;
+        startedAt?: number;
+        state: string;
+        watcherEnabled: boolean;
+    };
+    status: string;
 };
 
 export type NotesSearchNotesInput = {
@@ -320,9 +556,43 @@ export type NotesSearchNotesInput = {
     query: string;
 };
 
+export type NotesSearchNotesOutput = {
+    count: number;
+    errors: number;
+    highlightTerms: Array<string>;
+    indexFinishedAt?: number;
+    indexLastUpdateAt?: number;
+    indexScannedDirs: number;
+    indexScannedFiles: number;
+    indexStartedAt?: number;
+    indexState: string;
+    notes: Array<{
+        id: string;
+        modifiedAt?: number;
+        path: string;
+        preview: string;
+        size?: number;
+        title: string;
+    }>;
+    query: string;
+    root: string;
+    scanned: number;
+    truncated: boolean;
+};
+
 export type NotesUpdateNoteInput = {
     content: string;
     id: string;
+};
+
+export type NotesUpdateNoteOutput = {
+    content: string;
+    id: string;
+    modifiedAt?: number;
+    path: string;
+    preview: string;
+    size?: number;
+    title: string;
 };
 
 export type OpenApplicationRequest = {
@@ -417,6 +687,14 @@ export type ScreenshotListScreenshotsInput = {
     limit?: number;
 };
 
+export type ScreenshotListScreenshotsOutput = Array<{
+    created_at: number;
+    filename: string;
+    format: string;
+    path: string;
+    size: number;
+}>;
+
 export type SessionCommandExtensionPartInput = {
     extensionId: string;
     kind?: string | null;
@@ -485,12 +763,66 @@ export type SystemListInstalledAppsInput = {
     [key: string]: never;
 };
 
+export type SystemListInstalledAppsOutput = Array<{
+    bundle_id?: string;
+    icon?: string;
+    name: string;
+    path: string;
+}>;
+
 export type SystemListOpenAppsInput = {
     visibleOnly?: boolean;
 };
 
+export type SystemListOpenAppsOutput = Array<{
+    bundle_id?: string;
+    has_windows: boolean;
+    is_active: boolean;
+    is_hidden: boolean;
+    name: string;
+    pid: number;
+    windows: Array<{
+        bounds: {
+            height: number;
+            width: number;
+            x: number;
+            y: number;
+        };
+        is_onscreen: boolean;
+        kind: string;
+        layer: number;
+        minimized?: boolean;
+        owner_name?: string;
+        owner_pid: number;
+        state: string;
+        title?: string;
+        window_id: number;
+    }>;
+}>;
+
 export type SystemListWindowsInput = {
     visibleOnly?: boolean;
+};
+
+export type SystemListWindowsOutput = {
+    snapshotId: number;
+    windows: Array<{
+        bounds: {
+            height: number;
+            width: number;
+            x: number;
+            y: number;
+        };
+        is_onscreen: boolean;
+        kind: string;
+        layer: number;
+        minimized?: boolean;
+        owner_name?: string;
+        owner_pid: number;
+        state: string;
+        title?: string;
+        window_id: number;
+    }>;
 };
 
 export type SystemRunApplescriptInput = {
@@ -595,8 +927,25 @@ export type WorkspaceGetConfigInput = {
     [key: string]: never;
 };
 
+/**
+ * Workspace configuration document
+ */
+export type WorkspaceGetConfigOutput = {
+    [key: string]: unknown;
+};
+
 export type WorkspaceGetPermissionsInput = {
     [key: string]: never;
+};
+
+export type WorkspaceGetPermissionsOutput = {
+    permissions: Array<{
+        granted: boolean;
+        id: string;
+        label: string;
+        required: boolean;
+    }>;
+    platform: string;
 };
 
 export type WorkspaceOpenPermissionInput = {
@@ -617,6 +966,13 @@ export type WorkspaceUpdateConfigInput = {
     config: {
         [key: string]: unknown;
     };
+};
+
+/**
+ * Updated workspace configuration document
+ */
+export type WorkspaceUpdateConfigOutput = {
+    [key: string]: unknown;
 };
 
 export type StatusData = {

@@ -2,7 +2,7 @@ import { getExtensionView } from "../../extension/extension-views";
 import { useExtensionContext } from "../../extension/extension.context";
 import { useServerContext } from "../../server/server.context";
 import { openExtensionWindow } from "../../../lib/ipc";
-import { ApiProvider } from "@cocommand/sdk";
+import { ExtensionSdkProvider } from "@cocommand/sdk/react";
 import { Text } from "@cocommand/ui";
 import type { ComposerActions } from "../composer-actions";
 import styles from "../command.module.css";
@@ -66,9 +66,9 @@ export function ExtensionViewContainer({ extensionId, actions }: ExtensionViewCo
         </button>
       </div>
       <div className={styles.extensionViewContent}>
-        <ApiProvider baseUrl={baseUrl} extensionId={extensionId} composer={actions}>
+        <ExtensionSdkProvider baseUrl={baseUrl} extensionId={extensionId} composer={actions}>
           <Component mode="inline" />
-        </ApiProvider>
+        </ExtensionSdkProvider>
       </div>
     </div>
   );

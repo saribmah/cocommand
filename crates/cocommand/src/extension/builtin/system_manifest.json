@@ -17,6 +17,60 @@
           "visibleOnly": { "type": "boolean", "default": false }
         },
         "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "name": { "type": "string" },
+            "bundle_id": { "type": "string" },
+            "pid": { "type": "integer" },
+            "is_active": { "type": "boolean" },
+            "is_hidden": { "type": "boolean" },
+            "has_windows": { "type": "boolean" },
+            "windows": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "window_id": { "type": "integer" },
+                  "title": { "type": "string" },
+                  "bounds": {
+                    "type": "object",
+                    "properties": {
+                      "x": { "type": "number" },
+                      "y": { "type": "number" },
+                      "width": { "type": "number" },
+                      "height": { "type": "number" }
+                    },
+                    "required": ["x", "y", "width", "height"],
+                    "additionalProperties": false
+                  },
+                  "layer": { "type": "integer" },
+                  "is_onscreen": { "type": "boolean" },
+                  "minimized": { "type": "boolean" },
+                  "state": { "type": "string" },
+                  "kind": { "type": "string" },
+                  "owner_pid": { "type": "integer" },
+                  "owner_name": { "type": "string" }
+                },
+                "required": [
+                  "window_id",
+                  "bounds",
+                  "layer",
+                  "is_onscreen",
+                  "state",
+                  "kind",
+                  "owner_pid"
+                ],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": ["name", "pid", "is_active", "is_hidden", "has_windows", "windows"],
+          "additionalProperties": false
+        }
       }
     },
     {
@@ -29,6 +83,52 @@
         "properties": {
           "visibleOnly": { "type": "boolean", "default": false }
         },
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "snapshotId": { "type": "integer" },
+          "windows": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "window_id": { "type": "integer" },
+                "title": { "type": "string" },
+                "bounds": {
+                  "type": "object",
+                  "properties": {
+                    "x": { "type": "number" },
+                    "y": { "type": "number" },
+                    "width": { "type": "number" },
+                    "height": { "type": "number" }
+                  },
+                  "required": ["x", "y", "width", "height"],
+                  "additionalProperties": false
+                },
+                "layer": { "type": "integer" },
+                "is_onscreen": { "type": "boolean" },
+                "minimized": { "type": "boolean" },
+                "state": { "type": "string" },
+                "kind": { "type": "string" },
+                "owner_pid": { "type": "integer" },
+                "owner_name": { "type": "string" }
+              },
+              "required": [
+                "window_id",
+                "bounds",
+                "layer",
+                "is_onscreen",
+                "state",
+                "kind",
+                "owner_pid"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["snapshotId", "windows"],
         "additionalProperties": false
       }
     },
@@ -61,6 +161,20 @@
         "type": "object",
         "properties": {},
         "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "name": { "type": "string" },
+            "bundle_id": { "type": "string" },
+            "path": { "type": "string" },
+            "icon": { "type": "string" }
+          },
+          "required": ["name", "path"],
+          "additionalProperties": false
+        }
       }
     },
     {
