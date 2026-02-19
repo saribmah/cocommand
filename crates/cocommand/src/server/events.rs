@@ -1,6 +1,5 @@
 use axum::extract::State;
 use axum::response::sse::{Event, KeepAlive, Sse};
-use serde_json::json;
 use std::convert::Infallible;
 use std::sync::Arc;
 use std::time::Duration;
@@ -15,9 +14,8 @@ pub(crate) async fn stream_events(
     let rx = state.bus.subscribe();
     let stream = BroadcastStream::new(rx).filter_map(|message| match message {
         Ok(event) => {
-            let event_type = std::any::type_name_of_val(event.as_ref());
-            let payload = json!({ "type": event_type });
-            Some(Ok(Event::default().data(payload.to_string())))
+            let payload = serde_json::to_string(&event).ok()?;
+            Some(Ok(Event::default().data(payload)))
         }
         Err(_) => None,
     });

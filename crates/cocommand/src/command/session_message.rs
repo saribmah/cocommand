@@ -59,23 +59,6 @@ pub struct SessionCommandOutput {
     pub reply_parts: Vec<MessagePart>,
 }
 
-#[derive(Debug, Clone, Serialize)]
-pub struct SessionCommandPartUpdatedEvent {
-    pub event: String,
-    pub request_id: String,
-    pub session_id: String,
-    pub message_id: String,
-    pub part_id: String,
-    pub part: MessagePart,
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct SessionCommandContextEvent {
-    pub event: String,
-    pub request_id: String,
-    pub context: SessionContext,
-}
-
 struct PreparedSessionCommand {
     context: SessionContext,
     active_extension_ids: Vec<String>,

@@ -1,17 +1,10 @@
-use std::any::Any;
-use std::sync::Arc;
-
 use tokio::sync::broadcast;
 
-pub trait Event: Send + Sync + Any + 'static {}
-
-impl<T> Event for T where T: Send + Sync + Any + 'static {}
-
-pub type BusEvent = Arc<dyn Any + Send + Sync>;
+use crate::event::CoreEvent;
 
 #[derive(Clone)]
 pub struct Bus {
-    sender: broadcast::Sender<BusEvent>,
+    sender: broadcast::Sender<CoreEvent>,
 }
 
 impl Bus {
@@ -20,26 +13,33 @@ impl Bus {
         Self { sender }
     }
 
-    pub fn subscribe(&self) -> broadcast::Receiver<BusEvent> {
+    pub fn subscribe(&self) -> broadcast::Receiver<CoreEvent> {
         self.sender.subscribe()
     }
 
-    pub fn publish<E>(&self, event: E) -> Result<usize, broadcast::error::SendError<BusEvent>>
-    where
-        E: Event + 'static,
-    {
-        self.sender.send(Arc::new(event))
+    pub fn publish(&self, event: CoreEvent) -> Result<usize, broadcast::error::SendError<CoreEvent>> {
+        self.sender.send(event)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::event::SessionPartUpdatedPayload;
+    use crate::message::{MessagePart, PartBase, TextPart};
     use tokio::time::{timeout, Duration};
 
-    #[derive(Debug)]
-    struct TestEvent {
-        value: i32,
+    fn test_event() -> CoreEvent {
+        CoreEvent::SessionPartUpdated(SessionPartUpdatedPayload {
+            request_id: "req-1".to_string(),
+            session_id: "sess-1".to_string(),
+            message_id: "msg-1".to_string(),
+            part_id: "part-1".to_string(),
+            part: MessagePart::Text(TextPart {
+                base: PartBase::new("sess-1", "msg-1"),
+                text: "hello".to_string(),
+            }),
+        })
     }
 
     #[tokio::test]
@@ -47,14 +47,13 @@ mod tests {
         let bus = Bus::new(8);
         let mut rx = bus.subscribe();
 
-        let _ = bus.publish(TestEvent { value: 42 });
+        let _ = bus.publish(test_event());
 
         let received = timeout(Duration::from_millis(100), rx.recv())
             .await
             .expect("timeout")
             .expect("recv");
-        let event = received.as_ref().downcast_ref::<TestEvent>().expect("type");
-        assert_eq!(event.value, 42);
+        assert!(matches!(received, CoreEvent::SessionPartUpdated(ref e) if e.request_id == "req-1"));
     }
 
     #[tokio::test]
@@ -63,14 +62,12 @@ mod tests {
         let mut rx1 = bus.subscribe();
         let mut rx2 = bus.subscribe();
 
-        let _ = bus.publish(TestEvent { value: 7 });
+        let _ = bus.publish(test_event());
 
         let event1 = rx1.recv().await.expect("recv1");
         let event2 = rx2.recv().await.expect("recv2");
 
-        let event1 = event1.as_ref().downcast_ref::<TestEvent>().expect("type1");
-        let event2 = event2.as_ref().downcast_ref::<TestEvent>().expect("type2");
-        assert_eq!(event1.value, 7);
-        assert_eq!(event2.value, 7);
+        assert!(matches!(event1, CoreEvent::SessionPartUpdated(ref e) if e.request_id == "req-1"));
+        assert!(matches!(event2, CoreEvent::SessionPartUpdated(ref e) if e.request_id == "req-1"));
     }
 }

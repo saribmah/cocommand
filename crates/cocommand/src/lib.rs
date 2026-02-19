@@ -3,6 +3,7 @@ pub mod bus;
 pub mod clipboard;
 pub mod command;
 pub mod error;
+pub mod event;
 pub mod extension;
 pub mod llm;
 pub mod message;
@@ -14,7 +15,8 @@ pub mod tool;
 pub mod utils;
 pub mod workspace;
 
-pub use crate::bus::{Bus, BusEvent, Event};
+pub use crate::bus::Bus;
+pub use crate::event::CoreEvent;
 pub use crate::error::{CoreError, CoreResult};
 pub use crate::extension::{Extension, ExtensionContext, ExtensionKind, ExtensionTool};
 pub use crate::llm::LlmService;

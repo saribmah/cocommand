@@ -6,7 +6,6 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use std::any::Any;
 use std::convert::Infallible;
 use std::sync::Arc;
 use std::time::Duration;
@@ -14,9 +13,9 @@ use tokio_stream::wrappers::UnboundedReceiverStream;
 use uuid::Uuid;
 
 use crate::command::session_message::{
-    run_session_command, SessionCommandContextEvent, SessionCommandInput, SessionCommandInputPart,
-    SessionCommandPartUpdatedEvent,
+    run_session_command, SessionCommandInput, SessionCommandInputPart,
 };
+use crate::event::CoreEvent;
 use crate::message::parts::MessagePart;
 use crate::server::ServerState;
 use crate::session::SessionContext;
@@ -102,7 +101,7 @@ pub(crate) async fn session_command(
                             Ok(event) => event,
                             Err(_) => break,
                         };
-                        let mapped = match map_bus_event_to_sse_payload(bus_event.as_ref(), &request_id) {
+                        let mapped = match map_bus_event_to_sse_payload(&bus_event, &request_id) {
                             Some(mapped) => mapped,
                             None => continue,
                         };
@@ -150,35 +149,34 @@ struct BusSseEvent {
 }
 
 fn map_bus_event_to_sse_payload(
-    event: &(dyn Any + Send + Sync),
+    event: &CoreEvent,
     request_id: &str,
 ) -> Option<BusSseEvent> {
-    if let Some(event) = event.downcast_ref::<SessionCommandPartUpdatedEvent>() {
-        if event.request_id != request_id {
-            return None;
+    match event {
+        CoreEvent::SessionPartUpdated(e) => {
+            if e.request_id != request_id {
+                return None;
+            }
+            Some(BusSseEvent {
+                event: "part.updated",
+                payload: json!({
+                    "part_id": &e.part_id,
+                    "part": &e.part,
+                }),
+            })
         }
-        return Some(BusSseEvent {
-            event: "part.updated",
-            payload: json!({
-                "part_id": &event.part_id,
-                "part": &event.part,
-            }),
-        });
-    }
-
-    if let Some(event) = event.downcast_ref::<SessionCommandContextEvent>() {
-        if event.request_id != request_id {
-            return None;
+        CoreEvent::SessionContextUpdated(e) => {
+            if e.request_id != request_id {
+                return None;
+            }
+            Some(BusSseEvent {
+                event: "context",
+                payload: json!({
+                    "context": to_api_context(e.context.clone()),
+                }),
+            })
         }
-        return Some(BusSseEvent {
-            event: "context",
-            payload: json!({
-                "context": to_api_context(event.context.clone()),
-            }),
-        });
     }
-
-    None
 }
 
 fn to_api_context(ctx: SessionContext) -> ApiSessionContext {
