@@ -3,7 +3,7 @@ import * as ReactJsxRuntime from "react/jsx-runtime";
 import ReactDOM from "react-dom/client";
 import { create, useStore } from "zustand";
 import * as CocommandUI from "@cocommand/ui";
-import * as CocommandApi from "@cocommand/api";
+import * as CocommandSdk from "@cocommand/sdk";
 import { BrowserRouter } from "react-router-dom";
 import App from "./App";
 
@@ -12,7 +12,7 @@ import App from "./App";
 (window as any).__ext_react_jsx = ReactJsxRuntime;
 (window as any).__ext_zustand = { create, useStore };
 (window as any).__ext_cocommand_ui = CocommandUI;
-(window as any).__ext_cocommand_api = CocommandApi;
+(window as any).__ext_cocommand_sdk = CocommandSdk;
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>

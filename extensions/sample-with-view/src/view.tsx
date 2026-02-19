@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { ListSection, ListItem, Text, IconContainer, Icon } from "@cocommand/ui";
-import { useApi } from "@cocommand/api";
+import { useApi } from "@cocommand/sdk";
 
 interface Item {
   id: string;

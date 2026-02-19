@@ -17,14 +17,14 @@ export function createWindowManagement(_t: Transport): {
   return {
     async showToast(_options) {
       throw new Error(
-        "@cocommand/api: showToast() is not yet implemented. " +
+        "@cocommand/sdk: showToast() is not yet implemented. " +
         "Requires POST /ui/toast Rust endpoint and frontend toast component.",
       );
     },
     windowManagement: {
       async resize(_width, _height) {
         throw new Error(
-          "@cocommand/api: WindowManagement.resize() is not yet implemented. " +
+          "@cocommand/sdk: WindowManagement.resize() is not yet implemented. " +
           "Requires Tauri window management endpoint.",
         );
       },

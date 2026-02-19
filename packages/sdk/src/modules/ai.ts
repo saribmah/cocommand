@@ -19,7 +19,7 @@ export function createAI(_t: Transport): AIApi {
   return {
     async generate(_options) {
       throw new Error(
-        "@cocommand/api: AI.generate() is not yet implemented. " +
+        "@cocommand/sdk: AI.generate() is not yet implemented. " +
         "Requires POST /ai/generate Rust endpoint.",
       );
     },

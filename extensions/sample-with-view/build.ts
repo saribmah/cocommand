@@ -5,7 +5,7 @@ await esbuild.build({
   bundle: true,
   format: "esm",
   outfile: "dist/view.js",
-  external: ["react", "react/jsx-runtime", "zustand", "@cocommand/ui", "@cocommand/api"],
+  external: ["react", "react/jsx-runtime", "zustand", "@cocommand/ui", "@cocommand/sdk"],
   jsx: "automatic",
 });
 

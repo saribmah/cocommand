@@ -2,7 +2,7 @@ import { getExtensionView } from "../../extension/extension-views";
 import { useExtensionContext } from "../../extension/extension.context";
 import { useServerContext } from "../../server/server.context";
 import { openExtensionWindow } from "../../../lib/ipc";
-import { ApiProvider } from "@cocommand/api";
+import { ApiProvider } from "@cocommand/sdk";
 import { Text } from "@cocommand/ui";
 import type { ComposerActions } from "../composer-actions";
 import styles from "../command.module.css";

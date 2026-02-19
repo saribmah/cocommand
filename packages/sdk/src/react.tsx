@@ -30,7 +30,7 @@ export function useApi(): CocommandApi {
   const api = useContext(ApiContext);
   if (!api) {
     throw new Error(
-      "@cocommand/api: useApi() must be used within an <ApiProvider>. " +
+      "@cocommand/sdk: useApi() must be used within an <ApiProvider>. " +
       "Wrap your extension view in <ApiProvider baseUrl={...} extensionId={...}>.",
     );
   }

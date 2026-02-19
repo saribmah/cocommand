@@ -13,7 +13,7 @@ export function createComposer(bridge?: ComposerActionsBridge): ComposerApi {
   function getBridge(): ComposerActionsBridge {
     if (!bridge) {
       throw new Error(
-        "@cocommand/api: Composer is only available in view context with a composer bridge.",
+        "@cocommand/sdk: Composer is only available in view context with a composer bridge.",
       );
     }
     return bridge;
