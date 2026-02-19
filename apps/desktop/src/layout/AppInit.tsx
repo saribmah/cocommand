@@ -5,6 +5,7 @@ import { CommandProvider } from "../features/command/command.provider";
 import { ExtensionProvider } from "../features/extension/extension.provider";
 import { WorkspaceProvider } from "../features/workspace/workspace.provider.tsx";
 import { ServerProvider } from "../features/server/server.provider.tsx";
+import { RuntimeSdkProvider } from "../features/server/runtime-sdk.context.tsx";
 import { SessionProvider } from "../features/session/session.provider";
 import { getServerInfo, ServerInfo } from "../lib/ipc.ts";
 
@@ -60,19 +61,23 @@ export function AppInit({ children }: AppInitProps) {
     );
   }
 
+  const runtimeKey = `${serverInfo.workspace_dir}::${serverInfo.addr ?? "unknown"}`;
+
   return (
-    <ServerProvider serverInfo={serverInfo}>
-      <ExtensionProvider>
-        <WorkspaceProvider>
-          <ApplicationProvider>
-            <SessionProvider>
-              <CommandProvider>
-                {children}
-              </CommandProvider>
-            </SessionProvider>
-          </ApplicationProvider>
-        </WorkspaceProvider>
-      </ExtensionProvider>
-    </ServerProvider>
+    <RuntimeSdkProvider key={runtimeKey} serverInfo={serverInfo}>
+      <ServerProvider serverInfo={serverInfo}>
+        <ExtensionProvider>
+          <WorkspaceProvider>
+            <ApplicationProvider>
+              <SessionProvider>
+                <CommandProvider>
+                  {children}
+                </CommandProvider>
+              </SessionProvider>
+            </ApplicationProvider>
+          </WorkspaceProvider>
+        </ExtensionProvider>
+      </ServerProvider>
+    </RuntimeSdkProvider>
   );
 }

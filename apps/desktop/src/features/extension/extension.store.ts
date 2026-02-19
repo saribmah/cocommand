@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import type { StoreApi } from "zustand";
-import { createSdk, createSdkClient } from "@cocommand/sdk";
+import type { Sdk } from "@cocommand/sdk";
 import { getRegisteredStoreFactories } from "./extension-stores";
 import { loadDynamicExtensionViews } from "./extension-loader";
 import type { ExtensionInfo, ExtensionInvokeFn } from "./extension.types";
@@ -21,16 +21,23 @@ export interface ExtensionState {
 
 export type ExtensionStore = ReturnType<typeof createExtensionStore>;
 
-export const createExtensionStore = (getAddr: () => string | null) => {
+function getServerBaseUrl(sdk: Sdk): string {
+  const baseUrl = sdk.client.getConfig().baseUrl;
+  if (!baseUrl) {
+    throw new Error("SDK client baseUrl is not configured");
+  }
+  return String(baseUrl).replace(/\/$/, "");
+}
+
+export const createExtensionStore = (sdk: Sdk) => {
+  const serverBaseUrl = getServerBaseUrl(sdk);
+
   const invoke: ExtensionInvokeFn = <T = unknown>(
     extensionId: string,
     toolId: string,
     input?: Record<string, unknown>,
     options?: { signal?: AbortSignal },
   ): Promise<T> => {
-    const addr = getAddr();
-    if (!addr) throw new Error("Server unavailable");
-    const sdk = createSdk({ client: createSdkClient(addr) });
     return sdk.tools.invoke<T>(extensionId, toolId, input ?? {}, { signal: options?.signal });
   };
 
@@ -67,14 +74,7 @@ export const createExtensionStore = (getAddr: () => string | null) => {
       });
     },
     fetchExtensions: async () => {
-      const addr = getAddr();
-      if (!addr) {
-        set({ extensions: [], isLoaded: false, error: null });
-        return;
-      }
-
       try {
-        const sdk = createSdk({ client: createSdkClient(addr) });
         const extensions = await sdk.extensions.list();
         set({ extensions, isLoaded: true, error: null });
 
@@ -82,18 +82,13 @@ export const createExtensionStore = (getAddr: () => string | null) => {
           (ext) => ext.view && ext.kind === "custom",
         );
         if (hasDynamicViews) {
-          get().loadDynamicViews(addr);
+          get().loadDynamicViews(serverBaseUrl);
         }
       } catch (error) {
         set({ extensions: [], isLoaded: false, error: String(error) });
       }
     },
     openExtension: async (id) => {
-      const addr = getAddr();
-      if (!addr) {
-        throw new Error("Server unavailable");
-      }
-
       const ext = get().extensions.find((e) => e.id === id);
       if (ext && ext.status !== "ready") {
         throw new Error(
@@ -105,7 +100,6 @@ export const createExtensionStore = (getAddr: () => string | null) => {
         );
       }
 
-      const sdk = createSdk({ client: createSdkClient(addr) });
       await sdk.extensions.open(id);
     },
     getExtensions: () => get().extensions,

@@ -1,6 +1,5 @@
 import { create } from "zustand";
-import type { ServerInfo } from "../../lib/ipc";
-import { createSdk, createSdkClient } from "@cocommand/sdk";
+import type { Sdk } from "@cocommand/sdk";
 import type {
   ApplicationInfo,
   OpenApplicationRequest,
@@ -19,15 +18,9 @@ export interface ApplicationState {
   clear: () => void;
 }
 
-function getSdk(getServer: () => ServerInfo | null) {
-  const server = getServer();
-  if (!server?.addr) return null;
-  return createSdk({ client: createSdkClient(server.addr) });
-}
-
 export type ApplicationStore = ReturnType<typeof createApplicationStore>;
 
-export const createApplicationStore = (getServer: () => ServerInfo | null) => {
+export const createApplicationStore = (sdk: Sdk) => {
   return create<ApplicationState>()((set) => ({
     applications: [],
     count: 0,
@@ -37,18 +30,6 @@ export const createApplicationStore = (getServer: () => ServerInfo | null) => {
     error: null,
 
     fetchApplications: async () => {
-      const sdk = getSdk(getServer);
-      if (!sdk) {
-        set({
-          applications: [],
-          count: 0,
-          isLoaded: false,
-          isLoading: false,
-          error: "Server unavailable",
-        });
-        return;
-      }
-
       set({ isLoading: true, error: null });
       try {
         const applications = await sdk.applications.list();
@@ -71,11 +52,6 @@ export const createApplicationStore = (getServer: () => ServerInfo | null) => {
     },
 
     openApplication: async (request) => {
-      const sdk = getSdk(getServer);
-      if (!sdk) {
-        throw new Error("Server unavailable");
-      }
-
       set({ isOpening: true, error: null });
       try {
         const response = await sdk.applications.open(request.id);

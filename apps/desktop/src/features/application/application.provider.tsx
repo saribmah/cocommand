@@ -1,5 +1,5 @@
-import { type PropsWithChildren, useContext, useRef } from "react";
-import { ServerContext } from "../server/server.context";
+import { type PropsWithChildren, useRef } from "react";
+import { useRuntimeSdk } from "../server/runtime-sdk.context";
 import { ApplicationContext } from "./application.context";
 import {
   createApplicationStore,
@@ -9,14 +9,11 @@ import {
 type ApplicationProviderProps = PropsWithChildren;
 
 export function ApplicationProvider({ children }: ApplicationProviderProps) {
-  const serverStore = useContext(ServerContext);
-  if (!serverStore) {
-    throw new Error("Missing ServerContext.Provider in the tree");
-  }
+  const sdk = useRuntimeSdk();
 
   const storeRef = useRef<ApplicationStore | null>(null);
   if (storeRef.current === null) {
-    storeRef.current = createApplicationStore(() => serverStore.getState().info);
+    storeRef.current = createApplicationStore(sdk);
   }
 
   return (

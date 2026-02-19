@@ -1,10 +1,8 @@
 import { create } from "zustand";
-import type { ServerInfo } from "../../lib/ipc";
 import {
-  createSdk,
-  createSdkClient,
   type ApiSessionContext,
   type RecordMessageResponse,
+  type Sdk,
   type SessionCommandInputPart,
 } from "@cocommand/sdk";
 
@@ -26,18 +24,12 @@ export interface SessionState {
 
 export type SessionStore = ReturnType<typeof createSessionStore>;
 
-export const createSessionStore = (getServer: () => ServerInfo | null) => {
+export const createSessionStore = (sdk: Sdk) => {
   return create<SessionState>()((set, get) => ({
     context: null,
     setContext: (context) => set({ context }),
     clear: () => set({ context: null }),
     sendMessage: async (parts, onEvent) => {
-      const server = getServer();
-      if (!server || !server.addr) {
-        throw new Error("Server unavailable");
-      }
-
-      const sdk = createSdk({ client: createSdkClient(server.addr) });
       let finalResponse: RecordMessageResponse | null = null;
 
       for await (const event of sdk.sessions.commandStream(parts)) {
