@@ -147,6 +147,9 @@ export type ClipboardSetClipboardOutput = {
 };
 
 export type CoreEvent = {
+    payload: SessionMessageStartedPayload;
+    type: 'SessionMessageStarted';
+} | {
     payload: SessionPartUpdatedPayload;
     type: 'SessionPartUpdated';
 } | {
@@ -430,6 +433,19 @@ export type FilesystemSearchOutput = {
     truncated: boolean;
 };
 
+export type Message = {
+    info: MessageInfo;
+    parts: Array<MessagePart>;
+};
+
+export type MessageInfo = {
+    completedAt?: string | null;
+    createdAt: string;
+    id: string;
+    role: string;
+    sessionId: string;
+};
+
 export type MessagePart = (TextPart & {
     type: 'text';
 }) | (ReasoningPart & {
@@ -630,7 +646,7 @@ export type RecordMessageRequest = {
 
 export type RecordMessageResponse = {
     context: ApiSessionContext;
-    reply_parts: Array<MessagePart>;
+    messages: Array<Message>;
 };
 
 export type ScreenshotCaptureScreenshotInput = {
@@ -731,6 +747,12 @@ export type SessionContext = {
 export type SessionContextPayload = {
     context: SessionContext;
     request_id: string;
+};
+
+export type SessionMessageStartedPayload = {
+    assistant_message: Message;
+    request_id: string;
+    user_message: Message;
 };
 
 export type SessionPartUpdatedPayload = {

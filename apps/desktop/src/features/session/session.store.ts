@@ -3,13 +3,11 @@ import {
   type ApiSessionContext,
   type RecordMessageResponse,
   type Sdk,
+  type SessionCommandEvent,
   type SessionCommandInputPart,
 } from "@cocommand/sdk";
 
-export interface StreamEvent<T = unknown> {
-  event: string;
-  data: T;
-}
+export type StreamEvent = SessionCommandEvent;
 
 export interface SessionState {
   context: ApiSessionContext | null;
@@ -33,42 +31,19 @@ export const createSessionStore = (sdk: Sdk) => {
       let finalResponse: RecordMessageResponse | null = null;
 
       for await (const event of sdk.sessions.commandStream(parts)) {
-        if (event.type === "part.updated") {
-          onEvent?.({
-            event: "part.updated",
-            data: {
-              part_id: event.partId,
-              part: event.part,
-            },
-          });
-          continue;
-        }
-
         if (event.type === "context") {
           set({ context: event.context });
-          onEvent?.({
-            event: "context",
-            data: {
-              context: event.context,
-            },
-          });
-          continue;
         }
 
         if (event.type === "done") {
           finalResponse = {
             context: event.context,
-            reply_parts: event.replyParts,
+            messages: event.messages,
           };
           set({ context: event.context });
-          onEvent?.({
-            event: "done",
-            data: {
-              context: event.context,
-              reply_parts: event.replyParts,
-            },
-          });
         }
+
+        onEvent?.(event);
       }
 
       if (!finalResponse) {

@@ -435,6 +435,24 @@
           {
             "properties": {
               "payload": {
+                "$ref": "#/components/schemas/SessionMessageStartedPayload"
+              },
+              "type": {
+                "enum": [
+                  "SessionMessageStarted"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "payload",
+              "type"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "payload": {
                 "$ref": "#/components/schemas/SessionPartUpdatedPayload"
               },
               "type": {
@@ -1436,6 +1454,53 @@
         ],
         "type": "object"
       },
+      "Message": {
+        "properties": {
+          "info": {
+            "$ref": "#/components/schemas/MessageInfo"
+          },
+          "parts": {
+            "items": {
+              "$ref": "#/components/schemas/MessagePart"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "info",
+          "parts"
+        ],
+        "type": "object"
+      },
+      "MessageInfo": {
+        "properties": {
+          "completedAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          },
+          "sessionId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "sessionId",
+          "role",
+          "createdAt"
+        ],
+        "type": "object"
+      },
       "MessagePart": {
         "oneOf": [
           {
@@ -2171,16 +2236,16 @@
           "context": {
             "$ref": "#/components/schemas/ApiSessionContext"
           },
-          "reply_parts": {
+          "messages": {
             "items": {
-              "$ref": "#/components/schemas/MessagePart"
+              "$ref": "#/components/schemas/Message"
             },
             "type": "array"
           }
         },
         "required": [
           "context",
-          "reply_parts"
+          "messages"
         ],
         "type": "object"
       },
@@ -2544,6 +2609,25 @@
         "required": [
           "request_id",
           "context"
+        ],
+        "type": "object"
+      },
+      "SessionMessageStartedPayload": {
+        "properties": {
+          "assistant_message": {
+            "$ref": "#/components/schemas/Message"
+          },
+          "request_id": {
+            "type": "string"
+          },
+          "user_message": {
+            "$ref": "#/components/schemas/Message"
+          }
+        },
+        "required": [
+          "request_id",
+          "user_message",
+          "assistant_message"
         ],
         "type": "object"
       },

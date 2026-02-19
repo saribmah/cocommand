@@ -3,10 +3,9 @@ use std::sync::Arc;
 use crate::bus::Bus;
 use crate::command::processor::{StorePartContext, StreamProcessor};
 use crate::error::CoreResult;
+use crate::event::{CoreEvent, SessionMessageStartedPayload};
 use crate::llm::LlmService;
-use crate::message::{
-    ExtensionPart, FilePartSourceText, Message, MessageInfo, MessagePart, PartBase, TextPart,
-};
+use crate::message::{ExtensionPart, FilePartSourceText, Message, MessagePart, PartBase, TextPart};
 use crate::session::{SessionContext, SessionManager};
 use crate::tool::ToolRegistry;
 use crate::workspace::WorkspaceInstance;
@@ -55,15 +54,13 @@ pub struct SessionCommandFilePartInput {
 
 pub struct SessionCommandOutput {
     pub context: SessionContext,
-    pub user_message: MessageInfo,
-    pub assistant_message: MessageInfo,
-    pub reply_parts: Vec<MessagePart>,
+    pub messages: Vec<Message>,
 }
 
 struct PreparedSessionCommand {
     context: SessionContext,
     active_extension_ids: Vec<String>,
-    user_message: MessageInfo,
+    user_message: Message,
     prompt_messages: Vec<llm_kit_provider_utils::message::Message>,
 }
 
@@ -87,6 +84,13 @@ pub async fn run_session_command(
     if let Err(error) = Message::store_info(&storage, &assistant_message.info).await {
         return Err(error);
     }
+    let _ = bus.publish(CoreEvent::SessionMessageStarted(
+        SessionMessageStartedPayload {
+            request_id: request_id.clone(),
+            user_message: prepared.user_message.clone(),
+            assistant_message: assistant_message.clone(),
+        },
+    ));
 
     let tools = ToolRegistry::tools(
         Arc::new(workspace),
@@ -118,13 +122,11 @@ pub async fn run_session_command(
     if let Err(error) = Message::touch_info(&storage, &mut assistant_message.info).await {
         return Err(error);
     }
+    assistant_message.parts = stream_state.mapped_parts().to_vec();
 
-    let reply_parts = stream_state.mapped_parts().to_vec();
     Ok(SessionCommandOutput {
         context: prepared.context,
-        user_message: prepared.user_message,
-        assistant_message: assistant_message.info,
-        reply_parts,
+        messages: vec![prepared.user_message, assistant_message],
     })
 }
 
@@ -157,7 +159,7 @@ async fn prepare_session_message(
     Ok(PreparedSessionCommand {
         context,
         active_extension_ids,
-        user_message: user_message.info,
+        user_message,
         prompt_messages,
     })
 }
@@ -213,12 +215,14 @@ mod tests {
     use tempfile::tempdir;
 
     use crate::bus::Bus;
+    use crate::event::CoreEvent;
     use crate::message::{MessagePart, ReasoningPart, TextPart, ToolState};
     use crate::session::SessionContext;
     use crate::session::SessionManager;
     use crate::workspace::WorkspaceInstance;
     use llm_kit_core::stream_text::TextStreamPart;
     use llm_kit_provider_utils::tool::{ToolCall, ToolError, ToolResult};
+    use tokio::time::{timeout, Duration};
 
     fn text_input_part(text: &str) -> SessionCommandInputPart {
         SessionCommandInputPart::Text(SessionCommandTextPartInput {
@@ -253,14 +257,17 @@ mod tests {
         .await
         .expect("command");
 
-        assert_eq!(output.user_message.role, "user");
-        assert_eq!(output.context.session_id, output.user_message.session_id);
+        assert_eq!(output.user_message.info.role, "user");
+        assert_eq!(
+            output.context.session_id,
+            output.user_message.info.session_id
+        );
 
         let messages = Message::load(&workspace.storage, &output.context.session_id)
             .await
             .expect("load");
         assert_eq!(messages.len(), 1);
-        assert_eq!(messages[0].info.id, output.user_message.id);
+        assert_eq!(messages[0].info.id, output.user_message.info.id);
         assert!(matches!(
             messages[0].parts.first(),
             Some(MessagePart::Text(part)) if part.text == "hello"
@@ -359,6 +366,7 @@ mod tests {
         };
         let llm = LlmService::new(settings).expect("llm");
         let bus = Bus::new(32);
+        let mut bus_rx = bus.subscribe();
 
         let session_id = current_session_context(sessions.clone()).await.session_id;
         let result = run_session_command(
@@ -374,6 +382,17 @@ mod tests {
         .await;
 
         assert!(result.is_err());
+        let event = timeout(Duration::from_millis(200), bus_rx.recv())
+            .await
+            .expect("event timeout")
+            .expect("event recv");
+        assert!(matches!(
+            event,
+            CoreEvent::SessionMessageStarted(ref payload)
+                if payload.request_id == "request-1"
+                    && payload.user_message.info.role == "user"
+                    && payload.assistant_message.info.role == "assistant"
+        ));
         let messages = Message::load(&workspace.storage, &session_id)
             .await
             .expect("load");

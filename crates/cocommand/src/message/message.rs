@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use utoipa::ToSchema;
 use uuid::Uuid;
 
 use crate::error::{CoreError, CoreResult};
@@ -15,7 +16,7 @@ use llm_kit_provider_utils::message::{
     ToolResultPart as LlmToolResultPart, UserContentPart, UserMessage,
 };
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, ToSchema)]
 pub struct Message {
     pub info: MessageInfo,
     pub parts: Vec<MessagePart>,

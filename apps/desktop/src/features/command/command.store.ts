@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { hideWindow } from "../../lib/ipc";
 import type { StreamEvent } from "../session/session.store";
 import type {
-  CommandTurn,
+  Message,
   MessagePart,
   MessagePartInput,
   RecordMessageResponse,
@@ -39,17 +39,9 @@ function normalizeDraftParts(parts: MessagePartInput[]): MessagePartInput[] {
 
 function submitReadyParts(parts: MessagePartInput[]): MessagePartInput[] {
   const normalized = normalizeDraftParts(parts);
-  const withoutBlankText = normalized.filter((part) =>
+  return normalized.filter((part) =>
     part.type === "text" ? part.text.trim().length > 0 : true
   );
-  return withoutBlankText;
-}
-
-function createTurnId(): string {
-  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
-    return crypto.randomUUID();
-  }
-  return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
 function cloneMessagePartInput(part: MessagePartInput): MessagePartInput {
@@ -75,11 +67,55 @@ function cloneMessagePartInputs(parts: MessagePartInput[]): MessagePartInput[] {
   return parts.map(cloneMessagePartInput);
 }
 
+function findPartIndexToUpdate(parts: MessagePart[], nextPart: MessagePart): number {
+  const byId = parts.findIndex((part) => part.id === nextPart.id);
+  if (byId >= 0) return byId;
+  if (nextPart.type !== "tool") return -1;
+  return parts.findIndex(
+    (part) => part.type === "tool" && part.callId === nextPart.callId
+  );
+}
+
+function mergeMessages(existing: Message[], incoming: Message[]): Message[] {
+  if (incoming.length === 0) return existing;
+  const merged = [...existing];
+  for (const nextMessage of incoming) {
+    const index = merged.findIndex(
+      (message) => message.info.id === nextMessage.info.id
+    );
+    if (index >= 0) {
+      merged[index] = nextMessage;
+    } else {
+      merged.push(nextMessage);
+    }
+  }
+  return merged;
+}
+
+function updateMessagePart(
+  messages: Message[],
+  messageId: string,
+  nextPart: MessagePart
+): Message[] {
+  return messages.map((message) => {
+    if (message.info.id !== messageId) {
+      return message;
+    }
+    const existingIndex = findPartIndexToUpdate(message.parts, nextPart);
+    if (existingIndex >= 0) {
+      const parts = [...message.parts];
+      parts[existingIndex] = nextPart;
+      return { ...message, parts };
+    }
+    return { ...message, parts: [...message.parts, nextPart] };
+  });
+}
+
 export interface CommandState {
   draftParts: MessagePartInput[];
+  submittedInputHistory: MessagePartInput[][];
   isSubmitting: boolean;
-  parts: MessagePart[];
-  turns: CommandTurn[];
+  messages: Message[];
   error: string | null;
   setDraftParts: (parts: MessagePartInput[]) => void;
   setError: (error: string | null) => void;
@@ -93,9 +129,9 @@ export type CommandStore = ReturnType<typeof createCommandStore>;
 export const createCommandStore = () => {
   return create<CommandState>()((set, get) => ({
     draftParts: [emptyTextPart()],
+    submittedInputHistory: [],
     isSubmitting: false,
-    parts: [],
-    turns: [],
+    messages: [],
     error: null,
 
     setDraftParts: (parts) => set({ draftParts: normalizeDraftParts(parts) }),
@@ -106,12 +142,11 @@ export const createCommandStore = () => {
       set({
         draftParts: [emptyTextPart()],
         isSubmitting: false,
-        parts: [],
         error: null,
       }),
 
     dismiss: () => {
-      set({ parts: [], error: null });
+      set({ error: null });
       hideWindow();
     },
 
@@ -122,73 +157,50 @@ export const createCommandStore = () => {
         return false;
       }
 
-      const turnId = createTurnId();
-      const turnInputParts = cloneMessagePartInputs(inputParts);
+      const submittedInput = cloneMessagePartInputs(inputParts);
       set((state) => ({
         isSubmitting: true,
-        parts: [],
         error: null,
-        turns: [
-          ...state.turns,
-          {
-            id: turnId,
-            submittedAt: Date.now(),
-            inputParts: turnInputParts,
-            replyParts: [],
-            status: "streaming",
-            error: null,
-          },
-        ],
+        submittedInputHistory: [...state.submittedInputHistory, submittedInput],
       }));
 
       try {
-        const streamParts: MessagePart[] = [];
         const response = await sendMessage(inputParts, (event: StreamEvent) => {
-          if (event.event !== "part.updated") return;
-          const part = getPartFromEventData(event.data);
-          if (!part) return;
-          const existingIndex = findPartIndexToUpdate(streamParts, part);
-          if (existingIndex >= 0) {
-            streamParts[existingIndex] = part;
-          } else {
-            streamParts.push(part);
+          if (event.type === "message.started") {
+            set((state) => ({
+              messages: mergeMessages(state.messages, [
+                event.userMessage,
+                event.assistantMessage,
+              ]),
+            }));
+            return;
           }
-          set((state) => ({
-            parts: [...streamParts],
-            turns: updateTurnById(state.turns, turnId, (turn) => ({
-              ...turn,
-              replyParts: [...streamParts],
-            })),
-          }));
+
+          if (event.type === "part.updated") {
+            set((state) => ({
+              messages: updateMessagePart(
+                state.messages,
+                event.messageId,
+                event.part
+              ),
+            }));
+          }
         });
 
-        const replyParts = response.reply_parts ?? [];
         set((state) => ({
           draftParts: [emptyTextPart()],
           isSubmitting: false,
-          parts: replyParts,
           error: null,
-          turns: updateTurnById(state.turns, turnId, (turn) => ({
-            ...turn,
-            replyParts,
-            status: "complete",
-            error: null,
-          })),
+          messages: mergeMessages(state.messages, response.messages ?? []),
         }));
         return true;
       } catch (err) {
         console.error("CommandStore submit error", err);
         const errorMessage = normalizeErrorMessage(err);
-        set((state) => ({
+        set({
           isSubmitting: false,
-          parts: [],
-          error: null,
-          turns: updateTurnById(state.turns, turnId, (turn) => ({
-            ...turn,
-            status: "error",
-            error: errorMessage,
-          })),
-        }));
+          error: errorMessage,
+        });
         return false;
       }
     },
@@ -203,29 +215,4 @@ function normalizeErrorMessage(error: unknown): string {
   } catch {
     return String(error);
   }
-}
-
-function getPartFromEventData(value: unknown): MessagePart | null {
-  if (!value || typeof value !== "object") return null;
-  const part = (value as { part?: unknown }).part;
-  if (!part || typeof part !== "object") return null;
-  if (!("type" in part)) return null;
-  return part as MessagePart;
-}
-
-function findPartIndexToUpdate(parts: MessagePart[], nextPart: MessagePart): number {
-  const byId = parts.findIndex((part) => part.id === nextPart.id);
-  if (byId >= 0) return byId;
-  if (nextPart.type !== "tool") return -1;
-  return parts.findIndex(
-    (part) => part.type === "tool" && part.callId === nextPart.callId
-  );
-}
-
-function updateTurnById(
-  turns: CommandTurn[],
-  turnId: string,
-  updater: (turn: CommandTurn) => CommandTurn
-): CommandTurn[] {
-  return turns.map((turn) => (turn.id === turnId ? updater(turn) : turn));
 }

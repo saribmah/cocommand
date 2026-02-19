@@ -1,5 +1,6 @@
 import type {
   ApiSessionContext,
+  Message,
   MessagePart,
   RecordMessageResponse,
   SessionCommandInputPart,
@@ -19,7 +20,13 @@ export interface SessionCommandOptions {
 
 export type SessionCommandEvent =
   | {
+      type: "message.started";
+      userMessage: Message;
+      assistantMessage: Message;
+    }
+  | {
       type: "part.updated";
+      messageId: string;
       partId: string;
       part: MessagePart;
     }
@@ -30,10 +37,16 @@ export type SessionCommandEvent =
   | {
       type: "done";
       context: ApiSessionContext;
-      replyParts: MessagePart[];
+      messages: Message[];
     };
 
+interface MessageStartedPayload {
+  user_message?: Message;
+  assistant_message?: Message;
+}
+
 interface PartUpdatedPayload {
+  message_id?: string;
   part_id?: string;
   part?: MessagePart;
 }
@@ -44,7 +57,7 @@ interface ContextPayload {
 
 interface DonePayload {
   context?: ApiSessionContext;
-  reply_parts?: MessagePart[];
+  messages?: Message[];
 }
 
 interface ErrorPayload {
@@ -71,9 +84,27 @@ export function createSessionsApi(client: Client): SessionsApi {
       const response = await fetchSse(client, "/sessions/command", { parts }, options);
 
       for await (const event of readSse(response)) {
+        if (event.event === "message.started") {
+          const payload = event.data as MessageStartedPayload;
+          if (!payload.user_message || !payload.assistant_message) {
+            throw new SdkError({
+              code: "sse_parse_error",
+              message: "Invalid message.started payload",
+              source: "sessions.commandStream",
+              details: event.data,
+            });
+          }
+          yield {
+            type: "message.started",
+            userMessage: payload.user_message,
+            assistantMessage: payload.assistant_message,
+          };
+          continue;
+        }
+
         if (event.event === "part.updated") {
           const payload = event.data as PartUpdatedPayload;
-          if (!payload.part_id || !payload.part) {
+          if (!payload.message_id || !payload.part_id || !payload.part) {
             throw new SdkError({
               code: "sse_parse_error",
               message: "Invalid part.updated payload",
@@ -83,6 +114,7 @@ export function createSessionsApi(client: Client): SessionsApi {
           }
           yield {
             type: "part.updated",
+            messageId: payload.message_id,
             partId: payload.part_id,
             part: payload.part,
           };
@@ -108,7 +140,7 @@ export function createSessionsApi(client: Client): SessionsApi {
 
         if (event.event === "done") {
           const payload = event.data as DonePayload;
-          if (!payload.context || !payload.reply_parts) {
+          if (!payload.context || !payload.messages) {
             throw new SdkError({
               code: "sse_parse_error",
               message: "Invalid done payload",
@@ -119,7 +151,7 @@ export function createSessionsApi(client: Client): SessionsApi {
           yield {
             type: "done",
             context: payload.context,
-            replyParts: payload.reply_parts,
+            messages: payload.messages,
           };
           continue;
         }
@@ -149,7 +181,7 @@ export function createSessionsApi(client: Client): SessionsApi {
         if (event.type === "done") {
           final = {
             context: event.context,
-            reply_parts: event.replyParts,
+            messages: event.messages,
           };
         }
       }

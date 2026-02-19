@@ -20,7 +20,7 @@ import {
 } from "@cocommand/ui";
 import type { ExtensionInfo } from "../../extension/extension.types";
 import type { ApplicationInfo } from "../../application/application.types";
-import type { CommandTurn, MessagePartInput } from "../command.types";
+import type { Message } from "../command.types";
 import type { ComposerActions } from "../composer-actions";
 import {
   formatFileType,
@@ -76,7 +76,7 @@ interface RenderingAreaProps {
   onOpenApplication: (app: ApplicationInfo) => void;
 
   // Response
-  turns: CommandTurn[];
+  messages: Message[];
   error: string | null;
 
   // Extension view support
@@ -86,8 +86,8 @@ interface RenderingAreaProps {
   scrollRef: RefObject<HTMLDivElement | null>;
 }
 
-function formatSubmittedInput(parts: MessagePartInput[]): string {
-  return parts
+function formatSubmittedMessage(message: Message): string {
+  return message.parts
     .map((part) => {
       switch (part.type) {
         case "text":
@@ -95,7 +95,11 @@ function formatSubmittedInput(parts: MessagePartInput[]): string {
         case "extension":
           return part.source?.value ?? `@${part.extensionId}`;
         case "file":
-          return part.source?.value ?? `#${part.name}`;
+          return part.source?.value ?? `#${part.name ?? "file"}`;
+        case "reasoning":
+          return part.text;
+        case "tool":
+          return "";
         default:
           return "";
       }
@@ -124,12 +128,12 @@ export function RenderingArea({
   applicationIndex,
   starQuery,
   onOpenApplication,
-  turns,
+  messages,
   error,
   composerActions,
   scrollRef,
 }: RenderingAreaProps) {
-  const showResponses = turns.length > 0 || !!error;
+  const showResponses = messages.length > 0 || !!error;
 
   return (
     <ContentArea className={styles.content}>
@@ -255,13 +259,16 @@ export function RenderingArea({
           {showResponses ? (
             <ResponseStack>
               {error ? <ErrorCard message={error} /> : null}
-              {turns.map((turn) => (
-                <Fragment key={turn.id}>
-                  <MarkdownResponseCard
-                    className={styles.userTranscriptCard}
-                    body={formatSubmittedInput(turn.inputParts)}
-                  />
-                  {turn.replyParts.map((part) => {
+              {messages.map((message) => (
+                <Fragment key={message.info.id}>
+                  {message.info.role === "user" ? (
+                    <MarkdownResponseCard
+                      className={styles.userTranscriptCard}
+                      body={formatSubmittedMessage(message)}
+                    />
+                  ) : null}
+                  {message.info.role !== "user"
+                    ? message.parts.map((part) => {
                     switch (part.type) {
                       case "text":
                         return (
@@ -293,11 +300,19 @@ export function RenderingArea({
                             fileType={formatFileType(part.mediaType)}
                           />
                         );
+                      case "extension":
+                        return (
+                          <MarkdownResponseCard
+                            key={part.id}
+                            className={styles.assistantTranscriptCard}
+                            body={part.source?.value ?? `@${part.extensionId}`}
+                          />
+                        );
                       default:
                         return null;
                     }
-                  })}
-                  {turn.error ? <ErrorCard message={turn.error} /> : null}
+                  })
+                    : null}
                 </Fragment>
               ))}
             </ResponseStack>

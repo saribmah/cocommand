@@ -5,9 +5,9 @@ describe("readSse", () => {
   it("parses chunked SSE frames", async () => {
     const stream = new ReadableStream<Uint8Array>({
       start(controller) {
-        controller.enqueue(new TextEncoder().encode("event: part.updated\ndata: {\"part_id\":\"p1\""));
+        controller.enqueue(new TextEncoder().encode("event: part.updated\ndata: {\"message_id\":\"m1\",\"part_id\":\"p1\""));
         controller.enqueue(new TextEncoder().encode(",\"part\":{\"type\":\"text\"}}\n\n"));
-        controller.enqueue(new TextEncoder().encode("event: done\ndata: {\"context\":{\"session_id\":\"s1\"},\"reply_parts\":[]}\n\n"));
+        controller.enqueue(new TextEncoder().encode("event: done\ndata: {\"context\":{\"session_id\":\"s1\"},\"messages\":[]}\n\n"));
         controller.close();
       },
     });

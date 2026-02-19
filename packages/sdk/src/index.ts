@@ -95,6 +95,8 @@ export type {
   FilePart,
   FilePartInput,
   FilePartSourceText,
+  Message,
+  MessageInfo,
   MessagePart,
   MessagePartInput,
   NotesCreateNoteInput,

@@ -89,9 +89,11 @@ export function CommandView() {
 
   const draftParts = useCommandContext((state) => state.draftParts);
   const setDraftParts = useCommandContext((state) => state.setDraftParts);
+  const submittedInputHistory = useCommandContext(
+    (state) => state.submittedInputHistory
+  );
   const isSubmitting = useCommandContext((state) => state.isSubmitting);
-  const parts = useCommandContext((state) => state.parts);
-  const turns = useCommandContext((state) => state.turns);
+  const messages = useCommandContext((state) => state.messages);
   const error = useCommandContext((state) => state.error);
   const setError = useCommandContext((state) => state.setError);
   const submit = useCommandContext((state) => state.submit);
@@ -170,11 +172,6 @@ export function CommandView() {
     () => [{ id: "settings", name: "Settings", description: "Open the settings window" }],
     []
   );
-  const submittedInputHistory = useMemo(
-    () => turns.map((turn) => turn.inputParts),
-    [turns]
-  );
-
   // ---------------------------------------------------------------------------
   // Composer helpers
   // ---------------------------------------------------------------------------
@@ -237,7 +234,7 @@ export function CommandView() {
   useEffect(() => {
     const node = document.getElementById(inputId) as HTMLInputElement | null;
     node?.focus();
-  }, [inputId, parts, turns]);
+  }, [inputId, messages]);
 
   useEffect(() => {
     const node = scrollRef.current;
@@ -245,7 +242,7 @@ export function CommandView() {
     requestAnimationFrame(() => {
       node.scrollTop = node.scrollHeight;
     });
-  }, [parts, turns, error]);
+  }, [messages, error]);
 
   useEffect(() => {
     if (activeView !== "recent") {
@@ -833,7 +830,7 @@ export function CommandView() {
           applicationIndex={applicationIndex}
           starQuery={starState?.query ?? null}
           onOpenApplication={openApplicationById}
-          turns={turns}
+          messages={messages}
           error={error}
           composerActions={composerActions}
           scrollRef={scrollRef}

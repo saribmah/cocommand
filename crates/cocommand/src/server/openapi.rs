@@ -5,13 +5,16 @@ use crate::command::session_message::{
     SessionCommandExtensionPartInput, SessionCommandFilePartInput, SessionCommandInputPart,
     SessionCommandTextPartInput,
 };
-use crate::event::{CoreEvent, SessionContextPayload, SessionPartUpdatedPayload};
+use crate::event::{
+    CoreEvent, SessionContextPayload, SessionMessageStartedPayload, SessionPartUpdatedPayload,
+};
 use crate::message::parts::{
     ExtensionPart, FilePart, FilePartFileSource, FilePartSource, FilePartSourceText,
     FilePartSymbolSource, MessagePart, PartBase, ReasoningPart, TextPart, ToolPart, ToolState,
     ToolStateCompleted, ToolStateError, ToolStatePending, ToolStateRunning, ToolStateTimeCompleted,
     ToolStateTimeRange, ToolStateTimeStart,
 };
+use crate::message::{Message, MessageInfo};
 use crate::server::browser::BrowserStatus;
 use crate::server::error::{ApiErrorBody, ApiErrorResponse};
 use crate::server::extension::{
@@ -63,6 +66,9 @@ use crate::session::SessionContext;
         SessionCommandTextPartInput,
         SessionCommandExtensionPartInput,
         SessionCommandFilePartInput,
+        // Messages
+        Message,
+        MessageInfo,
         // Message parts
         MessagePart,
         PartBase,
@@ -104,6 +110,7 @@ use crate::session::SessionContext;
         PollResponse,
         // Events
         CoreEvent,
+        SessionMessageStartedPayload,
         SessionPartUpdatedPayload,
         SessionContextPayload,
     )),

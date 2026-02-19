@@ -1,4 +1,4 @@
-use crate::message::MessagePart;
+use crate::message::{Message, MessagePart};
 use crate::session::SessionContext;
 use serde::Serialize;
 use utoipa::ToSchema;
@@ -6,8 +6,16 @@ use utoipa::ToSchema;
 #[derive(Debug, Clone, Serialize, ToSchema)]
 #[serde(tag = "type", content = "payload")]
 pub enum CoreEvent {
+    SessionMessageStarted(SessionMessageStartedPayload),
     SessionPartUpdated(SessionPartUpdatedPayload),
     SessionContextUpdated(SessionContextPayload),
+}
+
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct SessionMessageStartedPayload {
+    pub request_id: String,
+    pub user_message: Message,
+    pub assistant_message: Message,
 }
 
 #[derive(Debug, Clone, Serialize, ToSchema)]

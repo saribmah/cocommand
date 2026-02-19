@@ -30,9 +30,10 @@ describe("sessions.commandStream", () => {
     globalThis.fetch = (() =>
       Promise.resolve(
         createSseResponse([
-          "event: part.updated\ndata: {\"part_id\":\"p1\",\"part\":{\"type\":\"text\",\"id\":\"p1\",\"messageId\":\"m1\",\"sessionId\":\"s1\",\"text\":\"hello\"}}\n\n",
+          "event: message.started\ndata: {\"user_message\":{\"info\":{\"id\":\"m1\",\"sessionId\":\"s1\",\"role\":\"user\",\"createdAt\":\"2025-01-01T00:00:00Z\"},\"parts\":[{\"type\":\"text\",\"id\":\"u1\",\"messageId\":\"m1\",\"sessionId\":\"s1\",\"text\":\"Hello\"}]},\"assistant_message\":{\"info\":{\"id\":\"m2\",\"sessionId\":\"s1\",\"role\":\"assistant\",\"createdAt\":\"2025-01-01T00:00:01Z\"},\"parts\":[]}}\n\n",
+          "event: part.updated\ndata: {\"message_id\":\"m2\",\"part_id\":\"p1\",\"part\":{\"type\":\"text\",\"id\":\"p1\",\"messageId\":\"m2\",\"sessionId\":\"s1\",\"text\":\"hello\"}}\n\n",
           "event: context\ndata: {\"context\":{\"workspace_id\":\"w1\",\"session_id\":\"s1\",\"started_at\":1,\"ended_at\":null}}\n\n",
-          "event: done\ndata: {\"context\":{\"workspace_id\":\"w1\",\"session_id\":\"s1\",\"started_at\":1,\"ended_at\":null},\"reply_parts\":[{\"type\":\"text\",\"id\":\"r1\",\"messageId\":\"m2\",\"sessionId\":\"s1\",\"text\":\"ok\"}]}\n\n",
+          "event: done\ndata: {\"context\":{\"workspace_id\":\"w1\",\"session_id\":\"s1\",\"started_at\":1,\"ended_at\":null},\"messages\":[{\"info\":{\"id\":\"m1\",\"sessionId\":\"s1\",\"role\":\"user\",\"createdAt\":\"2025-01-01T00:00:00Z\"},\"parts\":[{\"type\":\"text\",\"id\":\"u1\",\"messageId\":\"m1\",\"sessionId\":\"s1\",\"text\":\"Hello\"}]},{\"info\":{\"id\":\"m2\",\"sessionId\":\"s1\",\"role\":\"assistant\",\"createdAt\":\"2025-01-01T00:00:01Z\"},\"parts\":[{\"type\":\"text\",\"id\":\"r1\",\"messageId\":\"m2\",\"sessionId\":\"s1\",\"text\":\"ok\"}]}]}\n\n",
         ]),
       )) as typeof fetch;
 
@@ -40,7 +41,9 @@ describe("sessions.commandStream", () => {
     const result = await sessions.command(commandParts);
 
     expect(result.context.session_id).toBe("s1");
-    expect(result.reply_parts.length).toBe(1);
+    expect(result.messages.length).toBe(2);
+    expect(result.messages[0]?.info.role).toBe("user");
+    expect(result.messages[1]?.parts.length).toBe(1);
   });
 
   it("throws typed sse_error when error event is emitted", async () => {
