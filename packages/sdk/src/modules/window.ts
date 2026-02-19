@@ -1,4 +1,4 @@
-import type { Transport } from "../transport";
+import type { Client } from "../client";
 
 export interface ToastOptions {
   message: string;
@@ -10,7 +10,7 @@ export interface WindowManagementApi {
   resize(width: number, height: number): Promise<void>;
 }
 
-export function createWindowManagement(_t: Transport): {
+export function createWindowManagement(_client: Client): {
   showToast: (options: ToastOptions) => Promise<void>;
   windowManagement: WindowManagementApi;
 } {

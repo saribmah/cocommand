@@ -61,6 +61,9 @@
     "packages/sdk": {
       "name": "@cocommand/sdk",
       "version": "0.0.0",
+      "dependencies": {
+        "@cocommand/api": "workspace:*",
+      },
       "peerDependencies": {
         "react": "^18.0.0 || ^19.0.0",
       },

@@ -1,4 +1,4 @@
-import type { Transport } from "../transport";
+import type { Client } from "../client";
 
 export interface GenerateOptions {
   prompt: string;
@@ -15,7 +15,7 @@ export interface AIApi {
   generate(options: GenerateOptions): Promise<GenerateResult>;
 }
 
-export function createAI(_t: Transport): AIApi {
+export function createAI(_client: Client): AIApi {
   return {
     async generate(_options) {
       throw new Error(

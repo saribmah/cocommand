@@ -1,4 +1,4 @@
-import type { Transport } from "../transport";
+import type { Client } from "../client";
 
 export interface LocalStorageApi {
   get<T>(key: string): Promise<T | null>;
@@ -7,7 +7,7 @@ export interface LocalStorageApi {
   keys(): Promise<string[]>;
 }
 
-export function createLocalStorage(_t: Transport, _extensionId: string): LocalStorageApi {
+export function createLocalStorage(_client: Client, _extensionId: string): LocalStorageApi {
   return {
     async get<T>(_key: string): Promise<T | null> {
       throw new Error(

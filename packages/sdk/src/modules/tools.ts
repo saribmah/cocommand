@@ -1,13 +1,14 @@
-import type { Transport } from "../transport";
+import type { Client } from "../client";
+import { invokeToolUnwrap } from "../client";
 
 export interface ToolsApi {
   invoke<T>(toolId: string, input?: Record<string, unknown>): Promise<T>;
 }
 
-export function createTools(t: Transport, extensionId: string): ToolsApi {
+export function createTools(client: Client, extensionId: string): ToolsApi {
   return {
     invoke<T>(toolId: string, input?: Record<string, unknown>) {
-      return t.invokeTool<T>(extensionId, toolId, input);
+      return invokeToolUnwrap<T>(client, extensionId, toolId, input);
     },
   };
 }

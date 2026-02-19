@@ -1,4 +1,5 @@
-import type { Transport } from "../transport";
+import type { Client } from "../client";
+import { invokeToolUnwrap } from "../client";
 import type { ClipboardSnapshot, ClipboardEntry } from "../types";
 
 const EXT = "clipboard";
@@ -12,27 +13,27 @@ export interface ClipboardApi {
   clearHistory(): Promise<void>;
 }
 
-export function createClipboard(t: Transport): ClipboardApi {
+export function createClipboard(client: Client): ClipboardApi {
   return {
     async get() {
-      return t.invokeTool<ClipboardSnapshot>(EXT, "get_clipboard");
+      return invokeToolUnwrap<ClipboardSnapshot>(client, EXT, "get_clipboard");
     },
     async setText(text) {
-      await t.invokeTool(EXT, "set_clipboard", { text });
+      await invokeToolUnwrap(client, EXT, "set_clipboard", { kind: "text", text });
     },
     async setImage(imagePath) {
-      await t.invokeTool(EXT, "set_clipboard", { image: imagePath });
+      await invokeToolUnwrap(client, EXT, "set_clipboard", { kind: "image", imagePath });
     },
     async setFiles(files) {
-      await t.invokeTool(EXT, "set_clipboard", { files });
+      await invokeToolUnwrap(client, EXT, "set_clipboard", { kind: "files", files });
     },
     async listHistory(limit?) {
       const input: Record<string, unknown> = {};
       if (limit !== undefined) input.limit = limit;
-      return t.invokeTool<ClipboardEntry[]>(EXT, "list_clipboard_history", input);
+      return invokeToolUnwrap<ClipboardEntry[]>(client, EXT, "list_clipboard_history", input);
     },
     async clearHistory() {
-      await t.invokeTool(EXT, "clear_clipboard_history");
+      await invokeToolUnwrap(client, EXT, "clear_clipboard_history");
     },
   };
 }

@@ -1,6 +1,6 @@
 import { createContext, useContext, useRef } from "react";
 import { createApi, type CocommandApi } from "./create-api";
-import { createTransport } from "./transport";
+import { createApiClient } from "./client";
 import type { ComposerActionsBridge } from "./configure";
 
 const ApiContext = createContext<CocommandApi | null>(null);
@@ -17,7 +17,7 @@ export function ApiProvider({ baseUrl, extensionId, composer, children }: ApiPro
 
   if (!apiRef.current) {
     apiRef.current = createApi({
-      transport: createTransport(baseUrl),
+      client: createApiClient(baseUrl),
       extensionId,
       composer,
     });

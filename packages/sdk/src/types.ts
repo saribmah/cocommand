@@ -1,8 +1,13 @@
-export interface TextSource {
-  value: string;
-  start: number;
-  end: number;
-}
+import type {
+  FilePartSourceText,
+  ApplicationInfo,
+} from "@cocommand/api";
+
+/** Alias for API's FilePartSourceText — identical shape. */
+export type TextSource = FilePartSourceText;
+
+/** Alias for API's ApplicationInfo. */
+export type Application = ApplicationInfo;
 
 export interface FilePartInput {
   type: "file";
@@ -18,13 +23,6 @@ export interface ExtensionPartInput {
   name: string;
   kind?: string | null;
   source?: TextSource | null;
-}
-
-export interface Application {
-  id: string;
-  name: string;
-  kind: string;
-  tags: string[];
 }
 
 export interface WorkspaceConfig {

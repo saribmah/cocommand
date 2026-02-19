@@ -1,4 +1,4 @@
-import type { Transport } from "./transport";
+import type { Client } from "./client";
 import type { ComposerActionsBridge } from "./configure";
 import { createClipboard, type ClipboardApi } from "./modules/clipboard";
 import { createApplications, type ApplicationsApi } from "./modules/applications";
@@ -26,24 +26,24 @@ export interface CocommandApi {
 }
 
 export interface CreateApiOptions {
-  transport: Transport;
+  client: Client;
   extensionId: string;
   composer?: ComposerActionsBridge;
 }
 
 export function createApi(opts: CreateApiOptions): CocommandApi {
-  const { transport, extensionId, composer } = opts;
-  const win = createWindowManagement(transport);
+  const { client, extensionId, composer } = opts;
+  const win = createWindowManagement(client);
 
   return {
-    tools: createTools(transport, extensionId),
-    clipboard: createClipboard(transport),
-    applications: createApplications(transport),
-    workspace: createWorkspace(transport),
+    tools: createTools(client, extensionId),
+    clipboard: createClipboard(client),
+    applications: createApplications(client),
+    workspace: createWorkspace(client),
     composer: createComposer(composer),
-    ai: createAI(transport),
-    localStorage: createLocalStorage(transport, extensionId),
-    oauth: createOAuth(transport, extensionId),
+    ai: createAI(client),
+    localStorage: createLocalStorage(client, extensionId),
+    oauth: createOAuth(client, extensionId),
     showToast: win.showToast,
     windowManagement: win.windowManagement,
     cache: new Cache(extensionId),

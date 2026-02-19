@@ -1,7 +1,8 @@
 export type { ComposerActionsBridge } from "./configure";
 
-export { createTransport } from "./transport";
-export type { Transport } from "./transport";
+export { createApiClient } from "./client";
+export type { Client } from "./client";
+export { invokeToolUnwrap } from "./client";
 
 export type {
   TextSource,
@@ -13,6 +14,15 @@ export type {
   ClipboardEntry,
   InvokeResponse,
 } from "./types";
+
+export type {
+  ApplicationInfo,
+  FilePartSourceText,
+  ExtensionInfo,
+  ExtensionToolInfo,
+  StartFlowResponse,
+  PollResponse,
+} from "@cocommand/api";
 
 export { createClipboard } from "./modules/clipboard";
 export type { ClipboardApi } from "./modules/clipboard";

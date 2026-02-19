@@ -1,4 +1,13 @@
-import type { Transport } from "../transport";
+import type { Client } from "../client";
+import {
+  startFlow,
+  pollFlow,
+  getTokens,
+  setTokens,
+  deleteTokens,
+  type StartFlowResponse,
+  type PollResponse,
+} from "@cocommand/api";
 
 // ---------- Types ----------
 
@@ -76,22 +85,13 @@ export function isTokenExpired(tokenSet: TokenSet): boolean {
 
 // ---------- PKCEClient ----------
 
-interface StartFlowResponse {
-  redirect_uri: string;
-}
-
-interface PollResponse {
-  status: string;
-  authorization_code?: string;
-}
-
 export class PKCEClient {
-  private transport: Transport;
+  private client: Client;
   private extensionId: string;
   private providerName: string;
 
-  constructor(transport: Transport, extensionId: string, providerName: string) {
-    this.transport = transport;
+  constructor(client: Client, extensionId: string, providerName: string) {
+    this.client = client;
     this.extensionId = extensionId;
     this.providerName = providerName;
   }
@@ -103,10 +103,16 @@ export class PKCEClient {
     const codeChallenge = await generateCodeChallenge(codeVerifier);
     const state = generateState();
 
-    const { redirect_uri: redirectUri } =
-      await this.transport.apiPost<StartFlowResponse>("/oauth/start", {
-        state,
-      });
+    const { data, error } = await startFlow({
+      client: this.client,
+      body: { state },
+    });
+
+    if (error || !data) {
+      throw new Error("Failed to start OAuth flow");
+    }
+
+    const redirectUri = (data as StartFlowResponse).redirect_uri;
 
     const params = new URLSearchParams({
       client_id: opts.clientId,
@@ -129,10 +135,15 @@ export class PKCEClient {
 
     const deadline = Date.now() + 5 * 60 * 1000; // 5 min timeout
     while (Date.now() < deadline) {
-      const res = await this.transport.apiGet<PollResponse>(
-        `/oauth/poll?state=${encodeURIComponent(request.state)}&wait=25`,
-      );
-      if (res.status === "completed" && res.authorization_code) {
+      const { data, error } = await pollFlow({
+        client: this.client,
+        query: { state: request.state, wait: 25 },
+      });
+
+      if (error) continue;
+
+      const res = data as PollResponse | undefined;
+      if (res?.status === "completed" && res.authorization_code) {
         return { authorizationCode: res.authorization_code };
       }
     }
@@ -149,17 +160,24 @@ export class PKCEClient {
       id_token: opts.idToken ?? null,
       created_at: Math.floor(Date.now() / 1000),
     };
-    await this.transport.apiPost(
-      `/oauth/tokens/${encodeURIComponent(this.extensionId)}/${encodeURIComponent(this.providerName)}`,
+    const { error } = await setTokens({
+      client: this.client,
+      path: { ext: this.extensionId, provider: this.providerName },
       body,
-    );
+    });
+    if (error) {
+      throw new Error("Failed to store tokens");
+    }
   }
 
   async getTokens(): Promise<TokenSet | null> {
     try {
-      const raw = await this.transport.apiGet<Record<string, unknown>>(
-        `/oauth/tokens/${encodeURIComponent(this.extensionId)}/${encodeURIComponent(this.providerName)}`,
-      );
+      const { data, error } = await getTokens({
+        client: this.client,
+        path: { ext: this.extensionId, provider: this.providerName },
+      });
+      if (error || !data) return null;
+      const raw = data as Record<string, unknown>;
       return {
         accessToken: raw.access_token as string,
         refreshToken: (raw.refresh_token as string) ?? undefined,
@@ -174,9 +192,13 @@ export class PKCEClient {
   }
 
   async removeTokens(): Promise<void> {
-    await this.transport.apiDelete(
-      `/oauth/tokens/${encodeURIComponent(this.extensionId)}/${encodeURIComponent(this.providerName)}`,
-    );
+    const { error } = await deleteTokens({
+      client: this.client,
+      path: { ext: this.extensionId, provider: this.providerName },
+    });
+    if (error) {
+      throw new Error("Failed to delete tokens");
+    }
   }
 }
 
@@ -186,10 +208,10 @@ export interface OAuthApi {
   createClient(options: PKCEClientOptions): PKCEClient;
 }
 
-export function createOAuth(transport: Transport, extensionId: string): OAuthApi {
+export function createOAuth(client: Client, extensionId: string): OAuthApi {
   return {
     createClient(options: PKCEClientOptions): PKCEClient {
-      return new PKCEClient(transport, extensionId, options.providerName);
+      return new PKCEClient(client, extensionId, options.providerName);
     },
   };
 }

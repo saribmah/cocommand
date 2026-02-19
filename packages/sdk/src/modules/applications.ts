@@ -1,4 +1,5 @@
-import type { Transport } from "../transport";
+import type { Client } from "../client";
+import { listApplications, openApplication } from "@cocommand/api";
 import type { Application } from "../types";
 
 export interface ApplicationsApi {
@@ -6,13 +7,23 @@ export interface ApplicationsApi {
   openApplication(id: string): Promise<void>;
 }
 
-export function createApplications(t: Transport): ApplicationsApi {
+export function createApplications(client: Client): ApplicationsApi {
   return {
     async getApplications() {
-      return t.apiGet<Application[]>("/workspace/extension/system/applications");
+      const { data, error } = await listApplications({ client });
+      if (error) {
+        throw new Error("Failed to list applications");
+      }
+      return data?.applications ?? [];
     },
     async openApplication(id) {
-      await t.apiPost("/workspace/extensions/open", { id });
+      const { error } = await openApplication({
+        client,
+        body: { id },
+      });
+      if (error) {
+        throw new Error("Failed to open application");
+      }
     },
   };
 }
