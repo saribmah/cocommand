@@ -1,6 +1,7 @@
 use tauri::{Manager, WindowEvent};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 use tracing::info;
+use tracing_subscriber::fmt::format::FmtSpan;
 use tracing_subscriber::EnvFilter;
 
 mod commands;
@@ -12,7 +13,7 @@ mod workspace_path;
 pub fn run() {
     // Load .env file from the crate root directory
     let _ = dotenvy::from_path(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(".env"));
-    let builder = tracing_subscriber::fmt();
+    let builder = tracing_subscriber::fmt().with_span_events(FmtSpan::CLOSE);
     if let Ok(filter) = EnvFilter::try_from_default_env() {
         builder.with_env_filter(filter).init();
     } else {

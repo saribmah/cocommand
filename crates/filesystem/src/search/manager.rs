@@ -403,7 +403,7 @@ fn run_index_thread(
                             // FSEvents batch is ~100ms of events so the coalesced
                             // set is small — the select loop stays responsive.
                             for changed_path in coalesce_event_paths(paths) {
-                                tracing::info!("Scanning path: {:?}", changed_path);
+                                // tracing::info!("Scanning path: {:?}", changed_path);
                                 apply_path_change(&config.root, config.root_is_dir, &config.ignored_roots, &mut data, &changed_path);
                             }
                             indexed_entries.store(data.len(), Ordering::Relaxed);
@@ -532,6 +532,7 @@ fn do_flush(
     }
 }
 
+#[tracing::instrument(skip_all, fields(query = %query))]
 fn execute_search(
     config: &RootIndexConfig,
     data: &RootIndexData,
@@ -571,8 +572,7 @@ fn execute_search(
         }));
     }
 
-    let search_start = Instant::now();
-    let result = search_index_data(
+    search_index_data(
         &config.root,
         data,
         query,
@@ -588,9 +588,7 @@ fn execute_search(
         progress.last_update_at,
         progress.finished_at,
         cancel_token,
-    );
-    tracing::info!("Search time: {:?}", search_start.elapsed());
-    result
+    )
 }
 
 fn build_status_payload_from_atomics(

@@ -26,6 +26,7 @@ impl LlmService {
         })
     }
 
+    #[tracing::instrument(skip_all, fields(messages = messages.len()))]
     pub async fn stream_text(
         &self,
         messages: &[llm_kit_provider_utils::message::Message],
@@ -36,7 +37,6 @@ impl LlmService {
             .model
             .as_ref()
             .ok_or_else(|| CoreError::InvalidInput("missing LLM API key".to_string()))?;
-        tracing::info!("llm prompt messages count={}", messages.len(),);
         let prompt =
             Prompt::messages(messages.to_vec()).with_system(guard.settings.system_prompt.clone());
         let result = StreamText::new(model.clone(), prompt)

@@ -257,19 +257,20 @@ pub fn load_index_snapshot(
     let mut input = BufReader::new(decoder);
     let mut scratch = vec![0u8; 4 * 1024];
 
-    let cache_decode_start = std::time::Instant::now();
-    let storage: PersistentStorage = match postcard::from_io((&mut input, &mut scratch)) {
-        Ok((s, _)) => s,
-        Err(error) => {
-            tracing::warn!(
-                "filesystem cache decode failed for {}: {}",
-                cache_path.display(),
-                error
-            );
-            return None;
+    let storage: PersistentStorage = {
+        let _span = tracing::info_span!("cache_decode", path = %cache_path.display()).entered();
+        match postcard::from_io((&mut input, &mut scratch)) {
+            Ok((s, _)) => s,
+            Err(error) => {
+                tracing::warn!(
+                    "filesystem cache decode failed for {}: {}",
+                    cache_path.display(),
+                    error
+                );
+                return None;
+            }
         }
     };
-    tracing::info!("Cache decode time: {:?}", cache_decode_start.elapsed());
 
     // Validate version
     if storage.version != INDEX_CACHE_VERSION {

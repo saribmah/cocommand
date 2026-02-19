@@ -46,6 +46,7 @@ pub struct RecordMessageResponse {
     pub reply_parts: Vec<MessagePart>,
 }
 
+#[tracing::instrument(skip_all)]
 pub(crate) async fn session_command(
     State(state): State<Arc<ServerState>>,
     Json(payload): Json<RecordMessageRequest>,

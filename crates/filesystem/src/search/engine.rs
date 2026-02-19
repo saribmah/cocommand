@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 use std::time::UNIX_EPOCH;
 
 use rayon::iter::{ParallelBridge, ParallelIterator};
+use tracing::info_span;
 
 use crate::cancel::CancellationToken;
 use crate::error::Result;
@@ -49,10 +50,18 @@ pub fn search_index_data(
     index_finished_at: Option<u64>,
     cancel_token: CancellationToken,
 ) -> Result<Option<SearchResult>> {
-    let matcher = SearchQueryMatcher::compile(&query, case_sensitive)?;
+    let _search_span = info_span!("search", %query).entered();
+
+    let matcher = {
+        let _span = info_span!("compile").entered();
+        SearchQueryMatcher::compile(&query, case_sensitive)?
+    };
+
     let required_terms = matcher.required_name_terms();
-    let candidate_ids =
-        candidate_node_ids_for_terms(data, &required_terms, case_sensitive, cancel_token);
+    let candidate_ids = {
+        let _span = info_span!("prefilter", terms = required_terms.len()).entered();
+        candidate_node_ids_for_terms(data, &required_terms, case_sensitive, cancel_token)
+    };
 
     // Check for cancellation after term matching
     if cancel_token.is_cancelled().is_none() {
@@ -83,6 +92,7 @@ pub fn search_index_data(
 
     // Traverse only the indexed root subtree. This avoids repeatedly computing
     // full parent chains for every node on each search.
+    let _traverse_span = info_span!("traverse").entered();
     let mut stack = vec![(root_id, 0usize, false)];
     let mut counter = 0usize;
     while let Some((id, depth, hidden_in_chain)) = stack.pop() {
@@ -121,12 +131,14 @@ pub fn search_index_data(
             stack.push((*child_id, depth + 1, hidden_for_this));
         }
     }
+    drop(_traverse_span);
 
     // Check for cancellation before expression evaluation
     if cancel_token.is_cancelled().is_none() {
         return Ok(None);
     }
 
+    let _eval_span = info_span!("eval", candidates = candidates.len()).entered();
     let universe = candidates.iter().map(|c| c.id).collect::<BTreeSet<_>>();
     let matched_ids = match evaluate_expression_set(
         data,
@@ -139,6 +151,7 @@ pub fn search_index_data(
         Some(ids) => ids,
         None => return Ok(None), // Cancelled
     };
+    drop(_eval_span);
     let scanned = candidates.len();
 
     // Check for cancellation before building results
@@ -146,6 +159,7 @@ pub fn search_index_data(
         return Ok(None);
     }
 
+    let _results_span = info_span!("results", matched = matched_ids.len()).entered();
     let mut matched_nodes = Vec::new();
     for (i, candidate) in candidates.into_iter().enumerate() {
         // Sparse check during result building
@@ -216,6 +230,8 @@ pub fn search_index_data(
             modified_at,
         });
     }
+
+    drop(_results_span);
 
     Ok(Some(SearchResult {
         query,
