@@ -1,12 +1,12 @@
 import { create } from "zustand";
 import { hideWindow } from "../../lib/ipc";
 import type { StreamEvent } from "../session/session.store";
-import type { MessagePart, MessagePartInput } from "./command.types";
+import type { MessagePart, MessagePartInput, RecordMessageResponse } from "./command.types";
 
 type SendMessageFn = (
   parts: MessagePartInput[],
   onEvent?: (event: StreamEvent) => void
-) => Promise<{ reply_parts?: MessagePart[] }>;
+) => Promise<RecordMessageResponse>;
 
 function emptyTextPart(): MessagePartInput {
   return { type: "text", text: "" };

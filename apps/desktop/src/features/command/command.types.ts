@@ -1,139 +1,39 @@
-import type { SessionContext } from "../session/session.types";
+import type {
+    MessagePart,
+    SessionCommandInputPart,
+} from "@cocommand/api";
 
-export interface RecordMessageResponse {
-  context: SessionContext;
-  reply_parts: MessagePart[];
-}
+// ---------------------------------------------------------------------------
+// Re-exports from @cocommand/api
+// ---------------------------------------------------------------------------
 
-export interface MessagePartBase {
-  id: string;
-  sessionId: string;
-  messageId: string;
-}
+export type {
+    RecordMessageResponse,
+    PartBase as MessagePartBase,
+    FilePartSourceText as TextSource,
+    ToolState,
+    ToolStatePending,
+    ToolStateRunning,
+    ToolStateCompleted,
+    ToolStateError,
+    MessagePart
+} from "@cocommand/api";
 
-export interface TextSource {
-  value: string;
-  start: number;
-  end: number;
-}
+// ---------------------------------------------------------------------------
+// Input part types (discriminated variants extracted from the API union)
+// ---------------------------------------------------------------------------
 
-export interface TextPartInput {
-  type: "text";
-  text: string;
-}
+export type TextPartInput = Extract<SessionCommandInputPart, { type: "text" }>;
+export type ExtensionPartInput = Extract<SessionCommandInputPart, { type: "extension" }>;
+export type FilePartInput = Extract<SessionCommandInputPart, { type: "file" }>;
+export type MessagePartInput = SessionCommandInputPart;
 
-export interface ExtensionPartInput {
-  type: "extension";
-  extensionId: string;
-  name: string;
-  kind?: string | null;
-  source?: TextSource | null;
-}
+// ---------------------------------------------------------------------------
+// Message part types (discriminated variants extracted from the API union)
+// ---------------------------------------------------------------------------
 
-export interface FilePartInput {
-  type: "file";
-  path: string;
-  name: string;
-  entryType?: "file" | "directory" | "symlink" | "other" | null;
-  source?: TextSource | null;
-}
-
-export type MessagePartInput = TextPartInput | ExtensionPartInput | FilePartInput;
-
-export type MessagePart =
-  | TextPart
-  | ReasoningPart
-  | ToolPart
-  | ExtensionPart
-  | SourcePart
-  | FilePart;
-
-export interface TextPart extends MessagePartBase {
-  type: "text";
-  text: string;
-}
-
-export interface ReasoningPart extends MessagePartBase {
-  type: "reasoning";
-  text: string;
-}
-
-export type ToolState =
-  | ToolStatePending
-  | ToolStateRunning
-  | ToolStateCompleted
-  | ToolStateError;
-
-export interface ToolStatePending {
-  status: "pending";
-  input: Record<string, unknown>;
-  raw: string;
-}
-
-export interface ToolStateRunning {
-  status: "running";
-  input: Record<string, unknown>;
-  title?: string | null;
-  metadata?: Record<string, unknown> | null;
-  time: {
-    start: number;
-  };
-}
-
-export interface ToolStateCompleted {
-  status: "completed";
-  input: Record<string, unknown>;
-  output: string;
-  title: string;
-  metadata: Record<string, unknown>;
-  time: {
-    start: number;
-    end: number;
-    compacted?: number | null;
-  };
-  attachments?: FilePart[] | null;
-}
-
-export interface ToolStateError {
-  status: "error";
-  input: Record<string, unknown>;
-  error: string;
-  metadata?: Record<string, unknown> | null;
-  time: {
-    start: number;
-    end: number;
-  };
-}
-
-export interface ToolPart extends MessagePartBase {
-  type: "tool";
-  callId: string;
-  tool: string;
-  state: ToolState;
-  metadata?: Record<string, unknown> | null;
-}
-
-export interface ExtensionPart extends MessagePartBase {
-  type: "extension";
-  extensionId: string;
-  name: string;
-  kind?: string | null;
-  source?: TextSource | null;
-}
-
-export interface SourcePart extends MessagePartBase {
-  type: "source";
-  sourceId?: string | null;
-  sourceType: string;
-  url?: string | null;
-  title?: string | null;
-  mediaType?: string | null;
-  filename?: string | null;
-}
-
-export interface FilePart extends MessagePartBase {
-  type: "file";
-  base64: string;
-  mediaType: string;
-  name?: string | null;
-}
+export type TextPart = Extract<MessagePart, { type: "text" }>;
+export type ReasoningPart = Extract<MessagePart, { type: "reasoning" }>;
+export type ToolPart = Extract<MessagePart, { type: "tool" }>;
+export type ExtensionPart = Extract<MessagePart, { type: "extension" }>;
+export type FilePart = Extract<MessagePart, { type: "file" }>;

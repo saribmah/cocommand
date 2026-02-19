@@ -2,7 +2,7 @@ import type { HTMLAttributes, ReactNode } from "react";
 import { cx } from "../../utils/classNames";
 import styles from "./Collapsible.module.css";
 
-type CollapsibleProps = HTMLAttributes<HTMLDivElement> & {
+type CollapsibleProps = HTMLAttributes<HTMLDetailsElement> & {
   label: string;
   open?: boolean;
   children: ReactNode;

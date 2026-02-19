@@ -1,9 +1,11 @@
 import type { ComponentType } from "react";
+import type { ComposerActions } from "../command/composer-actions";
 
 export type ExtensionViewMode = "inline" | "popout";
 
 export interface ExtensionViewProps {
   mode: ExtensionViewMode;
+  actions?: ComposerActions;
 }
 
 export interface ExtensionViewConfig {

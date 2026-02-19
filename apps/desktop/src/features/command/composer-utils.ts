@@ -2,7 +2,6 @@ import type {
   ExtensionPartInput,
   FilePartInput,
   MessagePartInput,
-  SourcePart,
   TextPartInput,
   ToolPart,
 } from "./command.types";
@@ -323,11 +322,6 @@ export function formatPayload(value: unknown): string | undefined {
   } catch {
     return String(value);
   }
-}
-
-export function formatSourceBody(part: SourcePart): string {
-  const lines = [part.title, part.url, part.filename].filter(Boolean) as string[];
-  return lines.length > 0 ? lines.join("\n") : part.sourceType;
 }
 
 export function mapToolStateToCard(state: ToolPart["state"]): ToolCardState {

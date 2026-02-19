@@ -24,7 +24,6 @@ import type { MessagePart } from "../command.types";
 import type { ComposerActions } from "../composer-actions";
 import {
   formatFileType,
-  formatSourceBody,
   getToolError,
   getToolParams,
   getToolResult,
@@ -263,14 +262,6 @@ export function RenderingArea({
                         key={part.id}
                         fileName={part.name ?? "Untitled file"}
                         fileType={formatFileType(part.mediaType)}
-                      />
-                    );
-                  case "source":
-                    return (
-                      <MarkdownResponseCard
-                        key={part.id}
-                        label="Source"
-                        body={formatSourceBody(part)}
                       />
                     );
                   default:
