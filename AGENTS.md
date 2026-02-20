@@ -148,3 +148,6 @@ Primary test surface is Rust.
 - `.cursorrules`: not present.
 - `.github/copilot-instructions.md`: not present.
 - If these files are added later, treat them as higher-priority agent instructions.
+
+### VERY IMPORTANT TO REMEMBER
+We're using module/ and module.rs structure. No mod.rs. NEVER CREATE mod.rs file

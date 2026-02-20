@@ -1,6 +1,328 @@
 {
   "components": {
     "schemas": {
+      "AgentCreateAgentInput": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "extensions": {
+            "description": "Extension IDs the agent can use.",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "memory": {
+            "description": "Persistent context the agent can reference.",
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "personality": {
+            "description": "The system prompt that defines the agent's behavior.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "personality"
+        ],
+        "type": "object"
+      },
+      "AgentCreateAgentOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "createdAt": {
+            "type": "integer"
+          },
+          "description": {
+            "type": "string"
+          },
+          "extensions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "id": {
+            "type": "string"
+          },
+          "memory": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "personality": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "description",
+          "personality",
+          "memory",
+          "extensions",
+          "createdAt",
+          "updatedAt"
+        ],
+        "type": "object"
+      },
+      "AgentDeleteAgentInput": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      },
+      "AgentDeleteAgentOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "deleted": {
+            "type": "boolean"
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "deleted"
+        ],
+        "type": "object"
+      },
+      "AgentExecuteAgentInput": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "message"
+        ],
+        "type": "object"
+      },
+      "AgentExecuteAgentOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "agentId": {
+            "type": "string"
+          },
+          "agentName": {
+            "type": "string"
+          },
+          "response": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "agentId",
+          "agentName",
+          "response"
+        ],
+        "type": "object"
+      },
+      "AgentGetAgentInput": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      },
+      "AgentGetAgentOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "createdAt": {
+            "type": "integer"
+          },
+          "description": {
+            "type": "string"
+          },
+          "extensions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "id": {
+            "type": "string"
+          },
+          "memory": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "personality": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "description",
+          "personality",
+          "memory",
+          "extensions",
+          "createdAt",
+          "updatedAt"
+        ],
+        "type": "object"
+      },
+      "AgentListAgentsInput": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "AgentListAgentsOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "agents": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "createdAt": {
+                  "type": "integer"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "extensions": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "updatedAt": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "description",
+                "extensions",
+                "createdAt",
+                "updatedAt"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "count": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "agents",
+          "count"
+        ],
+        "type": "object"
+      },
+      "AgentUpdateAgentInput": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "extensions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "id": {
+            "type": "string"
+          },
+          "memory": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "personality": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      },
+      "AgentUpdateAgentOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "createdAt": {
+            "type": "integer"
+          },
+          "description": {
+            "type": "string"
+          },
+          "extensions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "id": {
+            "type": "string"
+          },
+          "memory": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "personality": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "description",
+          "personality",
+          "memory",
+          "extensions",
+          "createdAt",
+          "updatedAt"
+        ],
+        "type": "object"
+      },
       "ApiErrorBody": {
         "properties": {
           "code": {

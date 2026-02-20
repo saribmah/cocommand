@@ -1,0 +1,189 @@
+{
+  "id": "agent",
+  "name": "Agent",
+  "description": "Create, manage, and execute AI agents with custom personalities and tool access",
+  "routing": {
+    "keywords": ["agent", "agents", "persona", "assistant"]
+  },
+  "tools": [
+    {
+      "id": "list-agents",
+      "name": "List Agents",
+      "description": "List all agents sorted by last updated time.",
+      "risk_level": "Safe",
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "agents": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": { "type": "string" },
+                "name": { "type": "string" },
+                "description": { "type": "string" },
+                "extensions": { "type": "array", "items": { "type": "string" } },
+                "createdAt": { "type": "integer" },
+                "updatedAt": { "type": "integer" }
+              },
+              "required": ["id", "name", "description", "extensions", "createdAt", "updatedAt"],
+              "additionalProperties": false
+            }
+          },
+          "count": { "type": "integer" }
+        },
+        "required": ["agents", "count"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "id": "create-agent",
+      "name": "Create Agent",
+      "description": "Create a new agent with a personality (system prompt), optional memory, and allowed extensions.",
+      "risk_level": "Safe",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "personality": { "type": "string", "description": "The system prompt that defines the agent's behavior." },
+          "description": { "type": "string" },
+          "memory": { "type": "string", "description": "Persistent context the agent can reference." },
+          "extensions": { "type": "array", "items": { "type": "string" }, "description": "Extension IDs the agent can use." }
+        },
+        "required": ["name", "personality"],
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "description": { "type": "string" },
+          "personality": { "type": "string" },
+          "memory": { "type": "string" },
+          "extensions": { "type": "array", "items": { "type": "string" } },
+          "createdAt": { "type": "integer" },
+          "updatedAt": { "type": "integer" }
+        },
+        "required": ["id", "name", "description", "personality", "memory", "extensions", "createdAt", "updatedAt"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "id": "get-agent",
+      "name": "Get Agent",
+      "description": "Get full details of an agent by id.",
+      "risk_level": "Safe",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" }
+        },
+        "required": ["id"],
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "description": { "type": "string" },
+          "personality": { "type": "string" },
+          "memory": { "type": "string" },
+          "extensions": { "type": "array", "items": { "type": "string" } },
+          "createdAt": { "type": "integer" },
+          "updatedAt": { "type": "integer" }
+        },
+        "required": ["id", "name", "description", "personality", "memory", "extensions", "createdAt", "updatedAt"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "id": "update-agent",
+      "name": "Update Agent",
+      "description": "Update an existing agent's fields. Only provided fields are changed.",
+      "risk_level": "Safe",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "description": { "type": "string" },
+          "personality": { "type": "string" },
+          "memory": { "type": "string" },
+          "extensions": { "type": "array", "items": { "type": "string" } }
+        },
+        "required": ["id"],
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "description": { "type": "string" },
+          "personality": { "type": "string" },
+          "memory": { "type": "string" },
+          "extensions": { "type": "array", "items": { "type": "string" } },
+          "createdAt": { "type": "integer" },
+          "updatedAt": { "type": "integer" }
+        },
+        "required": ["id", "name", "description", "personality", "memory", "extensions", "createdAt", "updatedAt"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "id": "delete-agent",
+      "name": "Delete Agent",
+      "description": "Delete an agent by id.",
+      "risk_level": "Confirm",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" }
+        },
+        "required": ["id"],
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "status": { "type": "string" },
+          "deleted": { "type": "boolean" }
+        },
+        "required": ["status", "deleted"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "id": "execute-agent",
+      "name": "Execute Agent",
+      "description": "Execute an agent with a message. The agent runs as a constrained LLM call with its personality, memory, and allowed tools.",
+      "risk_level": "Safe",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "message": { "type": "string" }
+        },
+        "required": ["id", "message"],
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "agentId": { "type": "string" },
+          "agentName": { "type": "string" },
+          "response": { "type": "string" }
+        },
+        "required": ["agentId", "agentName", "response"],
+        "additionalProperties": false
+      }
+    }
+  ]
+}

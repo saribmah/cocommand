@@ -4,6 +4,7 @@ use std::sync::Arc;
 use tokio::sync::RwLock;
 
 use crate::error::{CoreError, CoreResult};
+use crate::extension::builtin::agent::AgentExtension;
 use crate::extension::builtin::clipboard::ClipboardExtension;
 use crate::extension::builtin::filesystem::FileSystemExtension;
 use crate::extension::builtin::note::NoteExtension;
@@ -100,6 +101,7 @@ impl WorkspaceInstance {
 
 async fn register_builtin_extensions(registry: &Arc<RwLock<ExtensionRegistry>>) {
     let mut registry = registry.write().await;
+    registry.register(Arc::new(AgentExtension::new()) as Arc<dyn Extension>);
     registry.register(Arc::new(ClipboardExtension::new()) as Arc<dyn Extension>);
     registry.register(Arc::new(FileSystemExtension::new()) as Arc<dyn Extension>);
     registry.register(Arc::new(NoteExtension::new()) as Arc<dyn Extension>);

@@ -128,3 +128,7 @@ bun tauri build
 ## External Dependencies
 
 The project uses a local `llm-kit-*` SDK suite (path: `../../../ai-sdk/llm-kit-*`) for LLM integration. Ensure this sibling directory exists.
+
+
+### VERY IMPORTANT TO REMEMBER
+We're using module/ and module.rs structure. No mod.rs. NEVER CREATE mod.rs file
