@@ -487,5 +487,4 @@ mod tests {
             "sparse slab index must remain valid after clone"
         );
     }
-
 }

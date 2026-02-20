@@ -40,9 +40,7 @@ pub async fn set_workspace_dir_cmd(
     save_workspace_dir(&app, &state.workspace_dir())?;
     let _ = state.set_boot_status(BootStatus::Ready, None);
 
-    Ok(state
-        .server_addr()
-        .unwrap_or_else(|| "unknown".to_string()))
+    Ok(state.server_addr().unwrap_or_else(|| "unknown".to_string()))
 }
 
 #[derive(serde::Serialize)]

@@ -53,8 +53,7 @@ fn position_window_on_active_screen(window: &tauri::WebviewWindow) -> Result<(),
     let available_height = (work_area.size.height as i32 - margin * 2).max(0);
 
     let mut x = work_area.position.x + margin + (available_width - window_size.width as i32) / 2;
-    let mut y =
-        work_area.position.y + margin + (available_height - window_size.height as i32) / 2;
+    let mut y = work_area.position.y + margin + (available_height - window_size.height as i32) / 2;
 
     let min_x = work_area.position.x + margin;
     let min_y = work_area.position.y + margin;
@@ -96,10 +95,7 @@ pub fn position_main_window_on_active_screen(app: &AppHandle) -> Result<(), Stri
 }
 
 #[tauri::command]
-pub fn close_extension_window(
-    app: tauri::AppHandle,
-    extension_id: String,
-) -> Result<(), String> {
+pub fn close_extension_window(app: tauri::AppHandle, extension_id: String) -> Result<(), String> {
     let label = format!("ext-{}", extension_id);
     if let Some(window) = app.get_webview_window(&label) {
         window.close().map_err(|error| error.to_string())?;

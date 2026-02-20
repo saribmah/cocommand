@@ -17,9 +17,7 @@ pub fn run() {
     if let Ok(filter) = EnvFilter::try_from_default_env() {
         builder.with_env_filter(filter).init();
     } else {
-        builder
-            .with_env_filter(EnvFilter::new("info"))
-            .init();
+        builder.with_env_filter(EnvFilter::new("info")).init();
     }
 
     tauri::Builder::default()
@@ -35,12 +33,14 @@ pub fn run() {
                 .build(),
         )
         .setup(|app| {
-            let workspace_dir = workspace_path::load_workspace_dir(app.handle()).map_err(
-                |error| std::io::Error::new(std::io::ErrorKind::Other, error),
-            )?;
+            let workspace_dir = workspace_path::load_workspace_dir(app.handle())
+                .map_err(|error| std::io::Error::new(std::io::ErrorKind::Other, error))?;
             let app_state = state::AppState::new(workspace_dir.clone())
                 .map_err(|error| std::io::Error::new(std::io::ErrorKind::Other, error))?;
-            info!("Workspace directory: {}", app_state.workspace_dir().display());
+            info!(
+                "Workspace directory: {}",
+                app_state.workspace_dir().display()
+            );
             app.manage(app_state);
 
             let handle = app.handle().clone();

@@ -47,21 +47,15 @@ pub fn create_fsevent_watcher(
 ) -> Result<FsEventStream> {
     let callback_root = root.clone();
     let callback_ignored = ignored_roots.to_vec();
-    let stream = FsEventStream::new(
-        root,
-        ignored_roots,
-        since_event_id,
-        0.1,
-        move |events| {
-            process_fsevent_batch(
-                &callback_root,
-                &callback_ignored,
-                events,
-                &event_tx,
-                &last_event_id,
-            );
-        },
-    )
+    let stream = FsEventStream::new(root, ignored_roots, since_event_id, 0.1, move |events| {
+        process_fsevent_batch(
+            &callback_root,
+            &callback_ignored,
+            events,
+            &event_tx,
+            &last_event_id,
+        );
+    })
     .map_err(|error| {
         FilesystemError::Internal(format!(
             "failed to start FSEvents watcher for {}: {error}",
@@ -136,21 +130,23 @@ pub fn create_index_watcher(
     use std::path::Path;
 
     let mut watcher =
-        recommended_watcher(move |event_result: notify::Result<Event>| match event_result {
-            Ok(event) => {
-                if matches!(event.kind, EventKind::Access(_)) {
-                    return;
+        recommended_watcher(
+            move |event_result: notify::Result<Event>| match event_result {
+                Ok(event) => {
+                    if matches!(event.kind, EventKind::Access(_)) {
+                        return;
+                    }
+                    if event.paths.is_empty() {
+                        let _ = event_tx.send(WatcherEvent::RescanRequired);
+                    } else {
+                        let _ = event_tx.send(WatcherEvent::PathsChanged(event.paths));
+                    }
                 }
-                if event.paths.is_empty() {
-                    let _ = event_tx.send(WatcherEvent::RescanRequired);
-                } else {
-                    let _ = event_tx.send(WatcherEvent::PathsChanged(event.paths));
+                Err(error) => {
+                    let _ = event_tx.send(WatcherEvent::Error(error.to_string()));
                 }
-            }
-            Err(error) => {
-                let _ = event_tx.send(WatcherEvent::Error(error.to_string()));
-            }
-        })
+            },
+        )
         .map_err(|error| {
             FilesystemError::Internal(format!(
                 "failed to create filesystem watcher for {}: {error}",
@@ -223,4 +219,3 @@ fn remove_path_and_descendants(data: &mut RootIndexData, target: &std::path::Pat
     // Use tree-based path lookup and remove
     data.remove_entry(target);
 }
-

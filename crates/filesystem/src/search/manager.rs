@@ -195,7 +195,9 @@ impl RootIndex {
             ) {
                 Ok(watcher) => Some(watcher),
                 Err(error) => {
-                    let _ = last_error_clone.lock().map(|mut e| *e = Some(error.to_string()));
+                    let _ = last_error_clone
+                        .lock()
+                        .map(|mut e| *e = Some(error.to_string()));
                     tracing::warn!(
                         "filesystem watcher disabled for {}: {}",
                         watcher_root.display(),
@@ -213,7 +215,9 @@ impl RootIndex {
             ) {
                 Ok(watcher) => Some(watcher),
                 Err(error) => {
-                    let _ = last_error_clone.lock().map(|mut e| *e = Some(error.to_string()));
+                    let _ = last_error_clone
+                        .lock()
+                        .map(|mut e| *e = Some(error.to_string()));
                     tracing::warn!(
                         "filesystem watcher disabled for {}: {}",
                         watcher_root.display(),
@@ -318,7 +322,10 @@ fn run_index_thread(
     let mut pending_rescan_replies: Vec<Sender<Result<IndexStatus>>> = Vec::new();
 
     // If we need to build from scratch, kick off async build
-    if matches!(initial_state, IndexBuildState::Idle | IndexBuildState::Error) {
+    if matches!(
+        initial_state,
+        IndexBuildState::Idle | IndexBuildState::Error
+    ) {
         start_async_build(
             &config,
             &build_state,
@@ -499,13 +506,23 @@ fn drain_pending_events(event_rx: &Receiver<WatcherEvent>, pending: &mut Vec<Pat
     }
 }
 
-fn apply_pending_paths(config: &RootIndexConfig, data: &mut RootIndexData, pending: &mut Vec<PathBuf>) {
+fn apply_pending_paths(
+    config: &RootIndexConfig,
+    data: &mut RootIndexData,
+    pending: &mut Vec<PathBuf>,
+) {
     if pending.is_empty() {
         return;
     }
     let paths = std::mem::take(pending);
     for changed_path in coalesce_event_paths(paths) {
-        apply_path_change(&config.root, config.root_is_dir, &config.ignored_roots, data, &changed_path);
+        apply_path_change(
+            &config.root,
+            config.root_is_dir,
+            &config.ignored_roots,
+            data,
+            &changed_path,
+        );
     }
 }
 
@@ -603,10 +620,7 @@ fn build_status_payload_from_atomics(
     let state = IndexBuildState::load(build_state);
     let progress = build_progress.snapshot();
 
-    let last_error_msg = last_error
-        .lock()
-        .ok()
-        .and_then(|guard| guard.clone());
+    let last_error_msg = last_error.lock().ok().and_then(|guard| guard.clone());
 
     Ok(IndexStatus {
         state: state.as_str().to_string(),
@@ -741,13 +755,14 @@ impl FileSystemIndexManager {
             reply: reply_tx,
         };
 
-        index.search_tx.send(job).map_err(|_| {
-            FilesystemError::Internal("index thread has shut down".to_string())
-        })?;
+        index
+            .search_tx
+            .send(job)
+            .map_err(|_| FilesystemError::Internal("index thread has shut down".to_string()))?;
 
-        reply_rx.recv().map_err(|_| {
-            FilesystemError::Internal("index thread did not reply".to_string())
-        })?
+        reply_rx
+            .recv()
+            .map_err(|_| FilesystemError::Internal("index thread did not reply".to_string()))?
     }
 
     /// Returns the index status, triggering a build if needed.
@@ -804,13 +819,14 @@ impl FileSystemIndexManager {
         let index = self.get_or_create_index(key, cache_dir)?;
 
         let (reply_tx, reply_rx) = channel::bounded(1);
-        index.rescan_tx.send(RescanJob { reply: reply_tx }).map_err(|_| {
-            FilesystemError::Internal("index thread has shut down".to_string())
-        })?;
+        index
+            .rescan_tx
+            .send(RescanJob { reply: reply_tx })
+            .map_err(|_| FilesystemError::Internal("index thread has shut down".to_string()))?;
 
-        reply_rx.recv().map_err(|_| {
-            FilesystemError::Internal("index thread did not reply".to_string())
-        })?
+        reply_rx
+            .recv()
+            .map_err(|_| FilesystemError::Internal("index thread did not reply".to_string()))?
     }
 
     fn get_or_create_index(&self, key: RootIndexKey, cache_dir: PathBuf) -> Result<Arc<RootIndex>> {
