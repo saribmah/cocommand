@@ -9,7 +9,7 @@ use crate::extension::manifest::ExtensionManifest;
 use crate::extension::{
     boxed_tool_future, Extension, ExtensionContext, ExtensionKind, ExtensionTool,
 };
-use crate::llm::{LlmService, LlmSettings};
+use crate::llm::{settings_from_workspace, LlmProvider};
 use crate::utils::time::now_secs;
 use crate::workspace::WorkspaceConfig;
 
@@ -21,7 +21,7 @@ pub struct WorkspaceExtension {
 }
 
 impl WorkspaceExtension {
-    pub fn new(llm: Arc<LlmService>) -> Self {
+    pub fn new(llm: Arc<dyn LlmProvider>) -> Self {
         let manifest = parse_builtin_manifest(include_str!("workspace_manifest.json"));
 
         let mut execute_map = HashMap::new();
@@ -59,7 +59,7 @@ impl WorkspaceExtension {
 
                     persist_workspace_config(&context).await?;
 
-                    llm.update_settings(LlmSettings::from_workspace(&updated.llm))
+                    llm.update_settings(settings_from_workspace(&updated.llm))
                         .await
                         .map_err(|e| CoreError::Internal(e.to_string()))?;
 
@@ -164,7 +164,7 @@ mod tests {
     use tempfile::tempdir;
 
     use crate::extension::{Extension, ExtensionContext};
-    use crate::llm::{LlmService, LlmSettings};
+    use crate::llm::LlmKitProvider;
     use crate::platform::{PermissionSnapshot, PermissionStatus, Platform};
     use crate::workspace::WorkspaceInstance;
 
@@ -197,9 +197,9 @@ mod tests {
         }
     }
 
-    fn test_llm_service() -> Arc<LlmService> {
+    fn test_llm_provider() -> Arc<dyn crate::llm::LlmProvider> {
         Arc::new(
-            LlmService::new(LlmSettings {
+            LlmKitProvider::new(cocommand_llm::LlmSettings {
                 base_url: "https://api.openai.com/v1".to_string(),
                 api_key: None,
                 model: "gpt-4o-mini".to_string(),
@@ -221,7 +221,7 @@ mod tests {
                 .await
                 .expect("workspace"),
         );
-        let extension = WorkspaceExtension::new(test_llm_service());
+        let extension = WorkspaceExtension::new(test_llm_provider());
 
         let get_permissions = extension
             .tools()

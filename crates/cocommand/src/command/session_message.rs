@@ -4,7 +4,8 @@ use crate::bus::Bus;
 use crate::command::processor::{StorePartContext, StreamProcessor};
 use crate::error::CoreResult;
 use crate::event::{CoreEvent, SessionMessageStartedPayload};
-use crate::llm::LlmService;
+use crate::llm::LlmProvider;
+use crate::message::message::MessageStorage;
 use crate::message::{ExtensionPart, FilePartSourceText, Message, MessagePart, PartBase, TextPart};
 use crate::session::{SessionContext, SessionManager};
 use crate::tool::ToolRegistry;
@@ -61,13 +62,13 @@ struct PreparedSessionCommand {
     context: SessionContext,
     active_extension_ids: Vec<String>,
     user_message: Message,
-    prompt_messages: Vec<llm_kit_provider_utils::message::Message>,
+    messages: Vec<Message>,
 }
 
 pub async fn run_session_command(
     sessions: Arc<SessionManager>,
     workspace: WorkspaceInstance,
-    llm: &LlmService,
+    llm: &dyn LlmProvider,
     bus: &Bus,
     input: SessionCommandInput,
 ) -> CoreResult<SessionCommandOutput> {
@@ -81,7 +82,7 @@ pub async fn run_session_command(
     let session_id = prepared.context.session_id.clone();
 
     let mut assistant_message = Message::from_parts(&session_id, "assistant", Vec::new());
-    if let Err(error) = Message::store_info(&storage, &assistant_message.info).await {
+    if let Err(error) = MessageStorage::store_info(&storage, &assistant_message.info).await {
         return Err(error);
     }
     let _ = bus.publish(CoreEvent::SessionMessageStarted(
@@ -99,9 +100,9 @@ pub async fn run_session_command(
         &prepared.active_extension_ids,
     )
     .await;
-    let reply = match llm.stream_text(&prepared.prompt_messages, tools).await {
-        Ok(reply) => reply,
-        Err(error) => return Err(error),
+    let stream = match llm.stream(&prepared.messages, tools).await {
+        Ok(stream) => stream,
+        Err(error) => return Err(error.into()),
     };
 
     let mut stream_state = StreamProcessor::new();
@@ -113,13 +114,13 @@ pub async fn run_session_command(
         &assistant_message.info.id,
     );
     if let Err(error) = stream_state
-        .process(reply.full_stream(), &store_context)
+        .process(stream, &store_context)
         .await
     {
         return Err(error);
     }
 
-    if let Err(error) = Message::touch_info(&storage, &mut assistant_message.info).await {
+    if let Err(error) = MessageStorage::touch_info(&storage, &mut assistant_message.info).await {
         return Err(error);
     }
     assistant_message.parts = stream_state.mapped_parts().to_vec();
@@ -148,19 +149,15 @@ async fn prepare_session_message(
 
     let mut user_message = Message::from_parts(&context.session_id, "user", Vec::new());
     user_message.parts = map_input_parts(parts, &context.session_id, &user_message.info.id);
-    Message::store(&storage, &user_message).await?;
+    MessageStorage::store(&storage, &user_message).await?;
 
-    let message_history = Message::load(&storage, &context.session_id).await?;
-    let prompt_messages = message_history
-        .iter()
-        .flat_map(Message::to_prompt_messages)
-        .collect();
+    let messages = MessageStorage::load(&storage, &context.session_id).await?;
 
     Ok(PreparedSessionCommand {
         context,
         active_extension_ids,
         user_message,
-        prompt_messages,
+        messages,
     })
 }
 
@@ -216,12 +213,12 @@ mod tests {
 
     use crate::bus::Bus;
     use crate::event::CoreEvent;
+    use crate::llm::settings_from_workspace;
     use crate::message::{MessagePart, ReasoningPart, TextPart, ToolState};
     use crate::session::SessionContext;
     use crate::session::SessionManager;
     use crate::workspace::WorkspaceInstance;
-    use llm_kit_core::stream_text::TextStreamPart;
-    use llm_kit_provider_utils::tool::{ToolCall, ToolError, ToolResult};
+    use cocommand_llm::LlmStreamEvent;
     use tokio::time::{timeout, Duration};
 
     fn text_input_part(text: &str) -> SessionCommandInputPart {
@@ -263,7 +260,7 @@ mod tests {
             output.user_message.info.session_id
         );
 
-        let messages = Message::load(&workspace.storage, &output.context.session_id)
+        let messages = MessageStorage::load(&workspace.storage, &output.context.session_id)
             .await
             .expect("load");
         assert_eq!(messages.len(), 1);
@@ -272,7 +269,7 @@ mod tests {
             messages[0].parts.first(),
             Some(MessagePart::Text(part)) if part.text == "hello"
         ));
-        assert!(!output.prompt_messages.is_empty());
+        assert!(!output.messages.is_empty());
     }
 
     #[tokio::test]
@@ -301,7 +298,7 @@ mod tests {
         .await
         .expect("command");
 
-        let messages = Message::load(&workspace.storage, &output.context.session_id)
+        let messages = MessageStorage::load(&workspace.storage, &output.context.session_id)
             .await
             .expect("load");
         let parts = &messages[0].parts;
@@ -340,7 +337,7 @@ mod tests {
         .await
         .expect("command");
 
-        let messages = Message::load(&workspace.storage, &output.context.session_id)
+        let messages = MessageStorage::load(&workspace.storage, &output.context.session_id)
             .await
             .expect("load");
         let parts = &messages[0].parts;
@@ -362,9 +359,9 @@ mod tests {
         let sessions = Arc::new(SessionManager::new(workspace.clone()));
         let settings = {
             let config = workspace.config.read().await;
-            crate::llm::LlmSettings::from_workspace(&config.llm)
+            settings_from_workspace(&config.llm)
         };
-        let llm = LlmService::new(settings).expect("llm");
+        let llm = cocommand_llm::LlmKitProvider::new(settings).expect("llm");
         let bus = Bus::new(32);
         let mut bus_rx = bus.subscribe();
 
@@ -393,7 +390,7 @@ mod tests {
                     && payload.user_message.info.role == "user"
                     && payload.assistant_message.info.role == "assistant"
         ));
-        let messages = Message::load(&workspace.storage, &session_id)
+        let messages = MessageStorage::load(&workspace.storage, &session_id)
             .await
             .expect("load");
         assert_eq!(messages.len(), 2);
@@ -420,7 +417,7 @@ mod tests {
         let request_id = "request_1".to_string();
         let session_id = "session_1".to_string();
         let assistant = Message::from_parts(&session_id, "assistant", Vec::new());
-        Message::store_info(&workspace.storage, &assistant.info)
+        MessageStorage::store_info(&workspace.storage, &assistant.info)
             .await
             .expect("store info");
 
@@ -435,9 +432,8 @@ mod tests {
 
         state
             .on_part(
-                TextStreamPart::TextDelta {
+                LlmStreamEvent::TextDelta {
                     id: "text_1".to_string(),
-                    provider_metadata: None,
                     text: "hello".to_string(),
                 },
                 &context,
@@ -453,9 +449,8 @@ mod tests {
 
         state
             .on_part(
-                TextStreamPart::TextEnd {
+                LlmStreamEvent::TextEnd {
                     id: "text_1".to_string(),
-                    provider_metadata: None,
                 },
                 &context,
             )
@@ -468,7 +463,7 @@ mod tests {
             Some(MessagePart::Text(TextPart { text, .. })) if text == "hello"
         ));
 
-        let stored = Message::load(&workspace.storage, &session_id)
+        let stored = MessageStorage::load(&workspace.storage, &session_id)
             .await
             .expect("load");
         let assistant = stored
@@ -490,7 +485,7 @@ mod tests {
         let request_id = "request_1".to_string();
         let session_id = "session_1".to_string();
         let assistant = Message::from_parts(&session_id, "assistant", Vec::new());
-        Message::store_info(&workspace.storage, &assistant.info)
+        MessageStorage::store_info(&workspace.storage, &assistant.info)
             .await
             .expect("store info");
 
@@ -505,9 +500,8 @@ mod tests {
 
         state
             .on_part(
-                TextStreamPart::TextStart {
+                LlmStreamEvent::TextStart {
                     id: "text_1".to_string(),
-                    provider_metadata: None,
                 },
                 &context,
             )
@@ -515,9 +509,8 @@ mod tests {
             .expect("text start 1");
         state
             .on_part(
-                TextStreamPart::TextDelta {
+                LlmStreamEvent::TextDelta {
                     id: "text_1".to_string(),
-                    provider_metadata: None,
                     text: "hello".to_string(),
                 },
                 &context,
@@ -526,9 +519,8 @@ mod tests {
             .expect("text delta 1");
         state
             .on_part(
-                TextStreamPart::TextEnd {
+                LlmStreamEvent::TextEnd {
                     id: "text_1".to_string(),
-                    provider_metadata: None,
                 },
                 &context,
             )
@@ -537,9 +529,8 @@ mod tests {
 
         state
             .on_part(
-                TextStreamPart::TextStart {
+                LlmStreamEvent::TextStart {
                     id: "text_2".to_string(),
-                    provider_metadata: None,
                 },
                 &context,
             )
@@ -547,9 +538,8 @@ mod tests {
             .expect("text start 2");
         state
             .on_part(
-                TextStreamPart::TextDelta {
+                LlmStreamEvent::TextDelta {
                     id: "text_2".to_string(),
-                    provider_metadata: None,
                     text: "world".to_string(),
                 },
                 &context,
@@ -558,9 +548,8 @@ mod tests {
             .expect("text delta 2");
         state
             .on_part(
-                TextStreamPart::TextEnd {
+                LlmStreamEvent::TextEnd {
                     id: "text_2".to_string(),
-                    provider_metadata: None,
                 },
                 &context,
             )
@@ -586,7 +575,7 @@ mod tests {
         let request_id = "request_1".to_string();
         let session_id = "session_1".to_string();
         let assistant = Message::from_parts(&session_id, "assistant", Vec::new());
-        Message::store_info(&workspace.storage, &assistant.info)
+        MessageStorage::store_info(&workspace.storage, &assistant.info)
             .await
             .expect("store info");
 
@@ -601,13 +590,11 @@ mod tests {
 
         state
             .on_part(
-                TextStreamPart::ToolError {
-                    tool_error: ToolError::new(
-                        "call_1",
-                        "test_tool",
-                        serde_json::json!({"input": true}),
-                        serde_json::json!({"message": "failed"}),
-                    ),
+                LlmStreamEvent::ToolError {
+                    tool_call_id: "call_1".to_string(),
+                    tool_name: "test_tool".to_string(),
+                    input: serde_json::json!({"input": true}),
+                    error: serde_json::json!({"message": "failed"}),
                 },
                 &context,
             )
@@ -634,7 +621,7 @@ mod tests {
         let request_id = "request_1".to_string();
         let session_id = "session_1".to_string();
         let assistant = Message::from_parts(&session_id, "assistant", Vec::new());
-        Message::store_info(&workspace.storage, &assistant.info)
+        MessageStorage::store_info(&workspace.storage, &assistant.info)
             .await
             .expect("store info");
 
@@ -649,12 +636,10 @@ mod tests {
 
         state
             .on_part(
-                TextStreamPart::ToolCall {
-                    tool_call: ToolCall::new(
-                        "call_1",
-                        "test_tool",
-                        serde_json::json!({"input": true}),
-                    ),
+                LlmStreamEvent::ToolCall {
+                    tool_call_id: "call_1".to_string(),
+                    tool_name: "test_tool".to_string(),
+                    input: serde_json::json!({"input": true}),
                 },
                 &context,
             )
@@ -668,13 +653,11 @@ mod tests {
 
         state
             .on_part(
-                TextStreamPart::ToolResult {
-                    tool_result: ToolResult::new(
-                        "call_1",
-                        "test_tool",
-                        serde_json::json!({"input": true}),
-                        serde_json::json!({"ok": true}),
-                    ),
+                LlmStreamEvent::ToolResult {
+                    tool_call_id: "call_1".to_string(),
+                    tool_name: "test_tool".to_string(),
+                    input: serde_json::json!({"input": true}),
+                    output: serde_json::json!({"ok": true}),
                 },
                 &context,
             )
@@ -711,7 +694,7 @@ mod tests {
         let request_id = "request_1".to_string();
         let session_id = "session_1".to_string();
         let assistant = Message::from_parts(&session_id, "assistant", Vec::new());
-        Message::store_info(&workspace.storage, &assistant.info)
+        MessageStorage::store_info(&workspace.storage, &assistant.info)
             .await
             .expect("store info");
 
@@ -724,14 +707,12 @@ mod tests {
         );
         let mut state = StreamProcessor::new();
         let stream = tokio_stream::iter(vec![
-            TextStreamPart::TextDelta {
+            LlmStreamEvent::TextDelta {
                 id: "text_1".to_string(),
-                provider_metadata: None,
                 text: "hello".to_string(),
             },
-            TextStreamPart::ReasoningDelta {
+            LlmStreamEvent::ReasoningDelta {
                 id: "reasoning_1".to_string(),
-                provider_metadata: None,
                 text: "think".to_string(),
             },
         ]);
@@ -756,7 +737,7 @@ mod tests {
         let request_id = "request_1".to_string();
         let session_id = "session_1".to_string();
         let assistant = Message::from_parts(&session_id, "assistant", Vec::new());
-        Message::store_info(&workspace.storage, &assistant.info)
+        MessageStorage::store_info(&workspace.storage, &assistant.info)
             .await
             .expect("store info");
 
@@ -770,7 +751,7 @@ mod tests {
         let mut state = StreamProcessor::new();
         let error = state
             .on_part(
-                TextStreamPart::Error {
+                LlmStreamEvent::Error {
                     error: serde_json::json!({"message": "boom"}),
                 },
                 &context,
@@ -789,7 +770,7 @@ mod tests {
         let request_id = "request_1".to_string();
         let session_id = "session_1".to_string();
         let assistant = Message::from_parts(&session_id, "assistant", Vec::new());
-        Message::store_info(&workspace.storage, &assistant.info)
+        MessageStorage::store_info(&workspace.storage, &assistant.info)
             .await
             .expect("store info");
 
@@ -802,7 +783,7 @@ mod tests {
         );
         let mut state = StreamProcessor::new();
         state
-            .on_part(TextStreamPart::Start, &context)
+            .on_part(LlmStreamEvent::Start, &context)
             .await
             .expect("start");
 

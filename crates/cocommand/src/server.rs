@@ -12,7 +12,7 @@ use utoipa::OpenApi;
 use crate::browser::BrowserBridge;
 use crate::bus::Bus;
 use crate::clipboard::spawn_clipboard_watcher;
-use crate::llm::{LlmService, LlmSettings};
+use crate::llm::{settings_from_workspace, LlmKitProvider, LlmProvider};
 use crate::oauth::OAuthManager;
 use crate::platform::{default_platform, SharedPlatform};
 use crate::session::SessionManager;
@@ -53,18 +53,21 @@ impl Server {
         let bus = Bus::new(512);
         let settings = {
             let config = workspace.config.read().await;
-            LlmSettings::from_workspace(&config.llm)
+            settings_from_workspace(&config.llm)
         };
-        let llm = Arc::new(LlmService::new(settings).map_err(|e| e.to_string())?);
+        let llm: Arc<dyn LlmProvider> =
+            Arc::new(LlmKitProvider::new(settings).map_err(|e| e.to_string())?);
         let oauth = OAuthManager::new(Duration::from_secs(300));
         let browser_bridge = Arc::new(BrowserBridge::new(Duration::from_secs(10)));
 
-        // Register the browser extension.
+        // Register extensions that need the LLM provider.
         {
+            use crate::extension::builtin::agent::AgentExtension;
             use crate::extension::builtin::browser::BrowserExtension;
             use crate::extension::builtin::workspace::WorkspaceExtension;
             use crate::extension::Extension;
             let mut registry = workspace.extension_registry.write().await;
+            registry.register(Arc::new(AgentExtension::new(llm.clone())) as Arc<dyn Extension>);
             registry.register(
                 Arc::new(BrowserExtension::new(browser_bridge.clone())) as Arc<dyn Extension>
             );
@@ -205,7 +208,7 @@ pub(crate) struct ServerState {
     pub(crate) workspace: WorkspaceInstance,
     pub(crate) sessions: Arc<SessionManager>,
     pub(crate) bus: Bus,
-    pub(crate) llm: Arc<LlmService>,
+    pub(crate) llm: Arc<dyn LlmProvider>,
     pub(crate) oauth: OAuthManager,
     pub(crate) browser: Arc<BrowserBridge>,
     pub(crate) addr: SocketAddr,

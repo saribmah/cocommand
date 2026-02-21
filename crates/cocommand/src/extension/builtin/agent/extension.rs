@@ -1,5 +1,6 @@
 use std::any::Any;
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use serde_json::json;
 
@@ -10,6 +11,7 @@ use crate::extension::{
     boxed_tool_future, Extension, ExtensionInitContext, ExtensionKind, ExtensionStatus,
     ExtensionTool,
 };
+use crate::llm::LlmProvider;
 
 use super::ops;
 
@@ -24,14 +26,9 @@ impl std::fmt::Debug for AgentExtension {
     }
 }
 
-impl Default for AgentExtension {
-    fn default() -> Self {
-        Self::new()
-    }
-}
 
 impl AgentExtension {
-    pub fn new() -> Self {
+    pub fn new(llm: Arc<dyn LlmProvider>) -> Self {
         let manifest = parse_builtin_manifest(include_str!("manifest.json"));
         let mut execute_map = HashMap::new();
 
@@ -128,19 +125,24 @@ impl AgentExtension {
             ) as _,
         );
 
-        execute_map.insert(
-            "execute-agent",
-            std::sync::Arc::new(
-                |input: serde_json::Value, context: crate::extension::ExtensionContext| {
-                    boxed_tool_future(async move {
-                        let id = required_string(&input, "id")?;
-                        let message = required_string(&input, "message")?;
-                        let payload = ops::execute_agent(&context, &id, &message).await?;
-                        Ok(json!(payload))
-                    })
-                },
-            ) as _,
-        );
+        {
+            let llm = llm.clone();
+            execute_map.insert(
+                "execute-agent",
+                std::sync::Arc::new(
+                    move |input: serde_json::Value, context: crate::extension::ExtensionContext| {
+                        let llm = llm.clone();
+                        boxed_tool_future(async move {
+                            let id = required_string(&input, "id")?;
+                            let message = required_string(&input, "message")?;
+                            let payload =
+                                ops::execute_agent(&context, llm.as_ref(), &id, &message).await?;
+                            Ok(json!(payload))
+                        })
+                    },
+                ) as _,
+            );
+        }
 
         let tools = merge_manifest_tools(&manifest, execute_map);
 

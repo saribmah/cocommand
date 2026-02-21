@@ -1,15 +1,15 @@
 use std::sync::Arc;
 
-use llm_kit_provider_utils::tool::{Tool, ToolExecutionOutput};
+use cocommand_llm::LlmTool;
 use serde_json::json;
 
 use crate::tool::search_extensions::map_kind;
 use crate::workspace::WorkspaceInstance;
 
-pub fn build_get_extension_tool(workspace: Arc<WorkspaceInstance>) -> Tool {
-    let execute = Arc::new(move |input: serde_json::Value, _opts| {
+pub fn build_get_extension_tool(workspace: Arc<WorkspaceInstance>) -> LlmTool {
+    let execute = Arc::new(move |input: serde_json::Value| {
         let workspace = workspace.clone();
-        ToolExecutionOutput::Single(Box::pin(async move {
+        Box::pin(async move {
             let app_id = input
                 .get("id")
                 .and_then(|value| value.as_str())
@@ -32,16 +32,18 @@ pub fn build_get_extension_tool(workspace: Arc<WorkspaceInstance>) -> Tool {
                     })
                 }).collect::<Vec<_>>()
             }))
-        }))
+        }) as std::pin::Pin<Box<dyn std::future::Future<Output = Result<serde_json::Value, serde_json::Value>> + Send>>
     });
 
-    Tool::function(json!({
-        "type": "object",
-        "properties": {
-            "id": { "type": "string" }
-        },
-        "required": ["id"]
-    }))
-    .with_description("Fetch full details for an extension, including tools.")
-    .with_execute(execute)
+    LlmTool {
+        description: Some("Fetch full details for an extension, including tools.".to_string()),
+        input_schema: json!({
+            "type": "object",
+            "properties": {
+                "id": { "type": "string" }
+            },
+            "required": ["id"]
+        }),
+        execute,
+    }
 }

@@ -64,7 +64,7 @@ pub(crate) async fn session_command_history(
         .with_session_mut(|session| Box::pin(async move { session.context(None).await }))
         .await
         .map_err(ApiError::from)?;
-    let messages = Message::load(&state.workspace.storage, &context.session_id)
+    let messages = crate::message::message::MessageStorage::load(&state.workspace.storage, &context.session_id)
         .await
         .map_err(ApiError::from)?;
     Ok(Json(messages))
@@ -100,7 +100,7 @@ pub(crate) async fn session_command(
             let result = run_session_command(
                 state.sessions.clone(),
                 state.workspace.clone(),
-                &state.llm,
+                state.llm.as_ref(),
                 &state.bus,
                 SessionCommandInput { request_id, parts },
             )

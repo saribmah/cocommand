@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use llm_kit_provider_utils::tool::{Tool, ToolExecutionOutput};
+use cocommand_llm::LlmTool;
 use serde_json::json;
 
 use crate::session::SessionManager;
@@ -10,13 +10,13 @@ pub fn build_activate_extension_tool(
     workspace: Arc<WorkspaceInstance>,
     sessions: Arc<SessionManager>,
     session_id: &str,
-) -> Tool {
+) -> LlmTool {
     let session_id = session_id.to_string();
-    let execute = Arc::new(move |input: serde_json::Value, _opts| {
+    let execute = Arc::new(move |input: serde_json::Value| {
         let workspace = workspace.clone();
         let sessions = sessions.clone();
         let session_id = session_id.clone();
-        ToolExecutionOutput::Single(Box::pin(async move {
+        Box::pin(async move {
             let app_id = input
                 .get("id")
                 .and_then(|value| value.as_str())
@@ -51,16 +51,18 @@ pub fn build_activate_extension_tool(
                 .await
                 .map_err(|error| json!({ "error": error.to_string() }))?;
             Ok(json!({ "status": "ok", "activated": true, "id": app_id }))
-        }))
+        }) as std::pin::Pin<Box<dyn std::future::Future<Output = Result<serde_json::Value, serde_json::Value>> + Send>>
     });
 
-    Tool::function(json!({
-        "type": "object",
-        "properties": {
-            "id": { "type": "string" }
-        },
-        "required": ["id"]
-    }))
-    .with_description("Activate an extension so its tools become available.")
-    .with_execute(execute)
+    LlmTool {
+        description: Some("Activate an extension so its tools become available.".to_string()),
+        input_schema: json!({
+            "type": "object",
+            "properties": {
+                "id": { "type": "string" }
+            },
+            "required": ["id"]
+        }),
+        execute,
+    }
 }

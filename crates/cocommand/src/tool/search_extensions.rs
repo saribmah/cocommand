@@ -1,15 +1,15 @@
 use std::sync::Arc;
 
-use llm_kit_provider_utils::tool::{Tool, ToolExecutionOutput};
+use cocommand_llm::LlmTool;
 use serde_json::json;
 
 use crate::extension::ExtensionKind;
 use crate::workspace::WorkspaceInstance;
 
-pub fn build_search_extensions_tool(workspace: Arc<WorkspaceInstance>) -> Tool {
-    let execute = Arc::new(move |input: serde_json::Value, _opts| {
+pub fn build_search_extensions_tool(workspace: Arc<WorkspaceInstance>) -> LlmTool {
+    let execute = Arc::new(move |input: serde_json::Value| {
         let workspace = workspace.clone();
-        ToolExecutionOutput::Single(Box::pin(async move {
+        Box::pin(async move {
             let query = input
                 .get("query")
                 .and_then(|value| value.as_str())
@@ -49,19 +49,21 @@ pub fn build_search_extensions_tool(workspace: Arc<WorkspaceInstance>) -> Tool {
                 .map(|(value, _)| value)
                 .collect();
             Ok(json!({ "results": results }))
-        }))
+        }) as std::pin::Pin<Box<dyn std::future::Future<Output = Result<serde_json::Value, serde_json::Value>> + Send>>
     });
 
-    Tool::function(json!({
-        "type": "object",
-        "properties": {
-            "query": { "type": "string" },
-            "limit": { "type": "number", "minimum": 1, "maximum": 50 }
-        },
-        "required": ["query"]
-    }))
-    .with_description("Search available extensions by name or id.")
-    .with_execute(execute)
+    LlmTool {
+        description: Some("Search available extensions by name or id.".to_string()),
+        input_schema: json!({
+            "type": "object",
+            "properties": {
+                "query": { "type": "string" },
+                "limit": { "type": "number", "minimum": 1, "maximum": 50 }
+            },
+            "required": ["query"]
+        }),
+        execute,
+    }
 }
 
 pub(crate) fn map_kind(kind: ExtensionKind) -> &'static str {

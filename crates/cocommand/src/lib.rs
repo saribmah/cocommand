@@ -20,7 +20,7 @@ pub use crate::bus::Bus;
 pub use crate::error::{CoreError, CoreResult};
 pub use crate::event::CoreEvent;
 pub use crate::extension::{Extension, ExtensionContext, ExtensionKind, ExtensionTool};
-pub use crate::llm::LlmService;
+pub use crate::llm::{LlmKitProvider, LlmProvider, LlmSettings};
 pub use crate::message::{
     ExtensionPart, FilePart, FilePartFileSource, FilePartSource, FilePartSourceText,
     FilePartSymbolSource, Message, MessagePart, PartBase, ReasoningPart, TextPart, ToolPart,

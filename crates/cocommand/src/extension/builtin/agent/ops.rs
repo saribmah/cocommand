@@ -1,14 +1,11 @@
-use std::sync::Arc;
-
-use llm_kit_core::stream_text::TextStreamPart;
-use llm_kit_core::tool::ToolSet;
-use llm_kit_core::{prompt::Prompt, step_count_is, StreamText};
+use cocommand_llm::{LlmProvider, LlmStreamEvent, LlmToolSet};
 use tokio_stream::StreamExt;
 
 use crate::error::{CoreError, CoreResult};
 use crate::extension::ExtensionContext;
-use crate::llm::provider::{build_model, LlmSettings};
+use crate::llm::settings_from_workspace;
 use crate::storage::SharedStorage;
+use crate::tool::registry::{build_tool, sanitize_tool_name};
 use crate::utils::time::now_secs;
 
 use super::types::{Agent, AgentSummary, ExecuteAgentPayload, ListAgentsPayload};
@@ -115,6 +112,7 @@ pub async fn delete_agent(storage: &SharedStorage, id: &str) -> CoreResult<bool>
 
 pub async fn execute_agent(
     context: &ExtensionContext,
+    llm: &dyn LlmProvider,
     id: &str,
     message: &str,
 ) -> CoreResult<ExecuteAgentPayload> {
@@ -131,15 +129,17 @@ pub async fn execute_agent(
     // Build LLM settings from workspace config, override system prompt
     let settings = {
         let config = context.workspace.config.read().await;
-        let mut settings = LlmSettings::from_workspace(&config.llm);
+        let mut settings = settings_from_workspace(&config.llm);
         settings.system_prompt = system_prompt;
         settings
     };
 
-    let model = build_model(&settings)?;
+    let agent_llm = llm
+        .with_settings(settings)
+        .map_err(|e| CoreError::Internal(format!("failed to create agent provider: {e}")))?;
 
     // Build constrained tool set from agent's allowed extensions
-    let mut tool_set = ToolSet::new();
+    let mut tool_set = LlmToolSet::new();
     {
         let registry = context.workspace.extension_registry.read().await;
         let ext_context = context.clone();
@@ -155,30 +155,24 @@ pub async fn execute_agent(
         }
     }
 
-    // Build prompt with user message
-    let user_message = llm_kit_provider_utils::message::Message::User(
-        llm_kit_provider_utils::message::UserMessage::new(message),
-    );
-    let prompt = Prompt::messages(vec![user_message]).with_system(settings.system_prompt.clone());
+    // Build user message
+    let user_message = cocommand_llm::Message::from_text("agent", "user", message);
+    let messages = vec![user_message];
 
-    let result = StreamText::new(model, prompt)
-        .temperature(settings.temperature)
-        .max_output_tokens(settings.max_output_tokens)
-        .tools(tool_set)
-        .stop_when(vec![Box::new(step_count_is(settings.max_steps))])
-        .execute()
+    let stream = agent_llm
+        .stream(&messages, tool_set)
         .await
         .map_err(|e| CoreError::Internal(format!("agent execution failed: {e}")))?;
 
     // Consume stream, collecting text deltas
     let mut response = String::new();
-    let mut stream = result.full_stream();
-    while let Some(part) = stream.next().await {
+    let mut pinned_stream = stream;
+    while let Some(part) = pinned_stream.next().await {
         match part {
-            TextStreamPart::TextDelta { text, .. } => {
+            LlmStreamEvent::TextDelta { text, .. } => {
                 response.push_str(&text);
             }
-            TextStreamPart::Error { error } => {
+            LlmStreamEvent::Error { error } => {
                 return Err(CoreError::Internal(format!("agent stream error: {error}")));
             }
             _ => {}
@@ -190,44 +184,6 @@ pub async fn execute_agent(
         agent_name: agent.name,
         response,
     })
-}
-
-fn build_tool(
-    tool: crate::extension::ExtensionTool,
-    context: ExtensionContext,
-) -> llm_kit_provider_utils::tool::Tool {
-    let description = tool.description.clone();
-    let schema = tool.input_schema.clone();
-    let execute_context = context.clone();
-    let execute_handler = tool.execute.clone();
-
-    let execute = Arc::new(move |input: serde_json::Value, _opts| {
-        let execute_context = execute_context.clone();
-        let execute_handler = execute_handler.clone();
-        llm_kit_provider_utils::tool::ToolExecutionOutput::Single(Box::pin(async move {
-            execute_handler(input, execute_context)
-                .await
-                .map_err(|error| serde_json::json!({ "error": error.to_string() }))
-        }))
-    });
-
-    let mut tool = llm_kit_provider_utils::tool::Tool::function(schema).with_execute(execute);
-    if let Some(description) = description {
-        tool = tool.with_description(description);
-    }
-    tool
-}
-
-fn sanitize_tool_name(name: &str) -> String {
-    let mut sanitized = String::with_capacity(name.len());
-    for ch in name.chars() {
-        if ch.is_ascii_alphanumeric() || ch == '-' || ch == '_' {
-            sanitized.push(ch);
-        } else {
-            sanitized.push('_');
-        }
-    }
-    sanitized
 }
 
 fn slugify(input: &str) -> String {

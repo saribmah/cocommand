@@ -3,15 +3,15 @@ use std::collections::HashMap;
 use crate::bus::Bus;
 use crate::error::{CoreError, CoreResult};
 use crate::event::{CoreEvent, SessionPartUpdatedPayload};
+use crate::message::message::MessageStorage;
 use crate::message::parts::{
     FilePart, MessagePart, PartBase, ReasoningPart, TextPart, ToolPart, ToolState,
     ToolStateCompleted, ToolStateError, ToolStateRunning, ToolStateTimeCompleted,
     ToolStateTimeRange, ToolStateTimeStart,
 };
-use crate::message::Message;
 use crate::storage::SharedStorage;
 use crate::utils::time::now_secs;
-use llm_kit_core::stream_text::TextStreamPart;
+use cocommand_llm::LlmStreamEvent;
 use serde_json::{Map, Value};
 use tokio_stream::StreamExt;
 
@@ -59,60 +59,57 @@ impl StreamProcessor {
 
     pub(crate) async fn on_part(
         &mut self,
-        part: TextStreamPart,
+        part: LlmStreamEvent,
         context: &StorePartContext<'_>,
     ) -> CoreResult<()> {
         match part {
-            TextStreamPart::TextStart { id, .. } => {
+            LlmStreamEvent::TextStart { id } => {
                 self.flush_text(context).await?;
                 self.current_text_id = Some(id);
             }
-            TextStreamPart::TextDelta { id, text, .. } => {
+            LlmStreamEvent::TextDelta { id, text } => {
                 self.switch_text_segment_if_needed(id, context).await?;
                 self.current_text.push_str(&text);
                 self.upsert_text_part(context).await?;
             }
-            TextStreamPart::TextEnd { id, .. } => {
+            LlmStreamEvent::TextEnd { id } => {
                 self.switch_text_segment_if_needed(id, context).await?;
                 self.flush_text(context).await?;
             }
-            TextStreamPart::ReasoningStart { id, .. } => {
+            LlmStreamEvent::ReasoningStart { id } => {
                 self.flush_reasoning(context).await?;
                 self.current_reasoning_id = Some(id);
             }
-            TextStreamPart::ReasoningDelta { id, text, .. } => {
+            LlmStreamEvent::ReasoningDelta { id, text } => {
                 self.switch_reasoning_segment_if_needed(id, context).await?;
                 self.current_reasoning.push_str(&text);
             }
-            TextStreamPart::ReasoningEnd { id, .. } => {
+            LlmStreamEvent::ReasoningEnd { id } => {
                 self.switch_reasoning_segment_if_needed(id, context).await?;
                 self.flush_reasoning(context).await?;
             }
-            TextStreamPart::ToolInputStart { .. } => {}
-            TextStreamPart::ToolInputDelta { .. } => {}
-            TextStreamPart::ToolInputEnd { .. } => {}
-            TextStreamPart::File { file } => {
+            LlmStreamEvent::File { base64, media_type, name } => {
                 self.store_part(
                     MessagePart::File(FilePart {
                         base: PartBase::new(context.session_id, context.message_id),
-                        base64: file.base64,
-                        media_type: file.media_type,
-                        name: file.name,
+                        base64,
+                        media_type,
+                        name,
                         source: None,
                     }),
                     context,
                 )
                 .await?;
             }
-            TextStreamPart::ToolCall { tool_call } => {
+            LlmStreamEvent::ToolCall { tool_call_id, tool_name, input } => {
                 let start = now_secs();
-                let input = value_to_record(tool_call.input);
+                let input_map = value_to_record(input);
                 let tool_part = ToolPart {
                     base: PartBase::new(context.session_id, context.message_id),
-                    call_id: tool_call.tool_call_id,
-                    tool: tool_call.tool_name,
+                    call_id: tool_call_id,
+                    tool: tool_name,
                     state: ToolState::Running(ToolStateRunning {
-                        input,
+                        input: input_map,
                         title: None,
                         metadata: None,
                         time: ToolStateTimeStart { start },
@@ -124,19 +121,17 @@ impl StreamProcessor {
                 self.store_part(MessagePart::Tool(tool_part), context)
                     .await?;
             }
-            TextStreamPart::ToolResult { tool_result } => {
+            LlmStreamEvent::ToolResult { tool_call_id, tool_name, input, output } => {
                 let end = now_secs();
-                let call_id = tool_result.tool_call_id;
-                let tool = tool_result.tool_name;
-                let fallback_input = value_to_record(tool_result.input);
-                let output = value_to_string(&tool_result.output);
+                let fallback_input = value_to_record(input);
+                let output_str = value_to_string(&output);
                 let mut tool_part = self
                     .tool_calls
-                    .remove(&call_id)
+                    .remove(&tool_call_id)
                     .unwrap_or_else(|| ToolPart {
                         base: PartBase::new(context.session_id, context.message_id),
-                        call_id: call_id.clone(),
-                        tool: tool.clone(),
+                        call_id: tool_call_id.clone(),
+                        tool: tool_name.clone(),
                         state: ToolState::Running(ToolStateRunning {
                             input: fallback_input.clone(),
                             title: None,
@@ -145,16 +140,16 @@ impl StreamProcessor {
                         }),
                         metadata: None,
                     });
-                let (input, start) = tool_state_input_and_start(&tool_part.state, end);
-                tool_part.tool = tool.clone();
+                let (prev_input, start) = tool_state_input_and_start(&tool_part.state, end);
+                tool_part.tool = tool_name.clone();
                 tool_part.state = ToolState::Completed(ToolStateCompleted {
-                    input: if input.is_empty() {
+                    input: if prev_input.is_empty() {
                         fallback_input
                     } else {
-                        input
+                        prev_input
                     },
-                    output,
-                    title: tool,
+                    output: output_str,
+                    title: tool_name,
                     metadata: Map::new(),
                     time: ToolStateTimeCompleted {
                         start,
@@ -166,19 +161,17 @@ impl StreamProcessor {
                 self.store_part(MessagePart::Tool(tool_part), context)
                     .await?;
             }
-            TextStreamPart::ToolError { tool_error } => {
+            LlmStreamEvent::ToolError { tool_call_id, tool_name, input, error } => {
                 let end = now_secs();
-                let call_id = tool_error.tool_call_id;
-                let tool = tool_error.tool_name;
-                let fallback_input = value_to_record(tool_error.input);
-                let error = value_to_string(&tool_error.error);
+                let fallback_input = value_to_record(input);
+                let error_str = value_to_string(&error);
                 let mut tool_part = self
                     .tool_calls
-                    .remove(&call_id)
+                    .remove(&tool_call_id)
                     .unwrap_or_else(|| ToolPart {
                         base: PartBase::new(context.session_id, context.message_id),
-                        call_id: call_id.clone(),
-                        tool: tool.clone(),
+                        call_id: tool_call_id.clone(),
+                        tool: tool_name.clone(),
                         state: ToolState::Running(ToolStateRunning {
                             input: fallback_input.clone(),
                             title: None,
@@ -187,33 +180,25 @@ impl StreamProcessor {
                         }),
                         metadata: None,
                     });
-                let (input, start) = tool_state_input_and_start(&tool_part.state, end);
-                tool_part.tool = tool;
+                let (prev_input, start) = tool_state_input_and_start(&tool_part.state, end);
+                tool_part.tool = tool_name;
                 tool_part.state = ToolState::Error(ToolStateError {
-                    input: if input.is_empty() {
+                    input: if prev_input.is_empty() {
                         fallback_input
                     } else {
-                        input
+                        prev_input
                     },
-                    error,
+                    error: error_str,
                     metadata: None,
                     time: ToolStateTimeRange { start, end },
                 });
                 self.store_part(MessagePart::Tool(tool_part), context)
                     .await?;
             }
-            TextStreamPart::ToolOutputDenied { .. } => {}
-            TextStreamPart::ToolApprovalRequest { .. } => {}
-            TextStreamPart::StartStep { .. } => {}
-            TextStreamPart::FinishStep { .. } => {}
-            TextStreamPart::Start => {}
-            TextStreamPart::Finish { .. } => {}
-            TextStreamPart::Abort => {}
-            TextStreamPart::Source { .. } => {}
-            TextStreamPart::Error { error } => {
+            LlmStreamEvent::Error { error } => {
                 return Err(CoreError::Internal(format!("llm stream error: {error}")));
             }
-            TextStreamPart::Raw { .. } => {}
+            LlmStreamEvent::Start | LlmStreamEvent::Finish => {}
         }
 
         Ok(())
@@ -225,7 +210,7 @@ impl StreamProcessor {
         context: &StorePartContext<'_>,
     ) -> CoreResult<()>
     where
-        S: tokio_stream::Stream<Item = TextStreamPart> + Unpin,
+        S: tokio_stream::Stream<Item = LlmStreamEvent> + Unpin,
     {
         while let Some(part) = stream.next().await {
             self.on_part(part, context).await?;
@@ -268,7 +253,7 @@ impl StreamProcessor {
         context: &StorePartContext<'_>,
     ) -> CoreResult<()> {
         let part_id = part.base().id.clone();
-        Message::store_part(context.storage, &part).await?;
+        MessageStorage::store_part(context.storage, &part).await?;
         let _ = context
             .bus
             .publish(CoreEvent::SessionPartUpdated(SessionPartUpdatedPayload {

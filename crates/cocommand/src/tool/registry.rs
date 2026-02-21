@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use llm_kit_core::tool::ToolSet;
+use cocommand_llm::{LlmTool, LlmToolSet};
 
 use crate::extension::{ExtensionContext, ExtensionTool};
 use crate::session::SessionManager;
@@ -17,13 +17,13 @@ impl ToolRegistry {
         sessions: Arc<SessionManager>,
         session_id: &str,
         active_app_ids: &[String],
-    ) -> ToolSet {
+    ) -> LlmToolSet {
         let context = ExtensionContext {
             workspace: workspace.clone(),
             session_id: session_id.to_string(),
         };
         let registry = workspace.extension_registry.read().await;
-        let mut tool_set = ToolSet::new();
+        let mut tool_set = LlmToolSet::new();
 
         tool_set.insert(
             "search_extensions".to_string(),
@@ -68,33 +68,30 @@ impl ToolRegistry {
     }
 }
 
-fn build_tool(
-    tool: ExtensionTool,
-    context: ExtensionContext,
-) -> llm_kit_provider_utils::tool::Tool {
+pub(crate) fn build_tool(tool: ExtensionTool, context: ExtensionContext) -> LlmTool {
     let description = tool.description.clone();
     let schema = tool.input_schema.clone();
     let execute_context = context.clone();
     let execute_handler = tool.execute.clone();
 
-    let execute = Arc::new(move |input: serde_json::Value, _opts| {
+    let execute = Arc::new(move |input: serde_json::Value| {
         let execute_context = execute_context.clone();
         let execute_handler = execute_handler.clone();
-        llm_kit_provider_utils::tool::ToolExecutionOutput::Single(Box::pin(async move {
+        Box::pin(async move {
             execute_handler(input, execute_context)
                 .await
                 .map_err(|error| serde_json::json!({ "error": error.to_string() }))
-        }))
+        }) as std::pin::Pin<Box<dyn std::future::Future<Output = Result<serde_json::Value, serde_json::Value>> + Send>>
     });
 
-    let mut tool = llm_kit_provider_utils::tool::Tool::function(schema).with_execute(execute);
-    if let Some(description) = description {
-        tool = tool.with_description(description);
+    LlmTool {
+        description,
+        input_schema: schema,
+        execute,
     }
-    tool
 }
 
-fn sanitize_tool_name(name: &str) -> String {
+pub(crate) fn sanitize_tool_name(name: &str) -> String {
     let mut sanitized = String::with_capacity(name.len());
     for ch in name.chars() {
         if ch.is_ascii_alphanumeric() || ch == '-' || ch == '_' {
