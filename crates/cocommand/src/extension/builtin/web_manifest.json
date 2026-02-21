@@ -50,7 +50,7 @@
     {
       "id": "web_search",
       "name": "Web Search",
-      "description": "Search the web using the Exa API and return relevant results",
+      "description": "Search the web using DuckDuckGo. Free, no API key required.",
       "risk_level": "Safe",
       "input_schema": {
         "type": "object",
@@ -62,8 +62,8 @@
           "numResults": {
             "type": "integer",
             "minimum": 1,
-            "maximum": 20,
-            "description": "Number of results to return. Defaults to 8."
+            "maximum": 30,
+            "description": "Max results to return. Defaults to 10."
           }
         },
         "required": ["query"],
@@ -72,10 +72,14 @@
       "output_schema": {
         "type": "object",
         "properties": {
-          "results": { "type": "string" },
-          "query": { "type": "string" }
+          "results": {
+            "type": "array",
+            "items": { "type": "object" }
+          },
+          "query": { "type": "string" },
+          "count": { "type": "integer" }
         },
-        "required": ["results", "query"],
+        "required": ["results", "query", "count"],
         "additionalProperties": false
       }
     }

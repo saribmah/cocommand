@@ -4067,8 +4067,8 @@
         "additionalProperties": false,
         "properties": {
           "numResults": {
-            "description": "Number of results to return. Defaults to 8.",
-            "maximum": 20,
+            "description": "Max results to return. Defaults to 10.",
+            "maximum": 30,
             "minimum": 1,
             "type": "integer"
           },
@@ -4085,16 +4085,23 @@
       "WebWebSearchOutput": {
         "additionalProperties": false,
         "properties": {
+          "count": {
+            "type": "integer"
+          },
           "query": {
             "type": "string"
           },
           "results": {
-            "type": "string"
+            "items": {
+              "type": "object"
+            },
+            "type": "array"
           }
         },
         "required": [
           "results",
-          "query"
+          "query",
+          "count"
         ],
         "type": "object"
       },
