@@ -23,7 +23,11 @@ fn editor_extension_has_expected_tools() {
 fn read_file_basic() {
     let dir = tempfile::tempdir().expect("tempdir");
     let file = dir.path().join("test.txt");
-    fs::write(&file, "line one\nline two\nline three\nline four\nline five\n").expect("write");
+    fs::write(
+        &file,
+        "line one\nline two\nline three\nline four\nline five\n",
+    )
+    .expect("write");
 
     let result = ops::read_file(&file, 1, 2000).expect("read_file");
     assert_eq!(result["lines"].as_u64().unwrap(), 5);
@@ -229,7 +233,11 @@ fn edit_file_old_equals_new() {
 fn edit_file_trimmed_fallback() {
     let dir = tempfile::tempdir().expect("tempdir");
     let file = dir.path().join("edit.txt");
-    fs::write(&file, "    fn main() {\n        println!(\"hello\");\n    }\n").expect("write");
+    fs::write(
+        &file,
+        "    fn main() {\n        println!(\"hello\");\n    }\n",
+    )
+    .expect("write");
 
     // old_string has different indentation
     let result = ops::edit_file(

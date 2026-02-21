@@ -136,7 +136,11 @@ pub fn glob_files(pattern: &str, path: &Path) -> CoreResult<serde_json::Value> {
 }
 
 /// Search file contents via regex using grep or ripgrep.
-pub fn grep_files(pattern: &str, path: &Path, include: Option<&str>) -> CoreResult<serde_json::Value> {
+pub fn grep_files(
+    pattern: &str,
+    path: &Path,
+    include: Option<&str>,
+) -> CoreResult<serde_json::Value> {
     let has_rg = std::process::Command::new("which")
         .arg("rg")
         .stdout(std::process::Stdio::null())

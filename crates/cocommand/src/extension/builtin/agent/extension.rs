@@ -26,7 +26,6 @@ impl std::fmt::Debug for AgentExtension {
     }
 }
 
-
 impl AgentExtension {
     pub fn new(llm: Arc<dyn LlmProvider>) -> Self {
         let manifest = parse_builtin_manifest(include_str!("manifest.json"));

@@ -13,7 +13,6 @@ use crate::storage::SharedStorage;
 use crate::utils::time::now_secs;
 use cocommand_llm::LlmStreamEvent;
 use serde_json::{Map, Value};
-use tokio_stream::StreamExt;
 
 #[derive(Debug, Default, Clone)]
 pub(crate) struct StreamProcessor {
@@ -23,7 +22,6 @@ pub(crate) struct StreamProcessor {
     current_reasoning_id: Option<String>,
     current_reasoning: String,
     tool_calls: HashMap<String, ToolPart>,
-    mapped_parts: Vec<MessagePart>,
 }
 
 pub(crate) struct StorePartContext<'a> {
@@ -222,26 +220,6 @@ impl StreamProcessor {
         Ok(())
     }
 
-    pub(crate) async fn process<S>(
-        &mut self,
-        mut stream: S,
-        context: &StorePartContext<'_>,
-    ) -> CoreResult<()>
-    where
-        S: tokio_stream::Stream<Item = LlmStreamEvent> + Unpin,
-    {
-        while let Some(part) = stream.next().await {
-            self.on_part(part, context).await?;
-        }
-        self.flush_text(context).await?;
-        self.flush_reasoning(context).await?;
-        Ok(())
-    }
-
-    pub(crate) fn mapped_parts(&self) -> &[MessagePart] {
-        &self.mapped_parts
-    }
-
     pub(crate) fn tool_call(&self, tool_call_id: &str) -> Option<ToolPart> {
         self.tool_calls.get(tool_call_id).cloned()
     }
@@ -285,15 +263,6 @@ impl StreamProcessor {
                 part_id,
                 part: part.clone(),
             }));
-        if let Some(index) = self
-            .mapped_parts
-            .iter()
-            .position(|existing| existing.base().id == part.base().id)
-        {
-            self.mapped_parts[index] = part;
-        } else {
-            self.mapped_parts.push(part);
-        }
         Ok(())
     }
 
@@ -374,5 +343,342 @@ fn tool_state_input_and_start(state: &ToolState, fallback_start: u64) -> (Map<St
         ToolState::Running(state) => (state.input.clone(), state.time.start),
         ToolState::Completed(state) => (state.input.clone(), state.time.start),
         ToolState::Error(state) => (state.input.clone(), state.time.start),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::Arc;
+
+    use crate::message::Message;
+    use crate::workspace::WorkspaceInstance;
+    use tempfile::tempdir;
+
+    async fn setup() -> (
+        tempfile::TempDir,
+        Arc<WorkspaceInstance>,
+        Bus,
+        String,
+        Message,
+    ) {
+        let dir = tempdir().expect("tempdir");
+        let workspace = Arc::new(WorkspaceInstance::new(dir.path()).await.expect("workspace"));
+        let bus = Bus::new(16);
+        let session_id = "session_1".to_string();
+        let assistant = Message::from_parts(&session_id, "assistant", Vec::new());
+        MessageStorage::store_info(&workspace.storage, &assistant.info)
+            .await
+            .expect("store info");
+        (dir, workspace, bus, session_id, assistant)
+    }
+
+    async fn load_assistant_parts(
+        workspace: &WorkspaceInstance,
+        session_id: &str,
+        assistant_message_id: &str,
+    ) -> Vec<MessagePart> {
+        MessageStorage::load(&workspace.storage, session_id)
+            .await
+            .expect("load")
+            .into_iter()
+            .find(|message| message.info.id == assistant_message_id)
+            .map(|message| message.parts)
+            .unwrap_or_default()
+    }
+
+    #[tokio::test]
+    async fn stores_text_part_and_reuses_part_id_for_same_segment() {
+        let (_dir, workspace, bus, session_id, assistant) = setup().await;
+        let run_id = "run_1".to_string();
+        let context = StorePartContext::new(
+            &workspace.storage,
+            &bus,
+            &run_id,
+            &session_id,
+            &assistant.info.id,
+        );
+        let mut processor = StreamProcessor::new();
+
+        processor
+            .on_part(
+                LlmStreamEvent::TextDelta {
+                    id: "text_1".to_string(),
+                    text: "hello".to_string(),
+                },
+                &context,
+            )
+            .await
+            .expect("first text delta");
+
+        processor
+            .on_part(
+                LlmStreamEvent::TextDelta {
+                    id: "text_1".to_string(),
+                    text: " world".to_string(),
+                },
+                &context,
+            )
+            .await
+            .expect("second text delta");
+
+        processor
+            .on_part(
+                LlmStreamEvent::TextEnd {
+                    id: "text_1".to_string(),
+                },
+                &context,
+            )
+            .await
+            .expect("text end");
+
+        let parts = load_assistant_parts(&workspace, &session_id, &assistant.info.id).await;
+        assert_eq!(parts.len(), 1);
+        assert!(matches!(
+            parts.first(),
+            Some(MessagePart::Text(TextPart { text, .. })) if text == "hello world"
+        ));
+    }
+
+    #[tokio::test]
+    async fn stores_distinct_text_parts_for_distinct_segments() {
+        let (_dir, workspace, bus, session_id, assistant) = setup().await;
+        let run_id = "run_1".to_string();
+        let context = StorePartContext::new(
+            &workspace.storage,
+            &bus,
+            &run_id,
+            &session_id,
+            &assistant.info.id,
+        );
+        let mut processor = StreamProcessor::new();
+
+        processor
+            .on_part(
+                LlmStreamEvent::TextStart {
+                    id: "text_1".to_string(),
+                },
+                &context,
+            )
+            .await
+            .expect("text start 1");
+        processor
+            .on_part(
+                LlmStreamEvent::TextDelta {
+                    id: "text_1".to_string(),
+                    text: "hello".to_string(),
+                },
+                &context,
+            )
+            .await
+            .expect("text delta 1");
+        processor
+            .on_part(
+                LlmStreamEvent::TextEnd {
+                    id: "text_1".to_string(),
+                },
+                &context,
+            )
+            .await
+            .expect("text end 1");
+
+        processor
+            .on_part(
+                LlmStreamEvent::TextStart {
+                    id: "text_2".to_string(),
+                },
+                &context,
+            )
+            .await
+            .expect("text start 2");
+        processor
+            .on_part(
+                LlmStreamEvent::TextDelta {
+                    id: "text_2".to_string(),
+                    text: "world".to_string(),
+                },
+                &context,
+            )
+            .await
+            .expect("text delta 2");
+        processor
+            .on_part(
+                LlmStreamEvent::TextEnd {
+                    id: "text_2".to_string(),
+                },
+                &context,
+            )
+            .await
+            .expect("text end 2");
+
+        let parts = load_assistant_parts(&workspace, &session_id, &assistant.info.id).await;
+        assert_eq!(parts.len(), 2);
+        assert!(matches!(
+            parts.first(),
+            Some(MessagePart::Text(TextPart { text, .. })) if text == "hello"
+        ));
+        assert!(matches!(
+            parts.get(1),
+            Some(MessagePart::Text(TextPart { text, .. })) if text == "world"
+        ));
+    }
+
+    #[tokio::test]
+    async fn stores_tool_error_part() {
+        let (_dir, workspace, bus, session_id, assistant) = setup().await;
+        let run_id = "run_1".to_string();
+        let context = StorePartContext::new(
+            &workspace.storage,
+            &bus,
+            &run_id,
+            &session_id,
+            &assistant.info.id,
+        );
+        let mut processor = StreamProcessor::new();
+
+        processor
+            .on_part(
+                LlmStreamEvent::ToolError {
+                    tool_call_id: "call_1".to_string(),
+                    tool_name: "test_tool".to_string(),
+                    input: serde_json::json!({"input": true}),
+                    error: serde_json::json!({"message": "failed"}),
+                },
+                &context,
+            )
+            .await
+            .expect("tool error");
+
+        let parts = load_assistant_parts(&workspace, &session_id, &assistant.info.id).await;
+        assert_eq!(parts.len(), 1);
+        assert!(matches!(
+            parts.first(),
+            Some(MessagePart::Tool(part))
+                if part.call_id == "call_1"
+                    && part.tool == "test_tool"
+                    && matches!(
+                        &part.state,
+                        ToolState::Error(state) if state.error == "{\"message\":\"failed\"}"
+                    )
+        ));
+    }
+
+    #[tokio::test]
+    async fn updates_tool_part_on_tool_result_in_place() {
+        let (_dir, workspace, bus, session_id, assistant) = setup().await;
+        let run_id = "run_1".to_string();
+        let context = StorePartContext::new(
+            &workspace.storage,
+            &bus,
+            &run_id,
+            &session_id,
+            &assistant.info.id,
+        );
+        let mut processor = StreamProcessor::new();
+
+        processor
+            .on_part(
+                LlmStreamEvent::ToolCall {
+                    tool_call_id: "call_1".to_string(),
+                    tool_name: "test_tool".to_string(),
+                    input: serde_json::json!({"input": true}),
+                },
+                &context,
+            )
+            .await
+            .expect("tool call");
+
+        let first_parts = load_assistant_parts(&workspace, &session_id, &assistant.info.id).await;
+        let first_part_id = match first_parts.first() {
+            Some(MessagePart::Tool(part)) => part.base.id.clone(),
+            _ => panic!("expected tool part"),
+        };
+
+        processor
+            .on_part(
+                LlmStreamEvent::ToolResult {
+                    tool_call_id: "call_1".to_string(),
+                    tool_name: "test_tool".to_string(),
+                    input: serde_json::json!({"input": true}),
+                    output: serde_json::json!({"ok": true}),
+                },
+                &context,
+            )
+            .await
+            .expect("tool result");
+
+        let parts = load_assistant_parts(&workspace, &session_id, &assistant.info.id).await;
+        assert_eq!(parts.len(), 1);
+        assert!(matches!(
+            parts.first(),
+            Some(MessagePart::Tool(part))
+                if part.base.id == first_part_id
+                    && part.call_id == "call_1"
+                    && part.tool == "test_tool"
+                    && matches!(
+                        &part.state,
+                        ToolState::Completed(state) if state.output == "{\"ok\":true}"
+                    )
+        ));
+
+        let stored_part_ids = workspace
+            .storage
+            .list(&["part", &assistant.info.id])
+            .await
+            .expect("list parts");
+        assert_eq!(stored_part_ids.len(), 1);
+        assert_eq!(stored_part_ids[0], first_part_id);
+    }
+
+    #[tokio::test]
+    async fn returns_error_for_stream_error_part() {
+        let (_dir, workspace, bus, session_id, assistant) = setup().await;
+        let run_id = "run_1".to_string();
+        let context = StorePartContext::new(
+            &workspace.storage,
+            &bus,
+            &run_id,
+            &session_id,
+            &assistant.info.id,
+        );
+        let mut processor = StreamProcessor::new();
+
+        let error = processor
+            .on_part(
+                LlmStreamEvent::Error {
+                    error: serde_json::json!({"message": "boom"}),
+                },
+                &context,
+            )
+            .await
+            .expect_err("stream error");
+
+        assert!(error.to_string().contains("llm stream error"));
+    }
+
+    #[tokio::test]
+    async fn ignores_meta_parts() {
+        let (_dir, workspace, bus, session_id, assistant) = setup().await;
+        let run_id = "run_1".to_string();
+        let context = StorePartContext::new(
+            &workspace.storage,
+            &bus,
+            &run_id,
+            &session_id,
+            &assistant.info.id,
+        );
+        let mut processor = StreamProcessor::new();
+
+        processor
+            .on_part(LlmStreamEvent::Start, &context)
+            .await
+            .expect("start");
+        processor
+            .on_part(LlmStreamEvent::Finish, &context)
+            .await
+            .expect("finish");
+
+        let parts = load_assistant_parts(&workspace, &session_id, &assistant.info.id).await;
+        assert!(parts.is_empty());
     }
 }

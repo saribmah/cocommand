@@ -161,10 +161,7 @@ impl WebExtension {
 }
 
 /// Search DuckDuckGo via the HTML lite endpoint and parse results.
-async fn ddg_search(
-    query: &str,
-    max_results: usize,
-) -> Result<Vec<serde_json::Value>, CoreError> {
+async fn ddg_search(query: &str, max_results: usize) -> Result<Vec<serde_json::Value>, CoreError> {
     let client = reqwest::Client::builder()
         .user_agent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
         .timeout(Duration::from_secs(DDG_TIMEOUT_SECS))
@@ -472,7 +469,10 @@ mod tests {
             results[1]["url"],
             "https://en.wikipedia.org/wiki/Rust_(programming_language)"
         );
-        assert_eq!(results[1]["title"], "Rust (programming language) - Wikipedia");
+        assert_eq!(
+            results[1]["title"],
+            "Rust (programming language) - Wikipedia"
+        );
         assert_eq!(
             results[1]["snippet"],
             "It's noted for its emphasis on performance and memory safety."

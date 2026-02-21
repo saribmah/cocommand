@@ -57,7 +57,9 @@ mod tests {
     use super::*;
 
     async fn test_instance(dir: &std::path::Path) -> WorkspaceInstance {
-        WorkspaceInstance::new(dir).await.expect("workspace instance")
+        WorkspaceInstance::new(dir)
+            .await
+            .expect("workspace instance")
     }
 
     #[tokio::test]
@@ -78,7 +80,10 @@ mod tests {
         run_workspace_setup(&instance).await.expect("second run");
 
         let agents = instance.storage.list(&["agents"]).await.expect("list");
-        let cocommand_count = agents.iter().filter(|id| id.starts_with("cocommand")).count();
+        let cocommand_count = agents
+            .iter()
+            .filter(|id| id.starts_with("cocommand"))
+            .count();
         assert_eq!(cocommand_count, 1);
     }
 }

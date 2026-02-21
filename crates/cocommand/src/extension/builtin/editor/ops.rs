@@ -18,9 +18,8 @@ pub fn read_file(path: &Path, offset: u64, limit: u64) -> CoreResult<serde_json:
         )));
     }
 
-    let bytes = std::fs::read(path).map_err(|e| {
-        CoreError::InvalidInput(format!("failed to read {}: {e}", path.display()))
-    })?;
+    let bytes = std::fs::read(path)
+        .map_err(|e| CoreError::InvalidInput(format!("failed to read {}: {e}", path.display())))?;
 
     // Binary detection: check first 4KB for >30% non-printable chars
     let check_len = bytes.len().min(4096);
@@ -63,11 +62,7 @@ pub fn read_file(path: &Path, offset: u64, limit: u64) -> CoreResult<serde_json:
     let selected = &all_lines[start..end];
 
     // Determine width for right-aligned line numbers
-    let max_lineno = if selected.is_empty() {
-        1
-    } else {
-        end
-    };
+    let max_lineno = if selected.is_empty() { 1 } else { end };
     let width = max_lineno.to_string().len();
 
     let mut output = String::new();
@@ -108,9 +103,8 @@ pub fn write_file(path: &Path, content: &str) -> CoreResult<serde_json::Value> {
     }
 
     let bytes = content.as_bytes();
-    std::fs::write(path, bytes).map_err(|e| {
-        CoreError::Internal(format!("failed to write {}: {e}", path.display()))
-    })?;
+    std::fs::write(path, bytes)
+        .map_err(|e| CoreError::Internal(format!("failed to write {}: {e}", path.display())))?;
 
     Ok(serde_json::json!({
         "path": path.to_string_lossy(),
@@ -134,9 +128,8 @@ pub fn edit_file(
         ));
     }
 
-    let content = std::fs::read_to_string(path).map_err(|e| {
-        CoreError::InvalidInput(format!("failed to read {}: {e}", path.display()))
-    })?;
+    let content = std::fs::read_to_string(path)
+        .map_err(|e| CoreError::InvalidInput(format!("failed to read {}: {e}", path.display())))?;
 
     let exact_count = content.matches(old_string).count();
 
@@ -166,9 +159,8 @@ pub fn edit_file(
         }
     };
 
-    std::fs::write(path, &new_content).map_err(|e| {
-        CoreError::Internal(format!("failed to write {}: {e}", path.display()))
-    })?;
+    std::fs::write(path, &new_content)
+        .map_err(|e| CoreError::Internal(format!("failed to write {}: {e}", path.display())))?;
 
     let old_line_count = old_string.lines().count() as i64;
     let new_line_count = new_string.lines().count() as i64;
@@ -209,8 +201,7 @@ fn try_trimmed_replace(
         if i + old_lines.len() > content_lines.len() {
             break;
         }
-        let matches = (0..old_lines.len())
-            .all(|j| content_lines[i + j].trim() == old_trimmed[j]);
+        let matches = (0..old_lines.len()).all(|j| content_lines[i + j].trim() == old_trimmed[j]);
         if matches {
             match_starts.push(i);
         }
@@ -230,11 +221,7 @@ fn try_trimmed_replace(
     // Replace from the end so indices stay valid
     let mut result_lines: Vec<&str> = content_lines;
     let new_string_lines: Vec<&str> = new_string.lines().collect();
-    let count = if replace_all {
-        match_starts.len()
-    } else {
-        1
-    };
+    let count = if replace_all { match_starts.len() } else { 1 };
     let starts_to_replace = if replace_all {
         match_starts.clone()
     } else {

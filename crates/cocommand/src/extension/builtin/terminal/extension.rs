@@ -7,9 +7,7 @@ use std::sync::Arc;
 use crate::error::{CoreError, CoreResult};
 use crate::extension::builtin::manifest_tools::{merge_manifest_tools, parse_builtin_manifest};
 use crate::extension::manifest::ExtensionManifest;
-use crate::extension::{
-    boxed_tool_future, Extension, ExtensionKind, ExtensionTool,
-};
+use crate::extension::{boxed_tool_future, Extension, ExtensionKind, ExtensionTool};
 
 use super::ops;
 
@@ -73,9 +71,7 @@ impl TerminalExtension {
 
                         tokio::task::spawn_blocking(move || ops::glob_files(&pattern, &path))
                             .await
-                            .map_err(|e| {
-                                CoreError::Internal(format!("glob task failed: {e}"))
-                            })?
+                            .map_err(|e| CoreError::Internal(format!("glob task failed: {e}")))?
                     })
                 },
             ) as _,

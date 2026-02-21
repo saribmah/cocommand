@@ -93,9 +93,7 @@ impl EditorExtension {
                             ops::edit_file(&path, &old_string, &new_string, replace_all)
                         })
                         .await
-                        .map_err(|e| {
-                            CoreError::Internal(format!("edit_file task failed: {e}"))
-                        })?
+                        .map_err(|e| CoreError::Internal(format!("edit_file task failed: {e}")))?
                     })
                 },
             ) as _,
