@@ -14,6 +14,7 @@ const DEFAULT_AGENT_EXTENSIONS: &[&str] = &[
     "browser",
     "web",
     "terminal",
+    "editor",
 ];
 
 /// Ensures the workspace has all expected seed data.

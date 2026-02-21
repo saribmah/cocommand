@@ -1,6 +1,7 @@
 pub mod agent;
 pub mod browser;
 pub mod clipboard;
+pub mod editor;
 pub mod filesystem;
 pub mod manifest_tools;
 pub mod note;

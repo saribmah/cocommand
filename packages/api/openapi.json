@@ -810,6 +810,153 @@
           }
         ]
       },
+      "EditorEditFileInput": {
+        "additionalProperties": false,
+        "properties": {
+          "file_path": {
+            "description": "Path to the file to edit (absolute, ~, or workspace-relative).",
+            "type": "string"
+          },
+          "new_string": {
+            "description": "The text to replace it with. Use empty string to delete text.",
+            "type": "string"
+          },
+          "old_string": {
+            "description": "The text to find in the file.",
+            "type": "string"
+          },
+          "replace_all": {
+            "default": false,
+            "description": "If true, replace all occurrences. If false (default), only replace the first and require a unique match.",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "file_path",
+          "old_string",
+          "new_string"
+        ],
+        "type": "object"
+      },
+      "EditorEditFileOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "additions": {
+            "type": "integer"
+          },
+          "deletions": {
+            "type": "integer"
+          },
+          "path": {
+            "type": "string"
+          },
+          "replacements": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "path",
+          "replacements",
+          "additions",
+          "deletions"
+        ],
+        "type": "object"
+      },
+      "EditorReadFileInput": {
+        "additionalProperties": false,
+        "properties": {
+          "file_path": {
+            "description": "Path to the file to read (absolute, ~, or workspace-relative).",
+            "type": "string"
+          },
+          "limit": {
+            "default": 2000,
+            "description": "Maximum number of lines to return. Defaults to 2000.",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "offset": {
+            "default": 1,
+            "description": "1-indexed line number to start reading from. Defaults to 1.",
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "file_path"
+        ],
+        "type": "object"
+      },
+      "EditorReadFileOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "limit": {
+            "type": "integer"
+          },
+          "lines": {
+            "type": "integer"
+          },
+          "offset": {
+            "type": "integer"
+          },
+          "path": {
+            "type": "string"
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "path",
+          "content",
+          "lines",
+          "offset",
+          "limit",
+          "truncated"
+        ],
+        "type": "object"
+      },
+      "EditorWriteFileInput": {
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "description": "The content to write to the file.",
+            "type": "string"
+          },
+          "file_path": {
+            "description": "Path to the file to write (absolute, ~, or workspace-relative).",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file_path",
+          "content"
+        ],
+        "type": "object"
+      },
+      "EditorWriteFileOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "bytes_written": {
+            "type": "integer"
+          },
+          "created": {
+            "type": "boolean"
+          },
+          "path": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "bytes_written",
+          "created"
+        ],
+        "type": "object"
+      },
       "ExtensionInfo": {
         "properties": {
           "id": {

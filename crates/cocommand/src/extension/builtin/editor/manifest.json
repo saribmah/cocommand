@@ -1,0 +1,124 @@
+{
+  "id": "editor",
+  "name": "Editor",
+  "description": "Read, write, and edit files with line-based operations designed for code editing workflows.",
+  "routing": {
+    "keywords": ["editor", "edit", "read", "write", "file", "code"]
+  },
+  "tools": [
+    {
+      "id": "read_file",
+      "name": "Read File",
+      "description": "Read a file with line numbers. Returns numbered lines formatted as 'line_number\\tcontent'. Designed for code editing with 1-indexed line offsets and per-line truncation.",
+      "risk_level": "Safe",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "file_path": {
+            "type": "string",
+            "description": "Path to the file to read (absolute, ~, or workspace-relative)."
+          },
+          "offset": {
+            "type": "integer",
+            "description": "1-indexed line number to start reading from. Defaults to 1.",
+            "default": 1,
+            "minimum": 1
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Maximum number of lines to return. Defaults to 2000.",
+            "default": 2000,
+            "minimum": 1
+          }
+        },
+        "required": ["file_path"],
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "path": { "type": "string" },
+          "content": { "type": "string" },
+          "lines": { "type": "integer" },
+          "offset": { "type": "integer" },
+          "limit": { "type": "integer" },
+          "truncated": { "type": "boolean" }
+        },
+        "required": ["path", "content", "lines", "offset", "limit", "truncated"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "id": "write_file",
+      "name": "Write File",
+      "description": "Write content to a file, creating it and any parent directories if they don't exist. Overwrites existing files.",
+      "risk_level": "Confirm",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "file_path": {
+            "type": "string",
+            "description": "Path to the file to write (absolute, ~, or workspace-relative)."
+          },
+          "content": {
+            "type": "string",
+            "description": "The content to write to the file."
+          }
+        },
+        "required": ["file_path", "content"],
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "path": { "type": "string" },
+          "bytes_written": { "type": "integer" },
+          "created": { "type": "boolean" }
+        },
+        "required": ["path", "bytes_written", "created"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "id": "edit_file",
+      "name": "Edit File",
+      "description": "Find and replace text in a file. Supports single or all replacements. Falls back to whitespace-trimmed matching if exact match fails.",
+      "risk_level": "Confirm",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "file_path": {
+            "type": "string",
+            "description": "Path to the file to edit (absolute, ~, or workspace-relative)."
+          },
+          "old_string": {
+            "type": "string",
+            "description": "The text to find in the file."
+          },
+          "new_string": {
+            "type": "string",
+            "description": "The text to replace it with. Use empty string to delete text."
+          },
+          "replace_all": {
+            "type": "boolean",
+            "description": "If true, replace all occurrences. If false (default), only replace the first and require a unique match.",
+            "default": false
+          }
+        },
+        "required": ["file_path", "old_string", "new_string"],
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "path": { "type": "string" },
+          "replacements": { "type": "integer" },
+          "additions": { "type": "integer" },
+          "deletions": { "type": "integer" }
+        },
+        "required": ["path", "replacements", "additions", "deletions"],
+        "additionalProperties": false
+      }
+    }
+  ]
+}
