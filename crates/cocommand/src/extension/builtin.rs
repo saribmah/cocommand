@@ -6,4 +6,5 @@ pub mod manifest_tools;
 pub mod note;
 pub mod screenshot;
 pub mod system;
+pub mod web;
 pub mod workspace;

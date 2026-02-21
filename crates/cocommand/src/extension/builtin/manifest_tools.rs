@@ -13,6 +13,7 @@ pub const BUILTIN_MANIFESTS: &[&str] = &[
     include_str!("note/manifest.json"),
     include_str!("filesystem/manifest.json"),
     include_str!("agent/manifest.json"),
+    include_str!("web_manifest.json"),
 ];
 
 /// Parse a builtin manifest from embedded JSON.
@@ -137,5 +138,13 @@ mod tests {
         assert_eq!(manifest.id, "agent");
         let tools = manifest.tools.as_ref().unwrap();
         assert_eq!(tools.len(), 6);
+    }
+
+    #[test]
+    fn web_manifest_parses() {
+        let manifest = parse_builtin_manifest(include_str!("web_manifest.json"));
+        assert_eq!(manifest.id, "web");
+        let tools = manifest.tools.as_ref().unwrap();
+        assert_eq!(tools.len(), 2);
     }
 }

@@ -1,0 +1,83 @@
+{
+  "id": "web",
+  "name": "Web",
+  "description": "Fetch web content and search the web",
+  "routing": {
+    "keywords": ["web", "fetch", "search", "url", "internet", "browse"]
+  },
+  "tools": [
+    {
+      "id": "web_fetch",
+      "name": "Web Fetch",
+      "description": "Fetch content from a URL and return it as text, markdown, or raw HTML",
+      "risk_level": "Safe",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "description": "The URL to fetch (must start with http:// or https://)"
+          },
+          "format": {
+            "type": "string",
+            "enum": ["text", "markdown", "html"],
+            "description": "Output format. 'text' strips all HTML tags, 'markdown' converts to readable markdown-like text, 'html' returns raw HTML. Defaults to 'text'."
+          },
+          "timeoutSeconds": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 120,
+            "description": "Request timeout in seconds. Defaults to 30."
+          }
+        },
+        "required": ["url"],
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "url": { "type": "string" },
+          "status": { "type": "integer" },
+          "contentType": { "type": "string" },
+          "content": { "type": "string" },
+          "format": { "type": "string" },
+          "contentLength": { "type": "integer" }
+        },
+        "required": ["url", "status", "contentType", "content", "format", "contentLength"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "id": "web_search",
+      "name": "Web Search",
+      "description": "Search the web using the Exa API and return relevant results",
+      "risk_level": "Safe",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "The search query"
+          },
+          "numResults": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 20,
+            "description": "Number of results to return. Defaults to 8."
+          }
+        },
+        "required": ["query"],
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "results": { "type": "string" },
+          "query": { "type": "string" }
+        },
+        "required": ["results", "query"],
+        "additionalProperties": false
+      }
+    }
+  ]
+}

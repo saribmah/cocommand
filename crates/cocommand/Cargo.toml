@@ -25,6 +25,8 @@ llm-kit-core = { path = "../../../ai-sdk/llm-kit-core" }
 llm-kit-openai-compatible = { path = "../../../ai-sdk/llm-kit-openai-compatible" }
 llm-kit-provider = { path = "../../../ai-sdk/llm-kit-provider" }
 llm-kit-provider-utils = { path = "../../../ai-sdk/llm-kit-provider-utils" }
+reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
+html2text = "0.14"
 
 [features]
 default = []

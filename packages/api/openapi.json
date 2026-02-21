@@ -3653,6 +3653,101 @@
         ],
         "type": "object"
       },
+      "WebWebFetchInput": {
+        "additionalProperties": false,
+        "properties": {
+          "format": {
+            "description": "Output format. 'text' strips all HTML tags, 'markdown' converts to readable markdown-like text, 'html' returns raw HTML. Defaults to 'text'.",
+            "enum": [
+              "text",
+              "markdown",
+              "html"
+            ],
+            "type": "string"
+          },
+          "timeoutSeconds": {
+            "description": "Request timeout in seconds. Defaults to 30.",
+            "maximum": 120,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "url": {
+            "description": "The URL to fetch (must start with http:// or https://)",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url"
+        ],
+        "type": "object"
+      },
+      "WebWebFetchOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "contentLength": {
+            "type": "integer"
+          },
+          "contentType": {
+            "type": "string"
+          },
+          "format": {
+            "type": "string"
+          },
+          "status": {
+            "type": "integer"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "url",
+          "status",
+          "contentType",
+          "content",
+          "format",
+          "contentLength"
+        ],
+        "type": "object"
+      },
+      "WebWebSearchInput": {
+        "additionalProperties": false,
+        "properties": {
+          "numResults": {
+            "description": "Number of results to return. Defaults to 8.",
+            "maximum": 20,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "query": {
+            "description": "The search query",
+            "type": "string"
+          }
+        },
+        "required": [
+          "query"
+        ],
+        "type": "object"
+      },
+      "WebWebSearchOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "query": {
+            "type": "string"
+          },
+          "results": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "results",
+          "query"
+        ],
+        "type": "object"
+      },
       "WorkspaceGetConfigInput": {
         "additionalProperties": false,
         "properties": {},

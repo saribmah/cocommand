@@ -10,6 +10,7 @@ use crate::extension::builtin::filesystem::FileSystemExtension;
 use crate::extension::builtin::note::NoteExtension;
 use crate::extension::builtin::screenshot::ScreenshotExtension;
 use crate::extension::builtin::system::SystemExtension;
+use crate::extension::builtin::web::WebExtension;
 use crate::extension::loader::load_custom_extensions;
 use crate::extension::registry::ExtensionRegistry;
 use crate::extension::{Extension, ExtensionInitContext};
@@ -73,6 +74,9 @@ impl WorkspaceInstance {
         // Initialize all extensions
         instance.initialize_extensions().await;
 
+        // Run first-time workspace setup (creates default agent, etc.)
+        super::setup::run_workspace_setup(&instance).await?;
+
         Ok(instance)
     }
 
@@ -107,6 +111,7 @@ async fn register_builtin_extensions(registry: &Arc<RwLock<ExtensionRegistry>>) 
     registry.register(Arc::new(NoteExtension::new()) as Arc<dyn Extension>);
     registry.register(Arc::new(SystemExtension::new()) as Arc<dyn Extension>);
     registry.register(Arc::new(ScreenshotExtension::new()) as Arc<dyn Extension>);
+    registry.register(Arc::new(WebExtension::new()) as Arc<dyn Extension>);
 }
 
 async fn register_custom_extensions(

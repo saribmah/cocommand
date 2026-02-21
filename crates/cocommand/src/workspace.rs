@@ -2,6 +2,7 @@
 
 pub mod config;
 pub mod instance;
+pub mod setup;
 pub use config::{
     load_or_create_workspace_config, migrate_workspace_config, workspace_config_path,
     ExtensionCachePreferences, FileSystemPreferences, SessionPreferences, WorkspaceConfig,
