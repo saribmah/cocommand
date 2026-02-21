@@ -3321,6 +3321,209 @@
         },
         "type": "object"
       },
+      "TerminalBashInput": {
+        "additionalProperties": false,
+        "properties": {
+          "command": {
+            "description": "The shell command to execute.",
+            "type": "string"
+          },
+          "description": {
+            "description": "A short human-readable description of what this command does.",
+            "type": "string"
+          },
+          "timeout": {
+            "default": 120000,
+            "description": "Timeout in milliseconds. Default 120000 (2 min), max 600000 (10 min).",
+            "maximum": 600000,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "workdir": {
+            "description": "Working directory for the command (absolute, ~, or workspace-relative). Defaults to workspace root.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "command",
+          "description"
+        ],
+        "type": "object"
+      },
+      "TerminalBashOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "command": {
+            "type": "string"
+          },
+          "durationMs": {
+            "type": "integer"
+          },
+          "exitCode": {
+            "type": "integer"
+          },
+          "stderr": {
+            "type": "string"
+          },
+          "stdout": {
+            "type": "string"
+          },
+          "timedOut": {
+            "type": "boolean"
+          },
+          "workdir": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "stdout",
+          "stderr",
+          "exitCode",
+          "timedOut",
+          "command",
+          "workdir",
+          "durationMs"
+        ],
+        "type": "object"
+      },
+      "TerminalGlobInput": {
+        "additionalProperties": false,
+        "properties": {
+          "path": {
+            "description": "Base directory for the glob (absolute, ~, or workspace-relative). Defaults to workspace root.",
+            "type": "string"
+          },
+          "pattern": {
+            "description": "Glob pattern to match (e.g. \"**/*.rs\", \"src/**/*.ts\").",
+            "type": "string"
+          }
+        },
+        "required": [
+          "pattern"
+        ],
+        "type": "object"
+      },
+      "TerminalGlobOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "count": {
+            "type": "integer"
+          },
+          "files": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "path": {
+            "type": "string"
+          },
+          "pattern": {
+            "type": "string"
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "files",
+          "count",
+          "truncated",
+          "pattern",
+          "path"
+        ],
+        "type": "object"
+      },
+      "TerminalGrepInput": {
+        "additionalProperties": false,
+        "properties": {
+          "include": {
+            "description": "File glob filter (e.g. \"*.rs\", \"*.{ts,tsx}\").",
+            "type": "string"
+          },
+          "path": {
+            "description": "Directory to search in (absolute, ~, or workspace-relative). Defaults to workspace root.",
+            "type": "string"
+          },
+          "pattern": {
+            "description": "Regex pattern to search for in file contents.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "pattern"
+        ],
+        "type": "object"
+      },
+      "TerminalGrepOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "matches": {
+            "type": "integer"
+          },
+          "output": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "pattern": {
+            "type": "string"
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "output",
+          "matches",
+          "truncated",
+          "pattern",
+          "path"
+        ],
+        "type": "object"
+      },
+      "TerminalLsInput": {
+        "additionalProperties": false,
+        "properties": {
+          "ignore": {
+            "description": "Additional directory names to ignore (merged with built-in ignore list).",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "path": {
+            "description": "Directory to list (absolute, ~, or workspace-relative). Defaults to workspace root.",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "TerminalLsOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "count": {
+            "type": "integer"
+          },
+          "output": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "output",
+          "count",
+          "truncated",
+          "path"
+        ],
+        "type": "object"
+      },
       "TextPart": {
         "allOf": [
           {

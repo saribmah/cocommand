@@ -14,6 +14,7 @@ pub const BUILTIN_MANIFESTS: &[&str] = &[
     include_str!("filesystem/manifest.json"),
     include_str!("agent/manifest.json"),
     include_str!("web_manifest.json"),
+    include_str!("terminal/manifest.json"),
 ];
 
 /// Parse a builtin manifest from embedded JSON.
@@ -146,5 +147,13 @@ mod tests {
         assert_eq!(manifest.id, "web");
         let tools = manifest.tools.as_ref().unwrap();
         assert_eq!(tools.len(), 2);
+    }
+
+    #[test]
+    fn terminal_manifest_parses() {
+        let manifest = parse_builtin_manifest(include_str!("terminal/manifest.json"));
+        assert_eq!(manifest.id, "terminal");
+        let tools = manifest.tools.as_ref().unwrap();
+        assert_eq!(tools.len(), 4);
     }
 }

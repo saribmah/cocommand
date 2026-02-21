@@ -10,6 +10,7 @@ use crate::extension::builtin::filesystem::FileSystemExtension;
 use crate::extension::builtin::note::NoteExtension;
 use crate::extension::builtin::screenshot::ScreenshotExtension;
 use crate::extension::builtin::system::SystemExtension;
+use crate::extension::builtin::terminal::TerminalExtension;
 use crate::extension::builtin::web::WebExtension;
 use crate::extension::loader::load_custom_extensions;
 use crate::extension::registry::ExtensionRegistry;
@@ -111,6 +112,7 @@ async fn register_builtin_extensions(registry: &Arc<RwLock<ExtensionRegistry>>) 
     registry.register(Arc::new(NoteExtension::new()) as Arc<dyn Extension>);
     registry.register(Arc::new(SystemExtension::new()) as Arc<dyn Extension>);
     registry.register(Arc::new(ScreenshotExtension::new()) as Arc<dyn Extension>);
+    registry.register(Arc::new(TerminalExtension::new()) as Arc<dyn Extension>);
     registry.register(Arc::new(WebExtension::new()) as Arc<dyn Extension>);
 }
 

@@ -1,0 +1,158 @@
+{
+  "id": "terminal",
+  "name": "Terminal",
+  "description": "Execute shell commands and perform file-system discovery (glob, grep, ls)",
+  "routing": {
+    "keywords": ["terminal", "shell", "bash", "command", "exec", "grep", "glob", "ls"]
+  },
+  "tools": [
+    {
+      "id": "bash",
+      "name": "Bash",
+      "description": "Execute a shell command via /bin/sh. Returns stdout, stderr, exit code, and timing information.",
+      "risk_level": "Confirm",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "command": {
+            "type": "string",
+            "description": "The shell command to execute."
+          },
+          "timeout": {
+            "type": "integer",
+            "description": "Timeout in milliseconds. Default 120000 (2 min), max 600000 (10 min).",
+            "default": 120000,
+            "minimum": 1,
+            "maximum": 600000
+          },
+          "workdir": {
+            "type": "string",
+            "description": "Working directory for the command (absolute, ~, or workspace-relative). Defaults to workspace root."
+          },
+          "description": {
+            "type": "string",
+            "description": "A short human-readable description of what this command does."
+          }
+        },
+        "required": ["command", "description"],
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "stdout": { "type": "string" },
+          "stderr": { "type": "string" },
+          "exitCode": { "type": "integer" },
+          "timedOut": { "type": "boolean" },
+          "command": { "type": "string" },
+          "workdir": { "type": "string" },
+          "durationMs": { "type": "integer" }
+        },
+        "required": ["stdout", "stderr", "exitCode", "timedOut", "command", "workdir", "durationMs"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "id": "glob",
+      "name": "Glob",
+      "description": "Find files matching a glob pattern, sorted by modification time (newest first). Returns up to 100 results.",
+      "risk_level": "Safe",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "pattern": {
+            "type": "string",
+            "description": "Glob pattern to match (e.g. \"**/*.rs\", \"src/**/*.ts\")."
+          },
+          "path": {
+            "type": "string",
+            "description": "Base directory for the glob (absolute, ~, or workspace-relative). Defaults to workspace root."
+          }
+        },
+        "required": ["pattern"],
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "files": { "type": "array", "items": { "type": "string" } },
+          "count": { "type": "integer" },
+          "truncated": { "type": "boolean" },
+          "pattern": { "type": "string" },
+          "path": { "type": "string" }
+        },
+        "required": ["files", "count", "truncated", "pattern", "path"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "id": "grep",
+      "name": "Grep",
+      "description": "Search file contents using a regex pattern. Uses ripgrep if available, falls back to grep. Returns up to 100 matches grouped by file.",
+      "risk_level": "Safe",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "pattern": {
+            "type": "string",
+            "description": "Regex pattern to search for in file contents."
+          },
+          "path": {
+            "type": "string",
+            "description": "Directory to search in (absolute, ~, or workspace-relative). Defaults to workspace root."
+          },
+          "include": {
+            "type": "string",
+            "description": "File glob filter (e.g. \"*.rs\", \"*.{ts,tsx}\")."
+          }
+        },
+        "required": ["pattern"],
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "output": { "type": "string" },
+          "matches": { "type": "integer" },
+          "truncated": { "type": "boolean" },
+          "pattern": { "type": "string" },
+          "path": { "type": "string" }
+        },
+        "required": ["output", "matches", "truncated", "pattern", "path"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "id": "ls",
+      "name": "List Directory",
+      "description": "List a directory tree with built-in ignore patterns (node_modules, .git, target, etc.). Returns up to 100 entries as an indented tree.",
+      "risk_level": "Safe",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "Directory to list (absolute, ~, or workspace-relative). Defaults to workspace root."
+          },
+          "ignore": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Additional directory names to ignore (merged with built-in ignore list)."
+          }
+        },
+        "additionalProperties": false
+      },
+      "output_schema": {
+        "type": "object",
+        "properties": {
+          "output": { "type": "string" },
+          "count": { "type": "integer" },
+          "truncated": { "type": "boolean" },
+          "path": { "type": "string" }
+        },
+        "required": ["output", "count", "truncated", "path"],
+        "additionalProperties": false
+      }
+    }
+  ]
+}

@@ -7,7 +7,7 @@ edition = "2021"
 axum = { version = "0.7", features = ["ws"] }
 futures-util = { version = "0.3", default-features = false, features = ["sink"] }
 filesystem = { path = "../filesystem" }
-tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "fs", "sync"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "fs", "sync", "process", "time"] }
 tokio-stream = { version = "0.1", features = ["sync"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -27,6 +27,7 @@ llm-kit-provider = { path = "../../../ai-sdk/llm-kit-provider" }
 llm-kit-provider-utils = { path = "../../../ai-sdk/llm-kit-provider-utils" }
 reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
 html2text = "0.14"
+glob = "0.3"
 
 [features]
 default = []
