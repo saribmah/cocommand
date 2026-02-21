@@ -51,7 +51,13 @@ pub fn build_activate_extension_tool(
                 .await
                 .map_err(|error| json!({ "error": error.to_string() }))?;
             Ok(json!({ "status": "ok", "activated": true, "id": app_id }))
-        }) as std::pin::Pin<Box<dyn std::future::Future<Output = Result<serde_json::Value, serde_json::Value>> + Send>>
+        })
+            as std::pin::Pin<
+                Box<
+                    dyn std::future::Future<Output = Result<serde_json::Value, serde_json::Value>>
+                        + Send,
+                >,
+            >
     });
 
     LlmTool {
@@ -63,6 +69,6 @@ pub fn build_activate_extension_tool(
             },
             "required": ["id"]
         }),
-        execute,
+        execute: Some(execute),
     }
 }

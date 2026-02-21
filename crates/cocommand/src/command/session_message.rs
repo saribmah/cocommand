@@ -87,8 +87,9 @@ pub async fn run_session_command(
     }
     let _ = bus.publish(CoreEvent::SessionMessageStarted(
         SessionMessageStartedPayload {
-            request_id: request_id.clone(),
-            user_message: prepared.user_message.clone(),
+            session_id: prepared.context.session_id.clone(),
+            run_id: request_id.clone(),
+            user_message: Some(prepared.user_message.clone()),
             assistant_message: assistant_message.clone(),
         },
     ));
@@ -113,10 +114,7 @@ pub async fn run_session_command(
         &session_id,
         &assistant_message.info.id,
     );
-    if let Err(error) = stream_state
-        .process(stream, &store_context)
-        .await
-    {
+    if let Err(error) = stream_state.process(stream, &store_context).await {
         return Err(error);
     }
 
@@ -161,7 +159,7 @@ async fn prepare_session_message(
     })
 }
 
-fn map_input_parts(
+pub(crate) fn map_input_parts(
     parts: Vec<SessionCommandInputPart>,
     session_id: &str,
     message_id: &str,
@@ -386,8 +384,8 @@ mod tests {
         assert!(matches!(
             event,
             CoreEvent::SessionMessageStarted(ref payload)
-                if payload.request_id == "request-1"
-                    && payload.user_message.info.role == "user"
+                if payload.run_id == "request-1"
+                    && payload.user_message.as_ref().is_some_and(|message| message.info.role == "user")
                     && payload.assistant_message.info.role == "assistant"
         ));
         let messages = MessageStorage::load(&workspace.storage, &session_id)

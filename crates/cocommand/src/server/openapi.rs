@@ -6,7 +6,9 @@ use crate::command::session_message::{
     SessionCommandTextPartInput,
 };
 use crate::event::{
+    BackgroundJobCompletedPayload, BackgroundJobFailedPayload, BackgroundJobStartedPayload,
     CoreEvent, SessionContextPayload, SessionMessageStartedPayload, SessionPartUpdatedPayload,
+    SessionRunCancelledPayload, SessionRunCompletedPayload,
 };
 use crate::message::parts::{
     ExtensionPart, FilePart, FilePartFileSource, FilePartSource, FilePartSourceText,
@@ -22,7 +24,7 @@ use crate::server::extension::{
     OpenExtensionRequest,
 };
 use crate::server::oauth::{PollResponse, StartFlowRequest, StartFlowResponse};
-use crate::server::session::{ApiSessionContext, RecordMessageRequest, RecordMessageResponse};
+use crate::server::session::{ApiSessionContext, EnqueueMessageResponse, RecordMessageRequest};
 use crate::server::system::{
     ApplicationInfo, ApplicationsResponse, OpenApplicationRequest, OpenApplicationResponse,
 };
@@ -59,7 +61,7 @@ use crate::session::SessionContext;
         ApiErrorBody,
         // Session
         RecordMessageRequest,
-        RecordMessageResponse,
+        EnqueueMessageResponse,
         ApiSessionContext,
         SessionContext,
         // Command input parts
@@ -114,6 +116,11 @@ use crate::session::SessionContext;
         SessionMessageStartedPayload,
         SessionPartUpdatedPayload,
         SessionContextPayload,
+        SessionRunCompletedPayload,
+        SessionRunCancelledPayload,
+        BackgroundJobStartedPayload,
+        BackgroundJobCompletedPayload,
+        BackgroundJobFailedPayload,
     )),
     tags(
         (name = "sessions", description = "Session and command management"),

@@ -432,6 +432,91 @@
         ],
         "type": "object"
       },
+      "BackgroundJobCompletedPayload": {
+        "properties": {
+          "job_id": {
+            "type": "string"
+          },
+          "run_id": {
+            "type": "string"
+          },
+          "session_id": {
+            "type": "string"
+          },
+          "tool_call_id": {
+            "type": "string"
+          },
+          "tool_name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "session_id",
+          "run_id",
+          "tool_call_id",
+          "tool_name",
+          "job_id"
+        ],
+        "type": "object"
+      },
+      "BackgroundJobFailedPayload": {
+        "properties": {
+          "error": {
+            "type": "string"
+          },
+          "job_id": {
+            "type": "string"
+          },
+          "run_id": {
+            "type": "string"
+          },
+          "session_id": {
+            "type": "string"
+          },
+          "tool_call_id": {
+            "type": "string"
+          },
+          "tool_name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "session_id",
+          "run_id",
+          "tool_call_id",
+          "tool_name",
+          "job_id",
+          "error"
+        ],
+        "type": "object"
+      },
+      "BackgroundJobStartedPayload": {
+        "properties": {
+          "job_id": {
+            "type": "string"
+          },
+          "run_id": {
+            "type": "string"
+          },
+          "session_id": {
+            "type": "string"
+          },
+          "tool_call_id": {
+            "type": "string"
+          },
+          "tool_name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "session_id",
+          "run_id",
+          "tool_call_id",
+          "tool_name",
+          "job_id"
+        ],
+        "type": "object"
+      },
       "BrowserGetActiveTabInput": {
         "additionalProperties": false,
         "properties": {},
@@ -793,6 +878,96 @@
           {
             "properties": {
               "payload": {
+                "$ref": "#/components/schemas/SessionRunCompletedPayload"
+              },
+              "type": {
+                "enum": [
+                  "SessionRunCompleted"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "payload",
+              "type"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "payload": {
+                "$ref": "#/components/schemas/SessionRunCancelledPayload"
+              },
+              "type": {
+                "enum": [
+                  "SessionRunCancelled"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "payload",
+              "type"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "payload": {
+                "$ref": "#/components/schemas/BackgroundJobStartedPayload"
+              },
+              "type": {
+                "enum": [
+                  "BackgroundJobStarted"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "payload",
+              "type"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "payload": {
+                "$ref": "#/components/schemas/BackgroundJobCompletedPayload"
+              },
+              "type": {
+                "enum": [
+                  "BackgroundJobCompleted"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "payload",
+              "type"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "payload": {
+                "$ref": "#/components/schemas/BackgroundJobFailedPayload"
+              },
+              "type": {
+                "enum": [
+                  "BackgroundJobFailed"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "payload",
+              "type"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "payload": {
                 "$ref": "#/components/schemas/SessionContextPayload"
               },
               "type": {
@@ -954,6 +1129,27 @@
           "path",
           "bytes_written",
           "created"
+        ],
+        "type": "object"
+      },
+      "EnqueueMessageResponse": {
+        "properties": {
+          "accepted_at": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "context": {
+            "$ref": "#/components/schemas/ApiSessionContext"
+          },
+          "run_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "context",
+          "run_id",
+          "accepted_at"
         ],
         "type": "object"
       },
@@ -2700,24 +2896,6 @@
         ],
         "type": "object"
       },
-      "RecordMessageResponse": {
-        "properties": {
-          "context": {
-            "$ref": "#/components/schemas/ApiSessionContext"
-          },
-          "messages": {
-            "items": {
-              "$ref": "#/components/schemas/Message"
-            },
-            "type": "array"
-          }
-        },
-        "required": [
-          "context",
-          "messages"
-        ],
-        "type": "object"
-      },
       "ScreenshotCaptureScreenshotInput": {
         "additionalProperties": false,
         "properties": {
@@ -3071,12 +3249,18 @@
           "context": {
             "$ref": "#/components/schemas/SessionContext"
           },
-          "request_id": {
+          "run_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "session_id": {
             "type": "string"
           }
         },
         "required": [
-          "request_id",
+          "session_id",
           "context"
         ],
         "type": "object"
@@ -3086,16 +3270,26 @@
           "assistant_message": {
             "$ref": "#/components/schemas/Message"
           },
-          "request_id": {
+          "run_id": {
+            "type": "string"
+          },
+          "session_id": {
             "type": "string"
           },
           "user_message": {
-            "$ref": "#/components/schemas/Message"
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/Message"
+              }
+            ]
           }
         },
         "required": [
-          "request_id",
-          "user_message",
+          "session_id",
+          "run_id",
           "assistant_message"
         ],
         "type": "object"
@@ -3111,7 +3305,7 @@
           "part_id": {
             "type": "string"
           },
-          "request_id": {
+          "run_id": {
             "type": "string"
           },
           "session_id": {
@@ -3119,11 +3313,45 @@
           }
         },
         "required": [
-          "request_id",
           "session_id",
+          "run_id",
           "message_id",
           "part_id",
           "part"
+        ],
+        "type": "object"
+      },
+      "SessionRunCancelledPayload": {
+        "properties": {
+          "reason": {
+            "type": "string"
+          },
+          "run_id": {
+            "type": "string"
+          },
+          "session_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "session_id",
+          "run_id",
+          "reason"
+        ],
+        "type": "object"
+      },
+      "SessionRunCompletedPayload": {
+        "properties": {
+          "run_id": {
+            "type": "string"
+          },
+          "session_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "session_id",
+          "run_id"
         ],
         "type": "object"
       },
@@ -4233,8 +4461,21 @@
     },
     "/events": {
       "get": {
-        "description": "Subscribe to real-time server events via SSE.",
+        "description": "Subscribe to real-time server events via SSE. Optionally filter by session_id.",
         "operationId": "stream_events",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "session_id",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -4634,7 +4875,7 @@
     },
     "/sessions/command": {
       "post": {
-        "description": "Process a user command. Returns an SSE stream of part.updated, context, and done events.",
+        "description": "Enqueue a message for asynchronous session runtime processing.",
         "operationId": "session_command",
         "requestBody": {
           "content": {
@@ -4649,9 +4890,23 @@
         "responses": {
           "200": {
             "content": {
-              "text/event-stream": {}
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EnqueueMessageResponse"
+                }
+              }
             },
-            "description": "SSE stream of session events"
+            "description": "Message accepted and enqueued"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": ""
           }
         },
         "tags": [

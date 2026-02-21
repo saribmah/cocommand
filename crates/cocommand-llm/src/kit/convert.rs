@@ -9,10 +9,7 @@ use llm_kit_provider_utils::message::{
 use serde_json::Value;
 
 pub fn messages_to_prompt(messages: &[Message]) -> Vec<LlmMessage> {
-    messages
-        .iter()
-        .flat_map(message_to_prompt)
-        .collect()
+    messages.iter().flat_map(message_to_prompt).collect()
 }
 
 fn message_to_prompt(message: &Message) -> Vec<LlmMessage> {
@@ -42,6 +39,7 @@ fn user_message_to_prompt(message: &Message) -> Vec<LlmMessage> {
 
 fn assistant_message_to_prompt(message: &Message) -> Vec<LlmMessage> {
     let mut assistant_parts = Vec::new();
+    let mut tool_parts = Vec::new();
     for part in &message.parts {
         match part {
             MessagePart::Text(text) => {
@@ -56,6 +54,9 @@ fn assistant_message_to_prompt(message: &Message) -> Vec<LlmMessage> {
                 if let Some(assistant_part) = map_tool_to_assistant_content(tool) {
                     assistant_parts.push(assistant_part);
                 }
+                if let Some(tool_part) = map_tool_to_tool_content(tool) {
+                    tool_parts.push(tool_part);
+                }
             }
             MessagePart::Extension(_) => {}
             MessagePart::File(file) => {
@@ -68,6 +69,9 @@ fn assistant_message_to_prompt(message: &Message) -> Vec<LlmMessage> {
         messages.push(LlmMessage::Assistant(AssistantMessage::with_parts(
             assistant_parts,
         )));
+    }
+    if !tool_parts.is_empty() {
+        messages.push(LlmMessage::Tool(ToolMessage::new(tool_parts)));
     }
     messages
 }
@@ -88,20 +92,17 @@ fn tool_message_to_prompt(message: &Message) -> Vec<LlmMessage> {
 }
 
 fn map_tool_to_assistant_content(tool: &ToolPart) -> Option<AssistantContentPart> {
-    match &tool.state {
-        ToolState::Pending(state) => Some(AssistantContentPart::ToolCall(LlmToolCallPart::new(
-            tool.call_id.clone(),
-            tool.tool.clone(),
-            Value::Object(state.input.clone()),
-        ))),
-        ToolState::Running(state) => Some(AssistantContentPart::ToolCall(LlmToolCallPart::new(
-            tool.call_id.clone(),
-            tool.tool.clone(),
-            Value::Object(state.input.clone()),
-        ))),
-        ToolState::Completed(_) => None,
-        ToolState::Error(_) => None,
-    }
+    let input = match &tool.state {
+        ToolState::Pending(state) => state.input.clone(),
+        ToolState::Running(state) => state.input.clone(),
+        ToolState::Completed(state) => state.input.clone(),
+        ToolState::Error(state) => state.input.clone(),
+    };
+    Some(AssistantContentPart::ToolCall(LlmToolCallPart::new(
+        tool.call_id.clone(),
+        tool.tool.clone(),
+        Value::Object(input),
+    )))
 }
 
 fn map_tool_to_tool_content(tool: &ToolPart) -> Option<ToolContentPart> {

@@ -49,7 +49,13 @@ pub fn build_search_extensions_tool(workspace: Arc<WorkspaceInstance>) -> LlmToo
                 .map(|(value, _)| value)
                 .collect();
             Ok(json!({ "results": results }))
-        }) as std::pin::Pin<Box<dyn std::future::Future<Output = Result<serde_json::Value, serde_json::Value>> + Send>>
+        })
+            as std::pin::Pin<
+                Box<
+                    dyn std::future::Future<Output = Result<serde_json::Value, serde_json::Value>>
+                        + Send,
+                >,
+            >
     });
 
     LlmTool {
@@ -62,7 +68,7 @@ pub fn build_search_extensions_tool(workspace: Arc<WorkspaceInstance>) -> LlmToo
             },
             "required": ["query"]
         }),
-        execute,
+        execute: Some(execute),
     }
 }
 

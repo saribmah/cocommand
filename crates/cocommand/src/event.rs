@@ -8,20 +8,26 @@ use utoipa::ToSchema;
 pub enum CoreEvent {
     SessionMessageStarted(SessionMessageStartedPayload),
     SessionPartUpdated(SessionPartUpdatedPayload),
+    SessionRunCompleted(SessionRunCompletedPayload),
+    SessionRunCancelled(SessionRunCancelledPayload),
+    BackgroundJobStarted(BackgroundJobStartedPayload),
+    BackgroundJobCompleted(BackgroundJobCompletedPayload),
+    BackgroundJobFailed(BackgroundJobFailedPayload),
     SessionContextUpdated(SessionContextPayload),
 }
 
 #[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct SessionMessageStartedPayload {
-    pub request_id: String,
-    pub user_message: Message,
+    pub session_id: String,
+    pub run_id: String,
+    pub user_message: Option<Message>,
     pub assistant_message: Message,
 }
 
 #[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct SessionPartUpdatedPayload {
-    pub request_id: String,
     pub session_id: String,
+    pub run_id: String,
     pub message_id: String,
     pub part_id: String,
     pub part: MessagePart,
@@ -29,6 +35,48 @@ pub struct SessionPartUpdatedPayload {
 
 #[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct SessionContextPayload {
-    pub request_id: String,
+    pub session_id: String,
+    pub run_id: Option<String>,
     pub context: SessionContext,
+}
+
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct SessionRunCompletedPayload {
+    pub session_id: String,
+    pub run_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct SessionRunCancelledPayload {
+    pub session_id: String,
+    pub run_id: String,
+    pub reason: String,
+}
+
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct BackgroundJobStartedPayload {
+    pub session_id: String,
+    pub run_id: String,
+    pub tool_call_id: String,
+    pub tool_name: String,
+    pub job_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct BackgroundJobCompletedPayload {
+    pub session_id: String,
+    pub run_id: String,
+    pub tool_call_id: String,
+    pub tool_name: String,
+    pub job_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, ToSchema)]
+pub struct BackgroundJobFailedPayload {
+    pub session_id: String,
+    pub run_id: String,
+    pub tool_call_id: String,
+    pub tool_name: String,
+    pub job_id: String,
+    pub error: String,
 }

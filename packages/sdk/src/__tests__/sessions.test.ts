@@ -10,22 +10,9 @@ afterEach(() => {
   globalThis.fetch = originalFetch;
 });
 
-function createSseResponse(frames: string[]): Response {
-  return new Response(
-    new ReadableStream<Uint8Array>({
-      start(controller) {
-        for (const frame of frames) {
-          controller.enqueue(new TextEncoder().encode(frame));
-        }
-        controller.close();
-      },
-    }),
-  );
-}
-
 const commandParts: SessionCommandInputPart[] = [{ type: "text", text: "Hello" }];
 
-describe("sessions.commandStream", () => {
+describe("sessions api", () => {
   it("loads session history as messages", async () => {
     globalThis.fetch = ((input: RequestInfo | URL) => {
       const url =
@@ -93,54 +80,56 @@ describe("sessions.commandStream", () => {
     expect(history[1]?.info.role).toBe("assistant");
   });
 
-  it("returns final response from done event", async () => {
-    globalThis.fetch = (() =>
-      Promise.resolve(
-        createSseResponse([
-          "event: message.started\ndata: {\"user_message\":{\"info\":{\"id\":\"m1\",\"sessionId\":\"s1\",\"role\":\"user\",\"createdAt\":\"2025-01-01T00:00:00Z\"},\"parts\":[{\"type\":\"text\",\"id\":\"u1\",\"messageId\":\"m1\",\"sessionId\":\"s1\",\"text\":\"Hello\"}]},\"assistant_message\":{\"info\":{\"id\":\"m2\",\"sessionId\":\"s1\",\"role\":\"assistant\",\"createdAt\":\"2025-01-01T00:00:01Z\"},\"parts\":[]}}\n\n",
-          "event: part.updated\ndata: {\"message_id\":\"m2\",\"part_id\":\"p1\",\"part\":{\"type\":\"text\",\"id\":\"p1\",\"messageId\":\"m2\",\"sessionId\":\"s1\",\"text\":\"hello\"}}\n\n",
-          "event: context\ndata: {\"context\":{\"workspace_id\":\"w1\",\"session_id\":\"s1\",\"started_at\":1,\"ended_at\":null}}\n\n",
-          "event: done\ndata: {\"context\":{\"workspace_id\":\"w1\",\"session_id\":\"s1\",\"started_at\":1,\"ended_at\":null},\"messages\":[{\"info\":{\"id\":\"m1\",\"sessionId\":\"s1\",\"role\":\"user\",\"createdAt\":\"2025-01-01T00:00:00Z\"},\"parts\":[{\"type\":\"text\",\"id\":\"u1\",\"messageId\":\"m1\",\"sessionId\":\"s1\",\"text\":\"Hello\"}]},{\"info\":{\"id\":\"m2\",\"sessionId\":\"s1\",\"role\":\"assistant\",\"createdAt\":\"2025-01-01T00:00:01Z\"},\"parts\":[{\"type\":\"text\",\"id\":\"r1\",\"messageId\":\"m2\",\"sessionId\":\"s1\",\"text\":\"ok\"}]}]}\n\n",
-        ]),
-      )) as typeof fetch;
+  it("returns enqueue response for command", async () => {
+    globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
+      const url =
+        typeof input === "string"
+          ? input
+          : input instanceof Request
+            ? input.url
+            : String(input);
+      const method =
+        init?.method ??
+        (input instanceof Request ? input.method : undefined);
+
+      if (url.endsWith("/sessions/command")) {
+        expect(method).toBe("POST");
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              context: {
+                workspace_id: "w1",
+                session_id: "s1",
+                started_at: 1,
+                ended_at: null,
+              },
+              run_id: "run-1",
+              accepted_at: 123,
+            }),
+            {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            },
+          ),
+        );
+      }
+
+      return Promise.resolve(new Response("Not Found", { status: 404 }));
+    }) as typeof fetch;
 
     const sessions = createSessionsApi(createApiClient("http://localhost:8080"));
     const result = await sessions.command(commandParts);
 
     expect(result.context.session_id).toBe("s1");
-    expect(result.messages.length).toBe(2);
-    expect(result.messages[0]?.info.role).toBe("user");
-    expect(result.messages[1]?.parts.length).toBe(1);
-  });
-
-  it("throws typed sse_error when error event is emitted", async () => {
-    globalThis.fetch = (() =>
-      Promise.resolve(
-        createSseResponse([
-          "event: error\ndata: {\"error\":{\"code\":\"bad_request\",\"message\":\"stream failed\"}}\n\n",
-        ]),
-      )) as typeof fetch;
-
-    const sessions = createSessionsApi(createApiClient("http://localhost:8080"));
-    const consume = async () => {
-      for await (const _ of sessions.commandStream(commandParts)) {
-        // noop
-      }
-    };
-
-    await expect(consume()).rejects.toBeInstanceOf(SdkError);
-
-    try {
-      await consume();
-    } catch (error) {
-      expect((error as SdkError).code).toBe("sse_error");
-      expect((error as SdkError).message).toContain("stream failed");
-    }
+    expect(result.run_id).toBe("run-1");
+    expect(result.accepted_at).toBe(123);
   });
 
   it("surfaces cancellation as typed aborted error", async () => {
-    globalThis.fetch = ((_: string, init?: RequestInit) => {
-      const signal = init?.signal;
+    globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
+      const signal =
+        init?.signal ??
+        (input instanceof Request ? input.signal : undefined);
       return new Promise<Response>((_, reject) => {
         if (signal instanceof AbortSignal && signal.aborted) {
           reject(new DOMException("Aborted", "AbortError"));
@@ -161,16 +150,12 @@ describe("sessions.commandStream", () => {
     const controller = new AbortController();
     controller.abort();
 
-    const consume = async () => {
-      for await (const _ of sessions.commandStream(commandParts, { signal: controller.signal })) {
-        // noop
-      }
-    };
-
-    await expect(consume()).rejects.toBeInstanceOf(SdkError);
+    await expect(
+      sessions.command(commandParts, { signal: controller.signal }),
+    ).rejects.toBeInstanceOf(SdkError);
 
     try {
-      await consume();
+      await sessions.command(commandParts, { signal: controller.signal });
     } catch (error) {
       expect((error as SdkError).code).toBe("aborted");
     }

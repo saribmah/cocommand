@@ -12,6 +12,7 @@ use utoipa::OpenApi;
 use crate::browser::BrowserBridge;
 use crate::bus::Bus;
 use crate::clipboard::spawn_clipboard_watcher;
+use crate::command::runtime::SessionRuntimeRegistry;
 use crate::llm::{settings_from_workspace, LlmKitProvider, LlmProvider};
 use crate::oauth::OAuthManager;
 use crate::platform::{default_platform, SharedPlatform};
@@ -59,6 +60,12 @@ impl Server {
             Arc::new(LlmKitProvider::new(settings).map_err(|e| e.to_string())?);
         let oauth = OAuthManager::new(Duration::from_secs(300));
         let browser_bridge = Arc::new(BrowserBridge::new(Duration::from_secs(10)));
+        let runtime_registry = Arc::new(SessionRuntimeRegistry::new(
+            workspace.clone(),
+            sessions.clone(),
+            llm.clone(),
+            bus.clone(),
+        ));
 
         // Register extensions that need the LLM provider.
         {
@@ -82,10 +89,10 @@ impl Server {
             workspace,
             sessions,
             bus,
-            llm,
             oauth,
             browser: browser_bridge,
             addr,
+            runtime_registry,
         });
         let cors = CorsLayer::new()
             .allow_origin(Any)
@@ -208,10 +215,10 @@ pub(crate) struct ServerState {
     pub(crate) workspace: WorkspaceInstance,
     pub(crate) sessions: Arc<SessionManager>,
     pub(crate) bus: Bus,
-    pub(crate) llm: Arc<dyn LlmProvider>,
     pub(crate) oauth: OAuthManager,
     pub(crate) browser: Arc<BrowserBridge>,
     pub(crate) addr: SocketAddr,
+    pub(crate) runtime_registry: Arc<SessionRuntimeRegistry>,
 }
 
 #[cfg(test)]

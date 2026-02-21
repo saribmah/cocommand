@@ -8,7 +8,6 @@ import type {
 // ---------------------------------------------------------------------------
 
 export type {
-  RecordMessageResponse,
   Message,
   MessageInfo,
   PartBase as MessagePartBase,

@@ -1,4 +1,4 @@
-import type { Client, RecordMessageResponse, SessionCommandInputPart } from "@cocommand/api";
+import type { Client, EnqueueMessageResponse, SessionCommandInputPart } from "@cocommand/api";
 import { Cache } from "./cache";
 import type { ComposerActionsBridge } from "./configure";
 import { createComposerApi, type ComposerApi } from "./composer";
@@ -14,7 +14,7 @@ import { createApplicationsApi, type ApplicationsApi } from "./applications";
 import { createExtensionsApi, type ExtensionsApi } from "./extensions";
 import { createToolsApi, type ToolsApi } from "./tools";
 import { createEventsApi, type EventsApi } from "./events";
-import { createSessionsApi, type SessionCommandEvent, type SessionsApi } from "./sessions";
+import { createSessionsApi, type SessionsApi } from "./sessions";
 import {
   createBrowserApi,
   createClipboardApi,
@@ -70,11 +70,10 @@ export interface Sdk {
 
   ui: UiApi;
 
-  command(parts: SessionCommandInputPart[], options?: { signal?: AbortSignal; timeoutMs?: number }): Promise<RecordMessageResponse>;
-  commandStream(
+  command(
     parts: SessionCommandInputPart[],
     options?: { signal?: AbortSignal; timeoutMs?: number },
-  ): AsyncGenerator<SessionCommandEvent>;
+  ): Promise<EnqueueMessageResponse>;
 
   extension(extensionId: string, options?: { composer?: ComposerActionsBridge }): ExtensionSdk;
 }
@@ -107,10 +106,6 @@ export function createSdk({ client }: CreateSdkOptions): Sdk {
 
     command(parts, options) {
       return sessions.command(parts, options);
-    },
-
-    commandStream(parts, options) {
-      return sessions.commandStream(parts, options);
     },
 
     extension(extensionId, options) {

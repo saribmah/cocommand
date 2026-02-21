@@ -1,4 +1,7 @@
-pub use cocommand_llm::{LlmError, LlmKitProvider, LlmProvider, LlmSettings, LlmStream, LlmStreamEvent, LlmTool, LlmToolSet};
+pub use cocommand_llm::{
+    LlmError, LlmKitProvider, LlmProvider, LlmSettings, LlmStream, LlmStreamEvent,
+    LlmStreamOptions, LlmTool, LlmToolSet,
+};
 
 use crate::error::CoreError;
 use crate::workspace::WorkspaceLLMPreferences;

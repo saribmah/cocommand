@@ -34,8 +34,8 @@ mod tests {
 
     fn test_event() -> CoreEvent {
         CoreEvent::SessionPartUpdated(SessionPartUpdatedPayload {
-            request_id: "req-1".to_string(),
             session_id: "sess-1".to_string(),
+            run_id: "run-1".to_string(),
             message_id: "msg-1".to_string(),
             part_id: "part-1".to_string(),
             part: MessagePart::Text(TextPart {
@@ -56,9 +56,7 @@ mod tests {
             .await
             .expect("timeout")
             .expect("recv");
-        assert!(
-            matches!(received, CoreEvent::SessionPartUpdated(ref e) if e.request_id == "req-1")
-        );
+        assert!(matches!(received, CoreEvent::SessionPartUpdated(ref e) if e.run_id == "run-1"));
     }
 
     #[tokio::test]
@@ -72,7 +70,7 @@ mod tests {
         let event1 = rx1.recv().await.expect("recv1");
         let event2 = rx2.recv().await.expect("recv2");
 
-        assert!(matches!(event1, CoreEvent::SessionPartUpdated(ref e) if e.request_id == "req-1"));
-        assert!(matches!(event2, CoreEvent::SessionPartUpdated(ref e) if e.request_id == "req-1"));
+        assert!(matches!(event1, CoreEvent::SessionPartUpdated(ref e) if e.run_id == "run-1"));
+        assert!(matches!(event2, CoreEvent::SessionPartUpdated(ref e) if e.run_id == "run-1"));
     }
 }

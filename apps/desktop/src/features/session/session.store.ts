@@ -1,14 +1,11 @@
 import { create } from "zustand";
 import {
   type ApiSessionContext,
+  type EnqueueMessageResponse,
   type Message,
-  type RecordMessageResponse,
   type Sdk,
-  type SessionCommandEvent,
   type SessionCommandInputPart,
 } from "@cocommand/sdk";
-
-export type StreamEvent = SessionCommandEvent;
 
 export interface SessionState {
   context: ApiSessionContext | null;
@@ -16,8 +13,7 @@ export interface SessionState {
   clear: () => void;
   sendMessage: (
     parts: SessionCommandInputPart[],
-    onEvent?: (event: StreamEvent) => void
-  ) => Promise<RecordMessageResponse>;
+  ) => Promise<EnqueueMessageResponse>;
   loadMessageHistory: () => Promise<Message[]>;
   getContext: () => ApiSessionContext | null;
 }
@@ -29,29 +25,10 @@ export const createSessionStore = (sdk: Sdk) => {
     context: null,
     setContext: (context) => set({ context }),
     clear: () => set({ context: null }),
-    sendMessage: async (parts, onEvent) => {
-      let finalResponse: RecordMessageResponse | null = null;
-
-      for await (const event of sdk.sessions.commandStream(parts)) {
-        if (event.type === "context") {
-          set({ context: event.context });
-        }
-
-        if (event.type === "done") {
-          finalResponse = {
-            context: event.context,
-            messages: event.messages,
-          };
-          set({ context: event.context });
-        }
-
-        onEvent?.(event);
-      }
-
-      if (!finalResponse) {
-        throw new Error("Stream ended without a final response");
-      }
-      return finalResponse;
+    sendMessage: async (parts) => {
+      const response = await sdk.sessions.command(parts);
+      set({ context: response.context });
+      return response;
     },
     loadMessageHistory: async () => sdk.sessions.history(),
     getContext: () => get().context,

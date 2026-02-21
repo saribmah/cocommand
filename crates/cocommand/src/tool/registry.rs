@@ -64,6 +64,11 @@ impl ToolRegistry {
             }
         }
 
+        // Canonical runtime alias for asynchronous subagent execution.
+        if let Some(tool) = tool_set.get("agent_execute-agent").cloned() {
+            tool_set.insert("subagent_run".to_string(), tool);
+        }
+
         tool_set
     }
 }
@@ -81,13 +86,19 @@ pub(crate) fn build_tool(tool: ExtensionTool, context: ExtensionContext) -> LlmT
             execute_handler(input, execute_context)
                 .await
                 .map_err(|error| serde_json::json!({ "error": error.to_string() }))
-        }) as std::pin::Pin<Box<dyn std::future::Future<Output = Result<serde_json::Value, serde_json::Value>> + Send>>
+        })
+            as std::pin::Pin<
+                Box<
+                    dyn std::future::Future<Output = Result<serde_json::Value, serde_json::Value>>
+                        + Send,
+                >,
+            >
     });
 
     LlmTool {
         description,
         input_schema: schema,
-        execute,
+        execute: Some(execute),
     }
 }
 

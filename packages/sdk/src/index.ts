@@ -24,8 +24,8 @@ export type {
 } from "./extensions";
 
 export type { ToolsApi } from "./tools";
-export type { SessionsApi, SessionCommandEvent, SessionCommandOptions } from "./sessions";
-export type { EventsApi } from "./events";
+export type { SessionsApi, SessionCommandOptions } from "./sessions";
+export type { EventsApi, RuntimeEvent } from "./events";
 
 export {
   createClipboardApi,
@@ -116,7 +116,7 @@ export type {
   NotesUpdateNoteInput,
   NotesUpdateNoteOutput,
   PartBase,
-  RecordMessageResponse,
+  EnqueueMessageResponse,
   SessionCommandInputPart,
   SessionContext,
   ToolState,

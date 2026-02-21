@@ -32,7 +32,13 @@ pub fn build_get_extension_tool(workspace: Arc<WorkspaceInstance>) -> LlmTool {
                     })
                 }).collect::<Vec<_>>()
             }))
-        }) as std::pin::Pin<Box<dyn std::future::Future<Output = Result<serde_json::Value, serde_json::Value>> + Send>>
+        })
+            as std::pin::Pin<
+                Box<
+                    dyn std::future::Future<Output = Result<serde_json::Value, serde_json::Value>>
+                        + Send,
+                >,
+            >
     });
 
     LlmTool {
@@ -44,6 +50,6 @@ pub fn build_get_extension_tool(workspace: Arc<WorkspaceInstance>) -> LlmTool {
             },
             "required": ["id"]
         }),
-        execute,
+        execute: Some(execute),
     }
 }

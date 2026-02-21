@@ -11,7 +11,7 @@ use crate::kit::convert::messages_to_prompt;
 use crate::kit::stream_map::map_kit_stream;
 use crate::kit::tool_map::to_kit_tool_set;
 use crate::message::Message;
-use crate::provider::LlmProvider;
+use crate::provider::{LlmProvider, LlmStreamOptions};
 use crate::settings::LlmSettings;
 use crate::stream::LlmStream;
 use crate::tool::LlmToolSet;
@@ -38,25 +38,35 @@ impl LlmKitProvider {
 
 #[async_trait]
 impl LlmProvider for LlmKitProvider {
-    async fn stream(
+    async fn stream(&self, messages: &[Message], tools: LlmToolSet) -> Result<LlmStream, LlmError> {
+        self.stream_with_options(messages, tools, LlmStreamOptions::default())
+            .await
+    }
+
+    async fn stream_with_options(
         &self,
         messages: &[Message],
         tools: LlmToolSet,
+        options: LlmStreamOptions,
     ) -> Result<LlmStream, LlmError> {
         let guard = self.state.read().await;
-        let model = guard
-            .model
-            .as_ref()
-            .ok_or(LlmError::MissingApiKey)?;
+        let model = guard.model.as_ref().ok_or(LlmError::MissingApiKey)?.clone();
+        let settings = guard.settings.clone();
+        drop(guard);
+
         let prompt_messages = messages_to_prompt(messages);
-        let prompt =
-            Prompt::messages(prompt_messages).with_system(guard.settings.system_prompt.clone());
+        let prompt = Prompt::messages(prompt_messages).with_system(settings.system_prompt.clone());
         let kit_tools = to_kit_tool_set(tools);
-        let result = StreamText::new(model.clone(), prompt)
-            .temperature(guard.settings.temperature)
-            .max_output_tokens(guard.settings.max_output_tokens)
+        let max_steps = options.max_steps.unwrap_or(settings.max_steps);
+        let mut request = StreamText::new(model, prompt)
+            .temperature(settings.temperature)
+            .max_output_tokens(settings.max_output_tokens)
             .tools(kit_tools)
-            .stop_when(vec![Box::new(step_count_is(guard.settings.max_steps))])
+            .stop_when(vec![Box::new(step_count_is(max_steps))]);
+        if let Some(abort_signal) = options.abort_signal {
+            request = request.abort_signal(abort_signal);
+        }
+        let result = request
             .execute()
             .await
             .map_err(|error| LlmError::Internal(error.to_string()))?;
@@ -76,10 +86,7 @@ impl LlmProvider for LlmKitProvider {
 }
 
 fn build_model(settings: &LlmSettings) -> Result<Arc<dyn LanguageModel>, LlmError> {
-    let api_key = settings
-        .api_key
-        .clone()
-        .ok_or(LlmError::MissingApiKey)?;
+    let api_key = settings.api_key.clone().ok_or(LlmError::MissingApiKey)?;
     let provider = OpenAICompatibleClient::new()
         .base_url(&settings.base_url)
         .api_key(&api_key)

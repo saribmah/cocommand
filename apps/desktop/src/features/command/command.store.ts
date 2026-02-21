@@ -1,17 +1,18 @@
 import { create } from "zustand";
 import { hideWindow } from "../../lib/ipc";
-import type { StreamEvent } from "../session/session.store";
+import type {
+  EnqueueMessageResponse,
+  RuntimeEvent,
+} from "@cocommand/sdk";
 import type {
   Message,
   MessagePart,
   MessagePartInput,
-  RecordMessageResponse,
 } from "./command.types";
 
 type SendMessageFn = (
   parts: MessagePartInput[],
-  onEvent?: (event: StreamEvent) => void
-) => Promise<RecordMessageResponse>;
+) => Promise<EnqueueMessageResponse>;
 
 function emptyTextPart(): MessagePartInput {
   return { type: "text", text: "" };
@@ -140,6 +141,7 @@ export interface CommandState {
   setDraftParts: (parts: MessagePartInput[]) => void;
   setError: (error: string | null) => void;
   hydrateMessages: (messages: Message[]) => void;
+  applyRuntimeEvent: (event: RuntimeEvent) => void;
   reset: () => void;
   dismiss: () => void;
   submit: (sendMessage: SendMessageFn) => Promise<boolean>;
@@ -163,6 +165,24 @@ export const createCommandStore = () => {
       set((state) => ({
         messages: mergeHistoryMessages(state.messages, messages),
       })),
+
+    applyRuntimeEvent: (event) => {
+      if (event.type === "message.started") {
+        const incoming = event.userMessage
+          ? [event.userMessage, event.assistantMessage]
+          : [event.assistantMessage];
+        set((state) => ({
+          messages: mergeMessages(state.messages, incoming),
+        }));
+        return;
+      }
+
+      if (event.type === "part.updated") {
+        set((state) => ({
+          messages: updateMessagePart(state.messages, event.messageId, event.part),
+        }));
+      }
+    },
 
     reset: () =>
       set({
@@ -191,34 +211,13 @@ export const createCommandStore = () => {
       }));
 
       try {
-        const response = await sendMessage(inputParts, (event: StreamEvent) => {
-          if (event.type === "message.started") {
-            set((state) => ({
-              messages: mergeMessages(state.messages, [
-                event.userMessage,
-                event.assistantMessage,
-              ]),
-            }));
-            return;
-          }
+        await sendMessage(inputParts);
 
-          if (event.type === "part.updated") {
-            set((state) => ({
-              messages: updateMessagePart(
-                state.messages,
-                event.messageId,
-                event.part
-              ),
-            }));
-          }
-        });
-
-        set((state) => ({
+        set({
           draftParts: [emptyTextPart()],
           isSubmitting: false,
           error: null,
-          messages: mergeMessages(state.messages, response.messages ?? []),
-        }));
+        });
         return true;
       } catch (err) {
         console.error("CommandStore submit error", err);

@@ -15,7 +15,7 @@ pub use message::{
     ToolStatePending, ToolStateRunning, ToolStateTimeCompleted, ToolStateTimeRange,
     ToolStateTimeStart, UserMessageInfo,
 };
-pub use provider::LlmProvider;
+pub use provider::{LlmProvider, LlmStreamOptions};
 pub use settings::LlmSettings;
 pub use stream::{LlmStream, LlmStreamEvent};
 pub use tool::{LlmTool, LlmToolExecute, LlmToolSet};
