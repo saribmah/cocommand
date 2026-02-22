@@ -1,104 +1,46 @@
+mod handle;
+mod helpers;
+#[cfg(test)]
+mod tests;
+mod writes;
+
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::Arc;
 
 use serde_json::{Map, Value};
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
 use crate::bus::Bus;
 use crate::command::processor::{StorePartContext, StreamProcessor};
-use crate::command::runtime::executor::spawn_runtime_executor;
 use crate::command::runtime::protocol::{
     RuntimeCommand, SessionEvent, ToolImmediateFailure, ToolImmediateSuccess,
 };
-use crate::command::runtime::types::{EnqueueMessageAck, RuntimeSemaphores};
+use crate::command::runtime::types::EnqueueMessageAck;
 use crate::command::session_message::{map_input_parts, SessionCommandInputPart};
 use crate::error::{CoreError, CoreResult};
 use crate::event::{
     BackgroundJobCompletedPayload, BackgroundJobFailedPayload, BackgroundJobStartedPayload,
-    CoreEvent, SessionContextPayload, SessionMessageStartedPayload, SessionPartUpdatedPayload,
-    SessionRunCancelledPayload, SessionRunCompletedPayload,
+    CoreEvent, SessionContextPayload, SessionMessageStartedPayload, SessionRunCancelledPayload,
+    SessionRunCompletedPayload,
 };
-use crate::llm::{LlmProvider, LlmStreamEvent, LlmTool, LlmToolSet};
+use crate::llm::{LlmStreamEvent, LlmToolSet};
 use crate::message::message::MessageStorage;
-use crate::message::{
-    Message, PartBase, ToolPart, ToolState, ToolStateCompleted, ToolStateError, ToolStateRunning,
-    ToolStateTimeCompleted, ToolStateTimeRange, ToolStateTimeStart,
-};
+use crate::message::Message;
 use crate::session::SessionManager;
 use crate::tool::ToolRegistry;
 use crate::utils::time::now_secs;
 use crate::workspace::WorkspaceInstance;
 
+pub use self::handle::{spawn_session_runtime, SessionRuntimeHandle};
+use self::helpers::{
+    is_async_tool_name, running_input_and_start, strip_tool_execute, value_to_string,
+};
+
 const MAX_TRACKED_CANCELLED_RUNS: usize = 512;
 
-#[derive(Clone)]
-pub struct SessionRuntimeHandle {
-    session_id: String,
-    event_tx: mpsc::UnboundedSender<SessionEvent>,
-}
-
-impl SessionRuntimeHandle {
-    pub fn session_id(&self) -> &str {
-        &self.session_id
-    }
-
-    pub fn is_closed(&self) -> bool {
-        self.event_tx.is_closed()
-    }
-
-    pub async fn enqueue_user_message(
-        &self,
-        parts: Vec<SessionCommandInputPart>,
-    ) -> CoreResult<EnqueueMessageAck> {
-        let (reply_tx, reply_rx) = oneshot::channel();
-        self.event_tx
-            .send(SessionEvent::UserMessage {
-                parts,
-                reply: reply_tx,
-            })
-            .map_err(|_| CoreError::Internal("session runtime stopped".to_string()))?;
-        reply_rx
-            .await
-            .map_err(|_| CoreError::Internal("session runtime dropped response".to_string()))?
-    }
-}
-
-pub fn spawn_session_runtime(
-    session_id: String,
-    workspace: WorkspaceInstance,
-    sessions: Arc<SessionManager>,
-    llm: Arc<dyn LlmProvider>,
-    bus: Bus,
-    semaphores: RuntimeSemaphores,
-) -> SessionRuntimeHandle {
-    let (event_tx, event_rx) = mpsc::unbounded_channel();
-    let (command_tx, command_rx) = mpsc::unbounded_channel();
-
-    spawn_runtime_executor(llm, semaphores, command_rx, event_tx.clone());
-
-    let actor = SessionRuntimeActor::new(
-        session_id.clone(),
-        workspace,
-        sessions,
-        bus,
-        event_tx.clone(),
-        event_rx,
-        command_tx,
-    );
-
-    tokio::spawn(async move {
-        actor.run().await;
-    });
-
-    SessionRuntimeHandle {
-        session_id,
-        event_tx,
-    }
-}
-
-struct SessionRuntimeActor {
+pub(super) struct SessionRuntimeActor {
     session_id: String,
     workspace: WorkspaceInstance,
     sessions: Arc<SessionManager>,
@@ -689,283 +631,10 @@ impl SessionRuntimeActor {
             })
             .await
     }
-
-    async fn write_tool_running_metadata(
-        &self,
-        record: &ToolCallRecord,
-        job_id: &str,
-    ) -> CoreResult<()> {
-        let mut metadata = Map::new();
-        metadata.insert("job_id".to_string(), Value::String(job_id.to_string()));
-        metadata.insert("status".to_string(), Value::String("running".to_string()));
-
-        let part = ToolPart {
-            base: PartBase {
-                id: record.part_id.clone(),
-                session_id: record.session_id.clone(),
-                message_id: record.message_id.clone(),
-            },
-            call_id: record.tool_call_id.clone(),
-            tool: record.tool_name.clone(),
-            state: ToolState::Running(ToolStateRunning {
-                input: record.input.clone(),
-                title: None,
-                metadata: Some(metadata),
-                time: ToolStateTimeStart {
-                    start: record.started_at,
-                },
-            }),
-            metadata: None,
-        };
-        MessageStorage::store_part(
-            &self.workspace.storage,
-            &crate::message::MessagePart::Tool(part.clone()),
-        )
-        .await?;
-        let _ = self
-            .bus
-            .publish(CoreEvent::SessionPartUpdated(SessionPartUpdatedPayload {
-                session_id: record.session_id.clone(),
-                run_id: record.run_id.clone(),
-                message_id: record.message_id.clone(),
-                part_id: record.part_id.clone(),
-                part: crate::message::MessagePart::Tool(part),
-            }));
-        Ok(())
-    }
-
-    async fn write_tool_completed(&self, record: &ToolCallRecord, output: Value) -> CoreResult<()> {
-        let end = now_secs();
-        let part = ToolPart {
-            base: PartBase {
-                id: record.part_id.clone(),
-                session_id: record.session_id.clone(),
-                message_id: record.message_id.clone(),
-            },
-            call_id: record.tool_call_id.clone(),
-            tool: record.tool_name.clone(),
-            state: ToolState::Completed(ToolStateCompleted {
-                input: record.input.clone(),
-                output: value_to_string(&output),
-                title: record.tool_name.clone(),
-                metadata: Map::new(),
-                time: ToolStateTimeCompleted {
-                    start: record.started_at,
-                    end,
-                    compacted: None,
-                },
-                attachments: None,
-            }),
-            metadata: None,
-        };
-        MessageStorage::store_part(
-            &self.workspace.storage,
-            &crate::message::MessagePart::Tool(part.clone()),
-        )
-        .await?;
-        let _ = self
-            .bus
-            .publish(CoreEvent::SessionPartUpdated(SessionPartUpdatedPayload {
-                session_id: record.session_id.clone(),
-                run_id: record.run_id.clone(),
-                message_id: record.message_id.clone(),
-                part_id: record.part_id.clone(),
-                part: crate::message::MessagePart::Tool(part),
-            }));
-        Ok(())
-    }
-
-    async fn write_tool_error(&self, record: &ToolCallRecord, error: Value) -> CoreResult<()> {
-        let end = now_secs();
-        let part = ToolPart {
-            base: PartBase {
-                id: record.part_id.clone(),
-                session_id: record.session_id.clone(),
-                message_id: record.message_id.clone(),
-            },
-            call_id: record.tool_call_id.clone(),
-            tool: record.tool_name.clone(),
-            state: ToolState::Error(ToolStateError {
-                input: record.input.clone(),
-                error: value_to_string(&error),
-                metadata: None,
-                time: ToolStateTimeRange {
-                    start: record.started_at,
-                    end,
-                },
-            }),
-            metadata: None,
-        };
-        MessageStorage::store_part(
-            &self.workspace.storage,
-            &crate::message::MessagePart::Tool(part.clone()),
-        )
-        .await?;
-        let _ = self
-            .bus
-            .publish(CoreEvent::SessionPartUpdated(SessionPartUpdatedPayload {
-                session_id: record.session_id.clone(),
-                run_id: record.run_id.clone(),
-                message_id: record.message_id.clone(),
-                part_id: record.part_id.clone(),
-                part: crate::message::MessagePart::Tool(part),
-            }));
-        Ok(())
-    }
 }
 
 #[derive(Clone, Copy)]
 enum Trigger {
     User,
     Followup,
-}
-
-fn strip_tool_execute(tools: &LlmToolSet) -> LlmToolSet {
-    tools
-        .iter()
-        .map(|(name, tool)| {
-            (
-                name.clone(),
-                LlmTool {
-                    description: tool.description.clone(),
-                    input_schema: tool.input_schema.clone(),
-                    execute: None,
-                },
-            )
-        })
-        .collect()
-}
-
-fn is_async_tool_name(name: &str) -> bool {
-    name == "subagent_run" || name == "agent_execute-agent"
-}
-
-fn running_input_and_start(state: &ToolState, fallback_start: u64) -> (Map<String, Value>, u64) {
-    match state {
-        ToolState::Pending(state) => (state.input.clone(), fallback_start),
-        ToolState::Running(state) => (state.input.clone(), state.time.start),
-        ToolState::Completed(state) => (state.input.clone(), state.time.start),
-        ToolState::Error(state) => (state.input.clone(), state.time.start),
-    }
-}
-
-fn value_to_string(value: &Value) -> String {
-    match value {
-        Value::String(text) => text.clone(),
-        other => serde_json::to_string(other).unwrap_or_else(|_| "null".to_string()),
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use std::sync::Arc;
-
-    use serde_json::json;
-    use tempfile::tempdir;
-    use tokio::sync::mpsc;
-
-    use super::*;
-    use crate::session::SessionManager;
-
-    async fn test_actor() -> (
-        SessionRuntimeActor,
-        mpsc::UnboundedReceiver<RuntimeCommand>,
-        tempfile::TempDir,
-    ) {
-        let dir = tempdir().expect("tempdir");
-        let workspace = WorkspaceInstance::new(dir.path()).await.expect("workspace");
-        let workspace_arc = Arc::new(workspace.clone());
-        let sessions = Arc::new(SessionManager::new(workspace_arc));
-        let bus = Bus::new(32);
-
-        let (event_tx, event_rx) = mpsc::unbounded_channel();
-        let (command_tx, command_rx) = mpsc::unbounded_channel();
-
-        (
-            SessionRuntimeActor::new(
-                "session-1".to_string(),
-                workspace,
-                sessions,
-                bus,
-                event_tx,
-                event_rx,
-                command_tx,
-            ),
-            command_rx,
-            dir,
-        )
-    }
-
-    #[tokio::test]
-    async fn dispatch_tool_call_emits_runtime_command() {
-        let (mut actor, mut command_rx, _dir) = test_actor().await;
-        let mut tools = LlmToolSet::new();
-        tools.insert(
-            "example_tool".to_string(),
-            LlmTool {
-                description: Some("tool".to_string()),
-                input_schema: json!({"type": "object"}),
-                execute: None,
-            },
-        );
-
-        actor.inflight = Some(RunState {
-            run_id: "run-1".to_string(),
-            assistant_message: Message::from_parts("session-1", "assistant", Vec::new()),
-            processor: StreamProcessor::new(),
-            tools,
-            cancel_token: CancellationToken::new(),
-        });
-
-        actor
-            .dispatch_tool_call(
-                "run-1".to_string(),
-                "tool-call-1".to_string(),
-                "example_tool".to_string(),
-                json!({"value": 1}),
-            )
-            .await;
-
-        let command = command_rx.recv().await.expect("runtime command");
-        assert!(matches!(
-            command,
-            RuntimeCommand::CallTool {
-                run_id,
-                tool_call_id,
-                tool_name,
-                ..
-            } if run_id == "run-1" && tool_call_id == "tool-call-1" && tool_name == "example_tool"
-        ));
-    }
-
-    #[tokio::test]
-    async fn cancelled_run_ignores_immediate_tool_completion() {
-        let (mut actor, _command_rx, _dir) = test_actor().await;
-        actor.remember_cancelled_run("run-cancelled".to_string());
-
-        actor.tool_calls.insert(
-            "tool-call-1".to_string(),
-            ToolCallRecord {
-                session_id: "session-1".to_string(),
-                run_id: "run-cancelled".to_string(),
-                message_id: "message-1".to_string(),
-                part_id: "part-1".to_string(),
-                tool_call_id: "tool-call-1".to_string(),
-                tool_name: "example_tool".to_string(),
-                input: Map::new(),
-                started_at: now_secs(),
-            },
-        );
-
-        actor
-            .handle_tool_immediate_success(ToolImmediateSuccess {
-                run_id: "run-cancelled".to_string(),
-                tool_call_id: "tool-call-1".to_string(),
-                output: json!({"ok": true}),
-            })
-            .await
-            .expect("ignored completion");
-
-        assert_eq!(actor.queued_followups, 0);
-    }
 }

@@ -13,6 +13,7 @@ use crate::storage::SharedStorage;
 use crate::utils::time::now_secs;
 use cocommand_llm::LlmStreamEvent;
 use serde_json::{Map, Value};
+use tokio_stream::StreamExt;
 
 #[derive(Debug, Default, Clone)]
 pub(crate) struct StreamProcessor {
@@ -22,6 +23,7 @@ pub(crate) struct StreamProcessor {
     current_reasoning_id: Option<String>,
     current_reasoning: String,
     tool_calls: HashMap<String, ToolPart>,
+    mapped_parts: Vec<MessagePart>,
 }
 
 pub(crate) struct StorePartContext<'a> {
@@ -220,6 +222,26 @@ impl StreamProcessor {
         Ok(())
     }
 
+    pub(crate) async fn process<S>(
+        &mut self,
+        mut stream: S,
+        context: &StorePartContext<'_>,
+    ) -> CoreResult<()>
+    where
+        S: tokio_stream::Stream<Item = LlmStreamEvent> + Unpin,
+    {
+        while let Some(part) = stream.next().await {
+            self.on_part(part, context).await?;
+        }
+        self.flush_text(context).await?;
+        self.flush_reasoning(context).await?;
+        Ok(())
+    }
+
+    pub(crate) fn mapped_parts(&self) -> &[MessagePart] {
+        &self.mapped_parts
+    }
+
     pub(crate) fn tool_call(&self, tool_call_id: &str) -> Option<ToolPart> {
         self.tool_calls.get(tool_call_id).cloned()
     }
@@ -263,6 +285,15 @@ impl StreamProcessor {
                 part_id,
                 part: part.clone(),
             }));
+        if let Some(index) = self
+            .mapped_parts
+            .iter()
+            .position(|existing| existing.base().id == part.base().id)
+        {
+            self.mapped_parts[index] = part;
+        } else {
+            self.mapped_parts.push(part);
+        }
         Ok(())
     }
 

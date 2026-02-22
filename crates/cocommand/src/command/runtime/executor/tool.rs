@@ -7,7 +7,7 @@ use crate::command::runtime::types::RuntimeSemaphores;
 use crate::llm::LlmTool;
 
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn spawn_tool_execution(
+pub(super) fn spawn_tool_execution(
     event_tx: mpsc::UnboundedSender<SessionEvent>,
     semaphores: RuntimeSemaphores,
     run_id: String,
