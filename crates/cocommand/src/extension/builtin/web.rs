@@ -7,7 +7,7 @@ use serde_json::json;
 
 use crate::error::CoreError;
 use crate::extension::manifest::ExtensionManifest;
-use crate::extension::{boxed_tool_future, Extension, ExtensionKind, ExtensionTool};
+use crate::extension::{Extension, ExtensionKind, ExtensionTool};
 
 use super::manifest_tools::{merge_manifest_tools, parse_builtin_manifest};
 
@@ -44,7 +44,7 @@ impl WebExtension {
             "web_fetch",
             Arc::new(
                 |input: serde_json::Value, _context: crate::extension::ExtensionContext| {
-                    boxed_tool_future(async move {
+                    crate::extension::boxed_tool_value_future("Tool result", async move {
                         let url = input
                             .get("url")
                             .and_then(|v| v.as_str())
@@ -130,7 +130,7 @@ impl WebExtension {
             "web_search",
             Arc::new(
                 |input: serde_json::Value, _context: crate::extension::ExtensionContext| {
-                    boxed_tool_future(async move {
+                    crate::extension::boxed_tool_value_future("Tool result", async move {
                         let query = input
                             .get("query")
                             .and_then(|v| v.as_str())

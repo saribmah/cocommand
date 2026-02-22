@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use crate::error::CoreError;
 use crate::extension::manifest::ExtensionManifest;
-use crate::extension::{boxed_tool_future, Extension, ExtensionKind, ExtensionTool};
+use crate::extension::{Extension, ExtensionKind, ExtensionTool};
 
 use super::manifest_tools::{merge_manifest_tools, parse_builtin_manifest};
 
@@ -40,7 +40,7 @@ impl SystemExtension {
             "list_open_apps",
             Arc::new(
                 |input: serde_json::Value, context: crate::extension::ExtensionContext| {
-                    boxed_tool_future(async move {
+                    crate::extension::boxed_tool_value_future("Tool result", async move {
                         let visible_only = input
                             .get("visibleOnly")
                             .and_then(|value| value.as_bool())
@@ -58,7 +58,7 @@ impl SystemExtension {
             "list_windows",
             Arc::new(
                 |input: serde_json::Value, context: crate::extension::ExtensionContext| {
-                    boxed_tool_future(async move {
+                    crate::extension::boxed_tool_value_future("Tool result", async move {
                         let visible_only = input
                             .get("visibleOnly")
                             .and_then(|value| value.as_bool())
@@ -80,7 +80,7 @@ impl SystemExtension {
             "run_applescript",
             Arc::new(
                 |input: serde_json::Value, context: crate::extension::ExtensionContext| {
-                    boxed_tool_future(async move {
+                    crate::extension::boxed_tool_value_future("Tool result", async move {
                         let script = input
                             .get("script")
                             .and_then(|value| value.as_str())
@@ -96,7 +96,7 @@ impl SystemExtension {
             "list_installed_apps",
             Arc::new(
                 |_input: serde_json::Value, context: crate::extension::ExtensionContext| {
-                    boxed_tool_future(async move {
+                    crate::extension::boxed_tool_value_future("Tool result", async move {
                         let apps = context.workspace.platform.list_installed_apps()?;
                         Ok(serde_json::to_value(apps).map_err(|error| {
                             CoreError::Internal(format!(
@@ -112,7 +112,7 @@ impl SystemExtension {
             "app_action",
             Arc::new(
                 |input: serde_json::Value, context: crate::extension::ExtensionContext| {
-                    boxed_tool_future(async move {
+                    crate::extension::boxed_tool_value_future("Tool result", async move {
                         let action = input
                             .get("action")
                             .and_then(|value| value.as_str())
@@ -141,7 +141,7 @@ impl SystemExtension {
             "window_action",
             Arc::new(
                 |input: serde_json::Value, context: crate::extension::ExtensionContext| {
-                    boxed_tool_future(async move {
+                    crate::extension::boxed_tool_value_future("Tool result", async move {
                         let action = input
                             .get("action")
                             .and_then(|value| value.as_str())
@@ -256,7 +256,7 @@ mod tests {
         .await
         .expect("tool output");
 
-        let apps = output.as_array().expect("array output");
+        let apps = output.output.as_array().expect("array output");
         assert_eq!(apps.len(), 1);
         assert_eq!(apps[0]["name"], "Finder");
         assert_eq!(apps[0]["bundle_id"], "com.apple.finder");

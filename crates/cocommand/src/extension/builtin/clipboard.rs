@@ -10,7 +10,7 @@ use crate::clipboard::{
 };
 use crate::error::CoreError;
 use crate::extension::manifest::ExtensionManifest;
-use crate::extension::{boxed_tool_future, Extension, ExtensionKind, ExtensionTool};
+use crate::extension::{Extension, ExtensionKind, ExtensionTool};
 
 use super::manifest_tools::{merge_manifest_tools, parse_builtin_manifest};
 
@@ -41,7 +41,7 @@ impl ClipboardExtension {
             "get_clipboard",
             Arc::new(
                 |_input: serde_json::Value, context: crate::extension::ExtensionContext| {
-                    boxed_tool_future(async move {
+                    crate::extension::boxed_tool_value_future("Tool result", async move {
                         let snapshot = get_clipboard_snapshot(&context.workspace).await?;
                         Ok(serde_json::to_value(snapshot).map_err(|error| {
                             CoreError::Internal(format!(
@@ -57,7 +57,7 @@ impl ClipboardExtension {
             "set_clipboard",
             Arc::new(
                 |input: serde_json::Value, context: crate::extension::ExtensionContext| {
-                    boxed_tool_future(async move {
+                    crate::extension::boxed_tool_value_future("Tool result", async move {
                         let kind = input
                             .get("kind")
                             .and_then(|value| value.as_str())
@@ -115,7 +115,7 @@ impl ClipboardExtension {
             "record_clipboard",
             Arc::new(
                 |_input: serde_json::Value, context: crate::extension::ExtensionContext| {
-                    boxed_tool_future(async move {
+                    crate::extension::boxed_tool_value_future("Tool result", async move {
                         let entry = record_clipboard(&context.workspace).await?;
                         Ok(serde_json::to_value(entry).map_err(|error| {
                             CoreError::Internal(format!(
@@ -131,7 +131,7 @@ impl ClipboardExtension {
             "list_clipboard_history",
             Arc::new(
                 |input: serde_json::Value, context: crate::extension::ExtensionContext| {
-                    boxed_tool_future(async move {
+                    crate::extension::boxed_tool_value_future("Tool result", async move {
                         let limit = input.get("limit").and_then(|value| value.as_u64());
                         let items =
                             list_history(&context.workspace.storage, limit.map(|v| v as usize))
@@ -150,7 +150,7 @@ impl ClipboardExtension {
             "clear_clipboard_history",
             Arc::new(
                 |_input: serde_json::Value, context: crate::extension::ExtensionContext| {
-                    boxed_tool_future(async move {
+                    crate::extension::boxed_tool_value_future("Tool result", async move {
                         clear_history(&context.workspace.storage).await?;
                         Ok(json!({ "status": "ok" }))
                     })

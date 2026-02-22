@@ -18,4 +18,4 @@ pub use message::{
 pub use provider::{LlmProvider, LlmStreamOptions};
 pub use settings::LlmSettings;
 pub use stream::{LlmStream, LlmStreamEvent};
-pub use tool::{LlmTool, LlmToolExecute, LlmToolSet};
+pub use tool::{LlmTool, LlmToolExecute, LlmToolSet, ToolExecuteOutput};

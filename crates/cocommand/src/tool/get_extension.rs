@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use cocommand_llm::LlmTool;
+use cocommand_llm::{LlmTool, ToolExecuteOutput};
 use serde_json::json;
 
 use crate::tool::search_extensions::map_kind;
@@ -18,24 +18,27 @@ pub fn build_get_extension_tool(workspace: Arc<WorkspaceInstance>) -> LlmTool {
             let app = registry
                 .get(app_id)
                 .ok_or_else(|| json!({ "error": "extension not found" }))?;
-            Ok(json!({
-                "id": app.id(),
-                "name": app.name(),
-                "kind": map_kind(app.kind()),
-                "tags": app.tags(),
-                "tools": app.tools().into_iter().map(|tool| {
-                    json!({
-                        "id": tool.id,
-                        "name": tool.name,
-                        "description": tool.description,
-                        "input_schema": tool.input_schema,
-                    })
-                }).collect::<Vec<_>>()
-            }))
+            Ok(ToolExecuteOutput::with_output(
+                "Extension details",
+                json!({
+                    "id": app.id(),
+                    "name": app.name(),
+                    "kind": map_kind(app.kind()),
+                    "tags": app.tags(),
+                    "tools": app.tools().into_iter().map(|tool| {
+                        json!({
+                            "id": tool.id,
+                            "name": tool.name,
+                            "description": tool.description,
+                            "input_schema": tool.input_schema,
+                        })
+                    }).collect::<Vec<_>>()
+                }),
+            ))
         })
             as std::pin::Pin<
                 Box<
-                    dyn std::future::Future<Output = Result<serde_json::Value, serde_json::Value>>
+                    dyn std::future::Future<Output = Result<ToolExecuteOutput, serde_json::Value>>
                         + Send,
                 >,
             >

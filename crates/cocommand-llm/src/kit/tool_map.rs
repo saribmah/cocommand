@@ -17,7 +17,13 @@ fn to_kit_tool(tool: LlmTool) -> llm_kit_provider_utils::tool::Tool {
         let execute = Arc::new(move |input: serde_json::Value, _opts| {
             let execute_fn = execute_fn.clone();
             llm_kit_provider_utils::tool::ToolExecutionOutput::Single(Box::pin(async move {
-                execute_fn(input).await
+                execute_fn(input).await.and_then(|output| {
+                    serde_json::to_value(output).map_err(|error| {
+                        serde_json::json!({
+                            "error": format!("failed to serialize tool output envelope: {error}")
+                        })
+                    })
+                })
             }))
         });
         kit_tool = kit_tool.with_execute(execute);

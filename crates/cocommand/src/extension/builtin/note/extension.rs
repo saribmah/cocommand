@@ -8,8 +8,7 @@ use crate::error::{CoreError, CoreResult};
 use crate::extension::builtin::manifest_tools::{merge_manifest_tools, parse_builtin_manifest};
 use crate::extension::manifest::ExtensionManifest;
 use crate::extension::{
-    boxed_tool_future, Extension, ExtensionInitContext, ExtensionKind, ExtensionStatus,
-    ExtensionTool,
+    Extension, ExtensionInitContext, ExtensionKind, ExtensionStatus, ExtensionTool,
 };
 
 use filesystem::indexer::IndexBuildState;
@@ -50,7 +49,7 @@ impl NoteExtension {
             "create-note",
             Arc::new(
                 |input: serde_json::Value, context: crate::extension::ExtensionContext| {
-                    boxed_tool_future(async move {
+                    crate::extension::boxed_tool_value_future("Tool result", async move {
                         let title = optional_string(&input, "title");
                         let content = optional_string_allow_empty(&input, "content");
                         let folder = optional_string(&input, "folder");
@@ -70,7 +69,7 @@ impl NoteExtension {
             "list-notes",
             Arc::new(
                 |input: serde_json::Value, context: crate::extension::ExtensionContext| {
-                    boxed_tool_future(async move {
+                    crate::extension::boxed_tool_value_future("Tool result", async move {
                         let limit = bounded_usize(&input, "limit", 50, 1, 500)?;
                         let workspace_dir = context.workspace.workspace_dir.clone();
                         let notes_root = notes_root(&workspace_dir);
@@ -87,7 +86,7 @@ impl NoteExtension {
             "read-note",
             Arc::new(
                 |input: serde_json::Value, context: crate::extension::ExtensionContext| {
-                    boxed_tool_future(async move {
+                    crate::extension::boxed_tool_value_future("Tool result", async move {
                         let id = required_string(&input, "id")?;
                         let workspace_dir = context.workspace.workspace_dir.clone();
                         let notes_root = notes_root(&workspace_dir);
@@ -104,7 +103,7 @@ impl NoteExtension {
             "update-note",
             Arc::new(
                 |input: serde_json::Value, context: crate::extension::ExtensionContext| {
-                    boxed_tool_future(async move {
+                    crate::extension::boxed_tool_value_future("Tool result", async move {
                         let id = required_string(&input, "id")?;
                         let content = required_raw_string(&input, "content")?;
                         let workspace_dir = context.workspace.workspace_dir.clone();
@@ -123,7 +122,7 @@ impl NoteExtension {
             "delete-note",
             Arc::new(
                 |input: serde_json::Value, context: crate::extension::ExtensionContext| {
-                    boxed_tool_future(async move {
+                    crate::extension::boxed_tool_value_future("Tool result", async move {
                         let id = required_string(&input, "id")?;
                         let workspace_dir = context.workspace.workspace_dir.clone();
                         let notes_root = notes_root(&workspace_dir);
@@ -145,7 +144,7 @@ impl NoteExtension {
             Arc::new(
                 move |input: serde_json::Value, context: crate::extension::ExtensionContext| {
                     let index_manager = im.clone();
-                    boxed_tool_future(async move {
+                    crate::extension::boxed_tool_value_future("Tool result", async move {
                         let query = required_query(&input)?;
                         let include_hidden =
                             optional_bool(&input, "includeHidden").unwrap_or(false);
@@ -189,7 +188,7 @@ impl NoteExtension {
             Arc::new(
                 move |_input: serde_json::Value, context: crate::extension::ExtensionContext| {
                     let index_manager = im.clone();
-                    boxed_tool_future(async move {
+                    crate::extension::boxed_tool_value_future("Tool result", async move {
                         let workspace_dir = context.workspace.workspace_dir.clone();
                         let notes_root = notes_root(&workspace_dir);
                         let index_cache_dir = notes_index_cache_dir(&workspace_dir);
@@ -213,7 +212,7 @@ impl NoteExtension {
             Arc::new(
                 move |_input: serde_json::Value, context: crate::extension::ExtensionContext| {
                     let index_manager = im.clone();
-                    boxed_tool_future(async move {
+                    crate::extension::boxed_tool_value_future("Tool result", async move {
                         let workspace_dir = context.workspace.workspace_dir.clone();
                         let notes_root = notes_root(&workspace_dir);
                         let index_cache_dir = notes_index_cache_dir(&workspace_dir);

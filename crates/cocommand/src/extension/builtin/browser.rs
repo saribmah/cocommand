@@ -7,7 +7,7 @@ use serde_json::json;
 use crate::browser::BrowserBridge;
 use crate::error::CoreError;
 use crate::extension::manifest::ExtensionManifest;
-use crate::extension::{boxed_tool_future, Extension, ExtensionKind, ExtensionTool};
+use crate::extension::{Extension, ExtensionKind, ExtensionTool};
 
 use super::manifest_tools::{merge_manifest_tools, parse_builtin_manifest};
 
@@ -28,7 +28,7 @@ impl BrowserExtension {
             Arc::new(
                 move |_input: serde_json::Value, _context: crate::extension::ExtensionContext| {
                     let bridge = b.clone();
-                    boxed_tool_future(async move {
+                    crate::extension::boxed_tool_value_future("Tool result", async move {
                         let result = bridge
                             .send_command("getTabs", json!({}))
                             .await
@@ -45,7 +45,7 @@ impl BrowserExtension {
             Arc::new(
                 move |_input: serde_json::Value, _context: crate::extension::ExtensionContext| {
                     let bridge = b.clone();
-                    boxed_tool_future(async move {
+                    crate::extension::boxed_tool_value_future("Tool result", async move {
                         let result = bridge
                             .send_command("getActiveTab", json!({}))
                             .await
@@ -62,7 +62,7 @@ impl BrowserExtension {
             Arc::new(
                 move |input: serde_json::Value, _context: crate::extension::ExtensionContext| {
                     let bridge = b.clone();
-                    boxed_tool_future(async move {
+                    crate::extension::boxed_tool_value_future("Tool result", async move {
                         let params = json!({
                             "tabId": input.get("tabId"),
                             "format": input.get("format").and_then(|v| v.as_str()).unwrap_or("text"),

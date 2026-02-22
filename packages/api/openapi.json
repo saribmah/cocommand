@@ -35,43 +35,62 @@
       "AgentCreateAgentOutput": {
         "additionalProperties": false,
         "properties": {
-          "createdAt": {
-            "type": "integer"
+          "metadata": {
+            "additionalProperties": true,
+            "default": {},
+            "type": "object"
           },
-          "description": {
-            "type": "string"
-          },
-          "extensions": {
-            "items": {
-              "type": "string"
+          "output": {
+            "additionalProperties": false,
+            "properties": {
+              "createdAt": {
+                "type": "integer"
+              },
+              "description": {
+                "type": "string"
+              },
+              "extensions": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "id": {
+                "type": "string"
+              },
+              "memory": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "personality": {
+                "type": "string"
+              },
+              "updatedAt": {
+                "type": "integer"
+              }
             },
-            "type": "array"
+            "required": [
+              "id",
+              "name",
+              "description",
+              "personality",
+              "memory",
+              "extensions",
+              "createdAt",
+              "updatedAt"
+            ],
+            "type": "object"
           },
-          "id": {
+          "title": {
             "type": "string"
-          },
-          "memory": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          },
-          "personality": {
-            "type": "string"
-          },
-          "updatedAt": {
-            "type": "integer"
           }
         },
         "required": [
-          "id",
-          "name",
-          "description",
-          "personality",
-          "memory",
-          "extensions",
-          "createdAt",
-          "updatedAt"
+          "title",
+          "metadata",
+          "output"
         ],
         "type": "object"
       },
@@ -90,16 +109,35 @@
       "AgentDeleteAgentOutput": {
         "additionalProperties": false,
         "properties": {
-          "deleted": {
-            "type": "boolean"
+          "metadata": {
+            "additionalProperties": true,
+            "default": {},
+            "type": "object"
           },
-          "status": {
+          "output": {
+            "additionalProperties": false,
+            "properties": {
+              "deleted": {
+                "type": "boolean"
+              },
+              "status": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "status",
+              "deleted"
+            ],
+            "type": "object"
+          },
+          "title": {
             "type": "string"
           }
         },
         "required": [
-          "status",
-          "deleted"
+          "title",
+          "metadata",
+          "output"
         ],
         "type": "object"
       },
@@ -122,20 +160,39 @@
       "AgentExecuteAgentOutput": {
         "additionalProperties": false,
         "properties": {
-          "agentId": {
-            "type": "string"
+          "metadata": {
+            "additionalProperties": true,
+            "default": {},
+            "type": "object"
           },
-          "agentName": {
-            "type": "string"
+          "output": {
+            "additionalProperties": false,
+            "properties": {
+              "agentId": {
+                "type": "string"
+              },
+              "agentName": {
+                "type": "string"
+              },
+              "response": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "agentId",
+              "agentName",
+              "response"
+            ],
+            "type": "object"
           },
-          "response": {
+          "title": {
             "type": "string"
           }
         },
         "required": [
-          "agentId",
-          "agentName",
-          "response"
+          "title",
+          "metadata",
+          "output"
         ],
         "type": "object"
       },
@@ -154,43 +211,62 @@
       "AgentGetAgentOutput": {
         "additionalProperties": false,
         "properties": {
-          "createdAt": {
-            "type": "integer"
+          "metadata": {
+            "additionalProperties": true,
+            "default": {},
+            "type": "object"
           },
-          "description": {
-            "type": "string"
-          },
-          "extensions": {
-            "items": {
-              "type": "string"
+          "output": {
+            "additionalProperties": false,
+            "properties": {
+              "createdAt": {
+                "type": "integer"
+              },
+              "description": {
+                "type": "string"
+              },
+              "extensions": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "id": {
+                "type": "string"
+              },
+              "memory": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "personality": {
+                "type": "string"
+              },
+              "updatedAt": {
+                "type": "integer"
+              }
             },
-            "type": "array"
+            "required": [
+              "id",
+              "name",
+              "description",
+              "personality",
+              "memory",
+              "extensions",
+              "createdAt",
+              "updatedAt"
+            ],
+            "type": "object"
           },
-          "id": {
+          "title": {
             "type": "string"
-          },
-          "memory": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          },
-          "personality": {
-            "type": "string"
-          },
-          "updatedAt": {
-            "type": "integer"
           }
         },
         "required": [
-          "id",
-          "name",
-          "description",
-          "personality",
-          "memory",
-          "extensions",
-          "createdAt",
-          "updatedAt"
+          "title",
+          "metadata",
+          "output"
         ],
         "type": "object"
       },
@@ -202,51 +278,70 @@
       "AgentListAgentsOutput": {
         "additionalProperties": false,
         "properties": {
-          "agents": {
-            "items": {
-              "additionalProperties": false,
-              "properties": {
-                "createdAt": {
-                  "type": "integer"
-                },
-                "description": {
-                  "type": "string"
-                },
-                "extensions": {
-                  "items": {
-                    "type": "string"
-                  },
-                  "type": "array"
-                },
-                "id": {
-                  "type": "string"
-                },
-                "name": {
-                  "type": "string"
-                },
-                "updatedAt": {
-                  "type": "integer"
-                }
-              },
-              "required": [
-                "id",
-                "name",
-                "description",
-                "extensions",
-                "createdAt",
-                "updatedAt"
-              ],
-              "type": "object"
-            },
-            "type": "array"
+          "metadata": {
+            "additionalProperties": true,
+            "default": {},
+            "type": "object"
           },
-          "count": {
-            "type": "integer"
+          "output": {
+            "additionalProperties": false,
+            "properties": {
+              "agents": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "createdAt": {
+                      "type": "integer"
+                    },
+                    "description": {
+                      "type": "string"
+                    },
+                    "extensions": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name",
+                    "description",
+                    "extensions",
+                    "createdAt",
+                    "updatedAt"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "count": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "agents",
+              "count"
+            ],
+            "type": "object"
+          },
+          "title": {
+            "type": "string"
           }
         },
         "required": [
-          "agents",
-          "count"
+          "title",
+          "metadata",
+          "output"
         ],
         "type": "object"
       },
@@ -283,43 +378,62 @@
       "AgentUpdateAgentOutput": {
         "additionalProperties": false,
         "properties": {
-          "createdAt": {
-            "type": "integer"
+          "metadata": {
+            "additionalProperties": true,
+            "default": {},
+            "type": "object"
           },
-          "description": {
-            "type": "string"
-          },
-          "extensions": {
-            "items": {
-              "type": "string"
+          "output": {
+            "additionalProperties": false,
+            "properties": {
+              "createdAt": {
+                "type": "integer"
+              },
+              "description": {
+                "type": "string"
+              },
+              "extensions": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "id": {
+                "type": "string"
+              },
+              "memory": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "personality": {
+                "type": "string"
+              },
+              "updatedAt": {
+                "type": "integer"
+              }
             },
-            "type": "array"
+            "required": [
+              "id",
+              "name",
+              "description",
+              "personality",
+              "memory",
+              "extensions",
+              "createdAt",
+              "updatedAt"
+            ],
+            "type": "object"
           },
-          "id": {
+          "title": {
             "type": "string"
-          },
-          "memory": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          },
-          "personality": {
-            "type": "string"
-          },
-          "updatedAt": {
-            "type": "integer"
           }
         },
         "required": [
-          "id",
-          "name",
-          "description",
-          "personality",
-          "memory",
-          "extensions",
-          "createdAt",
-          "updatedAt"
+          "title",
+          "metadata",
+          "output"
         ],
         "type": "object"
       },
@@ -523,25 +637,44 @@
         "type": "object"
       },
       "BrowserGetActiveTabOutput": {
-        "additionalProperties": true,
+        "additionalProperties": false,
         "properties": {
-          "active": {
-            "type": "boolean"
+          "metadata": {
+            "additionalProperties": true,
+            "default": {},
+            "type": "object"
           },
-          "id": {
-            "type": "integer"
+          "output": {
+            "additionalProperties": true,
+            "properties": {
+              "active": {
+                "type": "boolean"
+              },
+              "id": {
+                "type": "integer"
+              },
+              "title": {
+                "type": "string"
+              },
+              "url": {
+                "type": "string"
+              }
+            },
+            "type": [
+              "object",
+              "null"
+            ]
           },
           "title": {
             "type": "string"
-          },
-          "url": {
-            "type": "string"
           }
         },
-        "type": [
-          "object",
-          "null"
-        ]
+        "required": [
+          "title",
+          "metadata",
+          "output"
+        ],
+        "type": "object"
       },
       "BrowserGetContentInput": {
         "additionalProperties": false,
@@ -567,29 +700,48 @@
         "type": "object"
       },
       "BrowserGetContentOutput": {
-        "additionalProperties": true,
+        "additionalProperties": false,
         "properties": {
-          "content": {
-            "type": "string"
+          "metadata": {
+            "additionalProperties": true,
+            "default": {},
+            "type": "object"
           },
-          "format": {
-            "enum": [
-              "html",
-              "text",
-              "markdown"
-            ],
-            "type": "string"
-          },
-          "tabId": {
-            "type": "integer"
+          "output": {
+            "additionalProperties": true,
+            "properties": {
+              "content": {
+                "type": "string"
+              },
+              "format": {
+                "enum": [
+                  "html",
+                  "text",
+                  "markdown"
+                ],
+                "type": "string"
+              },
+              "tabId": {
+                "type": "integer"
+              },
+              "title": {
+                "type": "string"
+              },
+              "url": {
+                "type": "string"
+              }
+            },
+            "type": "object"
           },
           "title": {
             "type": "string"
-          },
-          "url": {
-            "type": "string"
           }
         },
+        "required": [
+          "title",
+          "metadata",
+          "output"
+        ],
         "type": "object"
       },
       "BrowserGetTabsInput": {
@@ -598,25 +750,44 @@
         "type": "object"
       },
       "BrowserGetTabsOutput": {
-        "items": {
-          "additionalProperties": true,
-          "properties": {
-            "active": {
-              "type": "boolean"
-            },
-            "id": {
-              "type": "integer"
-            },
-            "title": {
-              "type": "string"
-            },
-            "url": {
-              "type": "string"
-            }
+        "additionalProperties": false,
+        "properties": {
+          "metadata": {
+            "additionalProperties": true,
+            "default": {},
+            "type": "object"
           },
-          "type": "object"
+          "output": {
+            "items": {
+              "additionalProperties": true,
+              "properties": {
+                "active": {
+                  "type": "boolean"
+                },
+                "id": {
+                  "type": "integer"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "url": {
+                  "type": "string"
+                }
+              },
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "title": {
+            "type": "string"
+          }
         },
-        "type": "array"
+        "required": [
+          "title",
+          "metadata",
+          "output"
+        ],
+        "type": "object"
       },
       "BrowserStatus": {
         "properties": {
@@ -635,11 +806,30 @@
         "type": "object"
       },
       "ClipboardClearClipboardHistoryOutput": {
+        "additionalProperties": false,
         "properties": {
-          "status": {
+          "metadata": {
+            "additionalProperties": true,
+            "default": {},
+            "type": "object"
+          },
+          "output": {
+            "properties": {
+              "status": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "title": {
             "type": "string"
           }
         },
+        "required": [
+          "title",
+          "metadata",
+          "output"
+        ],
         "type": "object"
       },
       "ClipboardGetClipboardInput": {
@@ -650,48 +840,67 @@
       "ClipboardGetClipboardOutput": {
         "additionalProperties": false,
         "properties": {
-          "created_at": {
-            "type": "string"
+          "metadata": {
+            "additionalProperties": true,
+            "default": {},
+            "type": "object"
           },
-          "files": {
-            "items": {
-              "type": "string"
+          "output": {
+            "additionalProperties": false,
+            "properties": {
+              "created_at": {
+                "type": "string"
+              },
+              "files": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "id": {
+                "type": "string"
+              },
+              "image_format": {
+                "type": "string"
+              },
+              "image_path": {
+                "type": "string"
+              },
+              "kind": {
+                "enum": [
+                  "text",
+                  "image",
+                  "files"
+                ],
+                "type": "string"
+              },
+              "source": {
+                "type": "string"
+              },
+              "text": {
+                "type": "string"
+              }
             },
-            "type": "array"
-          },
-          "id": {
-            "type": "string"
-          },
-          "image_format": {
-            "type": "string"
-          },
-          "image_path": {
-            "type": "string"
-          },
-          "kind": {
-            "enum": [
-              "text",
-              "image",
-              "files"
+            "required": [
+              "id",
+              "created_at",
+              "kind"
             ],
-            "type": "string"
+            "type": [
+              "object",
+              "null"
+            ]
           },
-          "source": {
-            "type": "string"
-          },
-          "text": {
+          "title": {
             "type": "string"
           }
         },
         "required": [
-          "id",
-          "created_at",
-          "kind"
+          "title",
+          "metadata",
+          "output"
         ],
-        "type": [
-          "object",
-          "null"
-        ]
+        "type": "object"
       },
       "ClipboardListClipboardHistoryInput": {
         "additionalProperties": false,
@@ -704,50 +913,69 @@
         "type": "object"
       },
       "ClipboardListClipboardHistoryOutput": {
-        "items": {
-          "additionalProperties": false,
-          "properties": {
-            "created_at": {
-              "type": "string"
-            },
-            "files": {
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
-            },
-            "id": {
-              "type": "string"
-            },
-            "image_format": {
-              "type": "string"
-            },
-            "image_path": {
-              "type": "string"
-            },
-            "kind": {
-              "enum": [
-                "text",
-                "image",
-                "files"
-              ],
-              "type": "string"
-            },
-            "source": {
-              "type": "string"
-            },
-            "text": {
-              "type": "string"
-            }
+        "additionalProperties": false,
+        "properties": {
+          "metadata": {
+            "additionalProperties": true,
+            "default": {},
+            "type": "object"
           },
-          "required": [
-            "id",
-            "created_at",
-            "kind"
-          ],
-          "type": "object"
+          "output": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "created_at": {
+                  "type": "string"
+                },
+                "files": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "image_format": {
+                  "type": "string"
+                },
+                "image_path": {
+                  "type": "string"
+                },
+                "kind": {
+                  "enum": [
+                    "text",
+                    "image",
+                    "files"
+                  ],
+                  "type": "string"
+                },
+                "source": {
+                  "type": "string"
+                },
+                "text": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "id",
+                "created_at",
+                "kind"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "title": {
+            "type": "string"
+          }
         },
-        "type": "array"
+        "required": [
+          "title",
+          "metadata",
+          "output"
+        ],
+        "type": "object"
       },
       "ClipboardRecordClipboardInput": {
         "additionalProperties": false,
@@ -757,48 +985,67 @@
       "ClipboardRecordClipboardOutput": {
         "additionalProperties": false,
         "properties": {
-          "created_at": {
-            "type": "string"
+          "metadata": {
+            "additionalProperties": true,
+            "default": {},
+            "type": "object"
           },
-          "files": {
-            "items": {
-              "type": "string"
+          "output": {
+            "additionalProperties": false,
+            "properties": {
+              "created_at": {
+                "type": "string"
+              },
+              "files": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "id": {
+                "type": "string"
+              },
+              "image_format": {
+                "type": "string"
+              },
+              "image_path": {
+                "type": "string"
+              },
+              "kind": {
+                "enum": [
+                  "text",
+                  "image",
+                  "files"
+                ],
+                "type": "string"
+              },
+              "source": {
+                "type": "string"
+              },
+              "text": {
+                "type": "string"
+              }
             },
-            "type": "array"
-          },
-          "id": {
-            "type": "string"
-          },
-          "image_format": {
-            "type": "string"
-          },
-          "image_path": {
-            "type": "string"
-          },
-          "kind": {
-            "enum": [
-              "text",
-              "image",
-              "files"
+            "required": [
+              "id",
+              "created_at",
+              "kind"
             ],
-            "type": "string"
+            "type": [
+              "object",
+              "null"
+            ]
           },
-          "source": {
-            "type": "string"
-          },
-          "text": {
+          "title": {
             "type": "string"
           }
         },
         "required": [
-          "id",
-          "created_at",
-          "kind"
+          "title",
+          "metadata",
+          "output"
         ],
-        "type": [
-          "object",
-          "null"
-        ]
+        "type": "object"
       },
       "ClipboardSetClipboardInput": {
         "additionalProperties": false,
@@ -830,11 +1077,30 @@
         "type": "object"
       },
       "ClipboardSetClipboardOutput": {
+        "additionalProperties": false,
         "properties": {
-          "status": {
+          "metadata": {
+            "additionalProperties": true,
+            "default": {},
+            "type": "object"
+          },
+          "output": {
+            "properties": {
+              "status": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "title": {
             "type": "string"
           }
         },
+        "required": [
+          "title",
+          "metadata",
+          "output"
+        ],
         "type": "object"
       },
       "CoreEvent": {
@@ -1016,24 +1282,43 @@
       "EditorEditFileOutput": {
         "additionalProperties": false,
         "properties": {
-          "additions": {
-            "type": "integer"
+          "metadata": {
+            "additionalProperties": true,
+            "default": {},
+            "type": "object"
           },
-          "deletions": {
-            "type": "integer"
+          "output": {
+            "additionalProperties": false,
+            "properties": {
+              "additions": {
+                "type": "integer"
+              },
+              "deletions": {
+                "type": "integer"
+              },
+              "path": {
+                "type": "string"
+              },
+              "replacements": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "path",
+              "replacements",
+              "additions",
+              "deletions"
+            ],
+            "type": "object"
           },
-          "path": {
+          "title": {
             "type": "string"
-          },
-          "replacements": {
-            "type": "integer"
           }
         },
         "required": [
-          "path",
-          "replacements",
-          "additions",
-          "deletions"
+          "title",
+          "metadata",
+          "output"
         ],
         "type": "object"
       },
@@ -1065,32 +1350,51 @@
       "EditorReadFileOutput": {
         "additionalProperties": false,
         "properties": {
-          "content": {
+          "metadata": {
+            "additionalProperties": true,
+            "default": {},
+            "type": "object"
+          },
+          "output": {
+            "additionalProperties": false,
+            "properties": {
+              "content": {
+                "type": "string"
+              },
+              "limit": {
+                "type": "integer"
+              },
+              "lines": {
+                "type": "integer"
+              },
+              "offset": {
+                "type": "integer"
+              },
+              "path": {
+                "type": "string"
+              },
+              "truncated": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "path",
+              "content",
+              "lines",
+              "offset",
+              "limit",
+              "truncated"
+            ],
+            "type": "object"
+          },
+          "title": {
             "type": "string"
-          },
-          "limit": {
-            "type": "integer"
-          },
-          "lines": {
-            "type": "integer"
-          },
-          "offset": {
-            "type": "integer"
-          },
-          "path": {
-            "type": "string"
-          },
-          "truncated": {
-            "type": "boolean"
           }
         },
         "required": [
-          "path",
-          "content",
-          "lines",
-          "offset",
-          "limit",
-          "truncated"
+          "title",
+          "metadata",
+          "output"
         ],
         "type": "object"
       },
@@ -1115,20 +1419,39 @@
       "EditorWriteFileOutput": {
         "additionalProperties": false,
         "properties": {
-          "bytes_written": {
-            "type": "integer"
+          "metadata": {
+            "additionalProperties": true,
+            "default": {},
+            "type": "object"
           },
-          "created": {
-            "type": "boolean"
+          "output": {
+            "additionalProperties": false,
+            "properties": {
+              "bytes_written": {
+                "type": "integer"
+              },
+              "created": {
+                "type": "boolean"
+              },
+              "path": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "path",
+              "bytes_written",
+              "created"
+            ],
+            "type": "object"
           },
-          "path": {
+          "title": {
             "type": "string"
           }
         },
         "required": [
-          "path",
-          "bytes_written",
-          "created"
+          "title",
+          "metadata",
+          "output"
         ],
         "type": "object"
       },
@@ -1480,27 +1803,46 @@
       "FilesystemGetIconsOutput": {
         "additionalProperties": false,
         "properties": {
-          "icons": {
-            "items": {
-              "additionalProperties": false,
-              "properties": {
-                "icon": {
-                  "type": "string"
+          "metadata": {
+            "additionalProperties": true,
+            "default": {},
+            "type": "object"
+          },
+          "output": {
+            "additionalProperties": false,
+            "properties": {
+              "icons": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "icon": {
+                      "type": "string"
+                    },
+                    "path": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "path"
+                  ],
+                  "type": "object"
                 },
-                "path": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "path"
-              ],
-              "type": "object"
+                "type": "array"
+              }
             },
-            "type": "array"
+            "required": [
+              "icons"
+            ],
+            "type": "object"
+          },
+          "title": {
+            "type": "string"
           }
         },
         "required": [
-          "icons"
+          "title",
+          "metadata",
+          "output"
         ],
         "type": "object"
       },
@@ -1524,63 +1866,82 @@
       "FilesystemIndexStatusOutput": {
         "additionalProperties": false,
         "properties": {
-          "cachePath": {
-            "type": "string"
+          "metadata": {
+            "additionalProperties": true,
+            "default": {},
+            "type": "object"
           },
-          "errors": {
-            "type": "integer"
-          },
-          "finishedAt": {
-            "type": "integer"
-          },
-          "ignoredPaths": {
-            "items": {
-              "type": "string"
+          "output": {
+            "additionalProperties": false,
+            "properties": {
+              "cachePath": {
+                "type": "string"
+              },
+              "errors": {
+                "type": "integer"
+              },
+              "finishedAt": {
+                "type": "integer"
+              },
+              "ignoredPaths": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "indexedEntries": {
+                "type": "integer"
+              },
+              "lastError": {
+                "type": "string"
+              },
+              "lastUpdateAt": {
+                "type": "integer"
+              },
+              "rescanCount": {
+                "type": "integer"
+              },
+              "root": {
+                "type": "string"
+              },
+              "scannedDirs": {
+                "type": "integer"
+              },
+              "scannedFiles": {
+                "type": "integer"
+              },
+              "startedAt": {
+                "type": "integer"
+              },
+              "state": {
+                "type": "string"
+              },
+              "watcherEnabled": {
+                "type": "boolean"
+              }
             },
-            "type": "array"
+            "required": [
+              "state",
+              "root",
+              "ignoredPaths",
+              "indexedEntries",
+              "scannedFiles",
+              "scannedDirs",
+              "errors",
+              "watcherEnabled",
+              "cachePath",
+              "rescanCount"
+            ],
+            "type": "object"
           },
-          "indexedEntries": {
-            "type": "integer"
-          },
-          "lastError": {
+          "title": {
             "type": "string"
-          },
-          "lastUpdateAt": {
-            "type": "integer"
-          },
-          "rescanCount": {
-            "type": "integer"
-          },
-          "root": {
-            "type": "string"
-          },
-          "scannedDirs": {
-            "type": "integer"
-          },
-          "scannedFiles": {
-            "type": "integer"
-          },
-          "startedAt": {
-            "type": "integer"
-          },
-          "state": {
-            "type": "string"
-          },
-          "watcherEnabled": {
-            "type": "boolean"
           }
         },
         "required": [
-          "state",
-          "root",
-          "ignoredPaths",
-          "indexedEntries",
-          "scannedFiles",
-          "scannedDirs",
-          "errors",
-          "watcherEnabled",
-          "cachePath",
-          "rescanCount"
+          "title",
+          "metadata",
+          "output"
         ],
         "type": "object"
       },
@@ -1652,67 +2013,86 @@
       "FilesystemListDirectoryOutput": {
         "additionalProperties": false,
         "properties": {
-          "count": {
-            "type": "integer"
+          "metadata": {
+            "additionalProperties": true,
+            "default": {},
+            "type": "object"
           },
-          "errors": {
-            "type": "integer"
-          },
-          "path": {
-            "type": "string"
-          },
-          "recursive": {
-            "type": "boolean"
-          },
-          "results": {
-            "items": {
-              "additionalProperties": false,
-              "properties": {
-                "icon": {
-                  "type": "string"
-                },
-                "modifiedAt": {
-                  "type": "integer"
-                },
-                "name": {
-                  "type": "string"
-                },
-                "path": {
-                  "type": "string"
-                },
-                "size": {
-                  "type": "integer"
-                },
-                "type": {
-                  "enum": [
-                    "file",
-                    "directory",
-                    "symlink",
-                    "other"
-                  ],
-                  "type": "string"
-                }
+          "output": {
+            "additionalProperties": false,
+            "properties": {
+              "count": {
+                "type": "integer"
               },
-              "required": [
-                "path",
-                "name",
-                "type"
-              ],
-              "type": "object"
+              "errors": {
+                "type": "integer"
+              },
+              "path": {
+                "type": "string"
+              },
+              "recursive": {
+                "type": "boolean"
+              },
+              "results": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "icon": {
+                      "type": "string"
+                    },
+                    "modifiedAt": {
+                      "type": "integer"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "path": {
+                      "type": "string"
+                    },
+                    "size": {
+                      "type": "integer"
+                    },
+                    "type": {
+                      "enum": [
+                        "file",
+                        "directory",
+                        "symlink",
+                        "other"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "path",
+                    "name",
+                    "type"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "truncated": {
+                "type": "boolean"
+              }
             },
-            "type": "array"
+            "required": [
+              "path",
+              "recursive",
+              "results",
+              "count",
+              "truncated",
+              "errors"
+            ],
+            "type": "object"
           },
-          "truncated": {
-            "type": "boolean"
+          "title": {
+            "type": "string"
           }
         },
         "required": [
-          "path",
-          "recursive",
-          "results",
-          "count",
-          "truncated",
-          "errors"
+          "title",
+          "metadata",
+          "output"
         ],
         "type": "object"
       },
@@ -1729,14 +2109,33 @@
         "type": "object"
       },
       "FilesystemOpenPathOutput": {
+        "additionalProperties": false,
         "properties": {
-          "path": {
-            "type": "string"
+          "metadata": {
+            "additionalProperties": true,
+            "default": {},
+            "type": "object"
           },
-          "status": {
+          "output": {
+            "properties": {
+              "path": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "title": {
             "type": "string"
           }
         },
+        "required": [
+          "title",
+          "metadata",
+          "output"
+        ],
         "type": "object"
       },
       "FilesystemPathInfoInput": {
@@ -1754,46 +2153,65 @@
       "FilesystemPathInfoOutput": {
         "additionalProperties": false,
         "properties": {
-          "exists": {
-            "type": "boolean"
+          "metadata": {
+            "additionalProperties": true,
+            "default": {},
+            "type": "object"
           },
-          "extension": {
-            "type": "string"
-          },
-          "hidden": {
-            "type": "boolean"
-          },
-          "modifiedAt": {
-            "type": "integer"
-          },
-          "name": {
-            "type": "string"
-          },
-          "parent": {
-            "type": "string"
-          },
-          "path": {
-            "type": "string"
-          },
-          "readonly": {
-            "type": "boolean"
-          },
-          "size": {
-            "type": "integer"
-          },
-          "type": {
-            "enum": [
-              "file",
-              "directory",
-              "symlink",
-              "other"
+          "output": {
+            "additionalProperties": false,
+            "properties": {
+              "exists": {
+                "type": "boolean"
+              },
+              "extension": {
+                "type": "string"
+              },
+              "hidden": {
+                "type": "boolean"
+              },
+              "modifiedAt": {
+                "type": "integer"
+              },
+              "name": {
+                "type": "string"
+              },
+              "parent": {
+                "type": "string"
+              },
+              "path": {
+                "type": "string"
+              },
+              "readonly": {
+                "type": "boolean"
+              },
+              "size": {
+                "type": "integer"
+              },
+              "type": {
+                "enum": [
+                  "file",
+                  "directory",
+                  "symlink",
+                  "other"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "path",
+              "exists"
             ],
+            "type": "object"
+          },
+          "title": {
             "type": "string"
           }
         },
         "required": [
-          "path",
-          "exists"
+          "title",
+          "metadata",
+          "output"
         ],
         "type": "object"
       },
@@ -1823,32 +2241,51 @@
       "FilesystemReadFileOutput": {
         "additionalProperties": false,
         "properties": {
-          "bytesRead": {
-            "type": "integer"
+          "metadata": {
+            "additionalProperties": true,
+            "default": {},
+            "type": "object"
           },
-          "content": {
+          "output": {
+            "additionalProperties": false,
+            "properties": {
+              "bytesRead": {
+                "type": "integer"
+              },
+              "content": {
+                "type": "string"
+              },
+              "offset": {
+                "type": "integer"
+              },
+              "path": {
+                "type": "string"
+              },
+              "totalBytes": {
+                "type": "integer"
+              },
+              "truncated": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "path",
+              "content",
+              "offset",
+              "bytesRead",
+              "totalBytes",
+              "truncated"
+            ],
+            "type": "object"
+          },
+          "title": {
             "type": "string"
-          },
-          "offset": {
-            "type": "integer"
-          },
-          "path": {
-            "type": "string"
-          },
-          "totalBytes": {
-            "type": "integer"
-          },
-          "truncated": {
-            "type": "boolean"
           }
         },
         "required": [
-          "path",
-          "content",
-          "offset",
-          "bytesRead",
-          "totalBytes",
-          "truncated"
+          "title",
+          "metadata",
+          "output"
         ],
         "type": "object"
       },
@@ -1872,76 +2309,95 @@
       "FilesystemRescanIndexOutput": {
         "additionalProperties": false,
         "properties": {
-          "indexStatus": {
+          "metadata": {
+            "additionalProperties": true,
+            "default": {},
+            "type": "object"
+          },
+          "output": {
             "additionalProperties": false,
             "properties": {
-              "cachePath": {
-                "type": "string"
-              },
-              "errors": {
-                "type": "integer"
-              },
-              "finishedAt": {
-                "type": "integer"
-              },
-              "ignoredPaths": {
-                "items": {
-                  "type": "string"
+              "indexStatus": {
+                "additionalProperties": false,
+                "properties": {
+                  "cachePath": {
+                    "type": "string"
+                  },
+                  "errors": {
+                    "type": "integer"
+                  },
+                  "finishedAt": {
+                    "type": "integer"
+                  },
+                  "ignoredPaths": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "indexedEntries": {
+                    "type": "integer"
+                  },
+                  "lastError": {
+                    "type": "string"
+                  },
+                  "lastUpdateAt": {
+                    "type": "integer"
+                  },
+                  "rescanCount": {
+                    "type": "integer"
+                  },
+                  "root": {
+                    "type": "string"
+                  },
+                  "scannedDirs": {
+                    "type": "integer"
+                  },
+                  "scannedFiles": {
+                    "type": "integer"
+                  },
+                  "startedAt": {
+                    "type": "integer"
+                  },
+                  "state": {
+                    "type": "string"
+                  },
+                  "watcherEnabled": {
+                    "type": "boolean"
+                  }
                 },
-                "type": "array"
+                "required": [
+                  "state",
+                  "root",
+                  "ignoredPaths",
+                  "indexedEntries",
+                  "scannedFiles",
+                  "scannedDirs",
+                  "errors",
+                  "watcherEnabled",
+                  "cachePath",
+                  "rescanCount"
+                ],
+                "type": "object"
               },
-              "indexedEntries": {
-                "type": "integer"
-              },
-              "lastError": {
+              "status": {
                 "type": "string"
-              },
-              "lastUpdateAt": {
-                "type": "integer"
-              },
-              "rescanCount": {
-                "type": "integer"
-              },
-              "root": {
-                "type": "string"
-              },
-              "scannedDirs": {
-                "type": "integer"
-              },
-              "scannedFiles": {
-                "type": "integer"
-              },
-              "startedAt": {
-                "type": "integer"
-              },
-              "state": {
-                "type": "string"
-              },
-              "watcherEnabled": {
-                "type": "boolean"
               }
             },
             "required": [
-              "state",
-              "root",
-              "ignoredPaths",
-              "indexedEntries",
-              "scannedFiles",
-              "scannedDirs",
-              "errors",
-              "watcherEnabled",
-              "cachePath",
-              "rescanCount"
+              "status",
+              "indexStatus"
             ],
             "type": "object"
           },
-          "status": {
+          "title": {
             "type": "string"
           }
         },
         "required": [
-          "status",
-          "indexStatus"
+          "title",
+          "metadata",
+          "output"
         ],
         "type": "object"
       },
@@ -1958,14 +2414,33 @@
         "type": "object"
       },
       "FilesystemRevealPathOutput": {
+        "additionalProperties": false,
         "properties": {
-          "path": {
-            "type": "string"
+          "metadata": {
+            "additionalProperties": true,
+            "default": {},
+            "type": "object"
           },
-          "status": {
+          "output": {
+            "properties": {
+              "path": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "title": {
             "type": "string"
           }
         },
+        "required": [
+          "title",
+          "metadata",
+          "output"
+        ],
         "type": "object"
       },
       "FilesystemSearchInput": {
@@ -2023,99 +2498,118 @@
       "FilesystemSearchOutput": {
         "additionalProperties": false,
         "properties": {
-          "count": {
-            "type": "integer"
+          "metadata": {
+            "additionalProperties": true,
+            "default": {},
+            "type": "object"
           },
-          "errors": {
-            "type": "integer"
-          },
-          "highlightTerms": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "indexFinishedAt": {
-            "type": "integer"
-          },
-          "indexLastUpdateAt": {
-            "type": "integer"
-          },
-          "indexScannedDirs": {
-            "type": "integer"
-          },
-          "indexScannedFiles": {
-            "type": "integer"
-          },
-          "indexStartedAt": {
-            "type": "integer"
-          },
-          "indexState": {
-            "type": "string"
-          },
-          "query": {
-            "type": "string"
-          },
-          "results": {
-            "items": {
-              "additionalProperties": false,
-              "properties": {
-                "icon": {
-                  "type": "string"
-                },
-                "modifiedAt": {
-                  "type": "integer"
-                },
-                "name": {
-                  "type": "string"
-                },
-                "path": {
-                  "type": "string"
-                },
-                "size": {
-                  "type": "integer"
-                },
-                "type": {
-                  "enum": [
-                    "file",
-                    "directory",
-                    "symlink",
-                    "other"
-                  ],
-                  "type": "string"
-                }
+          "output": {
+            "additionalProperties": false,
+            "properties": {
+              "count": {
+                "type": "integer"
               },
-              "required": [
-                "path",
-                "name",
-                "type"
-              ],
-              "type": "object"
+              "errors": {
+                "type": "integer"
+              },
+              "highlightTerms": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "indexFinishedAt": {
+                "type": "integer"
+              },
+              "indexLastUpdateAt": {
+                "type": "integer"
+              },
+              "indexScannedDirs": {
+                "type": "integer"
+              },
+              "indexScannedFiles": {
+                "type": "integer"
+              },
+              "indexStartedAt": {
+                "type": "integer"
+              },
+              "indexState": {
+                "type": "string"
+              },
+              "query": {
+                "type": "string"
+              },
+              "results": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "icon": {
+                      "type": "string"
+                    },
+                    "modifiedAt": {
+                      "type": "integer"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "path": {
+                      "type": "string"
+                    },
+                    "size": {
+                      "type": "integer"
+                    },
+                    "type": {
+                      "enum": [
+                        "file",
+                        "directory",
+                        "symlink",
+                        "other"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "path",
+                    "name",
+                    "type"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "root": {
+                "type": "string"
+              },
+              "scanned": {
+                "type": "integer"
+              },
+              "truncated": {
+                "type": "boolean"
+              }
             },
-            "type": "array"
+            "required": [
+              "query",
+              "root",
+              "results",
+              "count",
+              "truncated",
+              "scanned",
+              "errors",
+              "indexState",
+              "indexScannedFiles",
+              "indexScannedDirs",
+              "highlightTerms"
+            ],
+            "type": "object"
           },
-          "root": {
+          "title": {
             "type": "string"
-          },
-          "scanned": {
-            "type": "integer"
-          },
-          "truncated": {
-            "type": "boolean"
           }
         },
         "required": [
-          "query",
-          "root",
-          "results",
-          "count",
-          "truncated",
-          "scanned",
-          "errors",
-          "indexState",
-          "indexScannedFiles",
-          "indexScannedDirs",
-          "highlightTerms"
+          "title",
+          "metadata",
+          "output"
         ],
         "type": "object"
       },
@@ -2294,34 +2788,53 @@
       "NotesCreateNoteOutput": {
         "additionalProperties": false,
         "properties": {
-          "content": {
-            "type": "string"
+          "metadata": {
+            "additionalProperties": true,
+            "default": {},
+            "type": "object"
           },
-          "id": {
-            "type": "string"
-          },
-          "modifiedAt": {
-            "type": "integer"
-          },
-          "path": {
-            "type": "string"
-          },
-          "preview": {
-            "type": "string"
-          },
-          "size": {
-            "type": "integer"
+          "output": {
+            "additionalProperties": false,
+            "properties": {
+              "content": {
+                "type": "string"
+              },
+              "id": {
+                "type": "string"
+              },
+              "modifiedAt": {
+                "type": "integer"
+              },
+              "path": {
+                "type": "string"
+              },
+              "preview": {
+                "type": "string"
+              },
+              "size": {
+                "type": "integer"
+              },
+              "title": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "title",
+              "preview",
+              "content",
+              "path"
+            ],
+            "type": "object"
           },
           "title": {
             "type": "string"
           }
         },
         "required": [
-          "id",
           "title",
-          "preview",
-          "content",
-          "path"
+          "metadata",
+          "output"
         ],
         "type": "object"
       },
@@ -2338,14 +2851,33 @@
         "type": "object"
       },
       "NotesDeleteNoteOutput": {
+        "additionalProperties": false,
         "properties": {
-          "deleted": {
-            "type": "boolean"
+          "metadata": {
+            "additionalProperties": true,
+            "default": {},
+            "type": "object"
           },
-          "status": {
+          "output": {
+            "properties": {
+              "deleted": {
+                "type": "boolean"
+              },
+              "status": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "title": {
             "type": "string"
           }
         },
+        "required": [
+          "title",
+          "metadata",
+          "output"
+        ],
         "type": "object"
       },
       "NotesIndexStatusInput": {
@@ -2356,191 +2888,12 @@
       "NotesIndexStatusOutput": {
         "additionalProperties": false,
         "properties": {
-          "cachePath": {
-            "type": "string"
+          "metadata": {
+            "additionalProperties": true,
+            "default": {},
+            "type": "object"
           },
-          "errors": {
-            "type": "integer"
-          },
-          "finishedAt": {
-            "type": "integer"
-          },
-          "ignoredPaths": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "indexedEntries": {
-            "type": "integer"
-          },
-          "lastError": {
-            "type": "string"
-          },
-          "lastUpdateAt": {
-            "type": "integer"
-          },
-          "rescanCount": {
-            "type": "integer"
-          },
-          "root": {
-            "type": "string"
-          },
-          "scannedDirs": {
-            "type": "integer"
-          },
-          "scannedFiles": {
-            "type": "integer"
-          },
-          "startedAt": {
-            "type": "integer"
-          },
-          "state": {
-            "type": "string"
-          },
-          "watcherEnabled": {
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "state",
-          "root",
-          "ignoredPaths",
-          "indexedEntries",
-          "scannedFiles",
-          "scannedDirs",
-          "errors",
-          "watcherEnabled",
-          "cachePath",
-          "rescanCount"
-        ],
-        "type": "object"
-      },
-      "NotesListNotesInput": {
-        "additionalProperties": false,
-        "properties": {
-          "limit": {
-            "default": 50,
-            "maximum": 500,
-            "minimum": 1,
-            "type": "integer"
-          }
-        },
-        "type": "object"
-      },
-      "NotesListNotesOutput": {
-        "additionalProperties": false,
-        "properties": {
-          "count": {
-            "type": "integer"
-          },
-          "errors": {
-            "type": "integer"
-          },
-          "notes": {
-            "items": {
-              "additionalProperties": false,
-              "properties": {
-                "id": {
-                  "type": "string"
-                },
-                "modifiedAt": {
-                  "type": "integer"
-                },
-                "path": {
-                  "type": "string"
-                },
-                "preview": {
-                  "type": "string"
-                },
-                "size": {
-                  "type": "integer"
-                },
-                "title": {
-                  "type": "string"
-                }
-              },
-              "required": [
-                "id",
-                "title",
-                "preview",
-                "path"
-              ],
-              "type": "object"
-            },
-            "type": "array"
-          },
-          "root": {
-            "type": "string"
-          },
-          "truncated": {
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "root",
-          "notes",
-          "count",
-          "truncated",
-          "errors"
-        ],
-        "type": "object"
-      },
-      "NotesReadNoteInput": {
-        "additionalProperties": false,
-        "properties": {
-          "id": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "id"
-        ],
-        "type": "object"
-      },
-      "NotesReadNoteOutput": {
-        "additionalProperties": false,
-        "properties": {
-          "content": {
-            "type": "string"
-          },
-          "id": {
-            "type": "string"
-          },
-          "modifiedAt": {
-            "type": "integer"
-          },
-          "path": {
-            "type": "string"
-          },
-          "preview": {
-            "type": "string"
-          },
-          "size": {
-            "type": "integer"
-          },
-          "title": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "title",
-          "preview",
-          "content",
-          "path"
-        ],
-        "type": "object"
-      },
-      "NotesRescanIndexInput": {
-        "additionalProperties": false,
-        "properties": {},
-        "type": "object"
-      },
-      "NotesRescanIndexOutput": {
-        "additionalProperties": false,
-        "properties": {
-          "indexStatus": {
+          "output": {
             "additionalProperties": false,
             "properties": {
               "cachePath": {
@@ -2603,13 +2956,268 @@
             ],
             "type": "object"
           },
-          "status": {
+          "title": {
             "type": "string"
           }
         },
         "required": [
-          "status",
-          "indexStatus"
+          "title",
+          "metadata",
+          "output"
+        ],
+        "type": "object"
+      },
+      "NotesListNotesInput": {
+        "additionalProperties": false,
+        "properties": {
+          "limit": {
+            "default": 50,
+            "maximum": 500,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "NotesListNotesOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "metadata": {
+            "additionalProperties": true,
+            "default": {},
+            "type": "object"
+          },
+          "output": {
+            "additionalProperties": false,
+            "properties": {
+              "count": {
+                "type": "integer"
+              },
+              "errors": {
+                "type": "integer"
+              },
+              "notes": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "modifiedAt": {
+                      "type": "integer"
+                    },
+                    "path": {
+                      "type": "string"
+                    },
+                    "preview": {
+                      "type": "string"
+                    },
+                    "size": {
+                      "type": "integer"
+                    },
+                    "title": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "title",
+                    "preview",
+                    "path"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "root": {
+                "type": "string"
+              },
+              "truncated": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "root",
+              "notes",
+              "count",
+              "truncated",
+              "errors"
+            ],
+            "type": "object"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "metadata",
+          "output"
+        ],
+        "type": "object"
+      },
+      "NotesReadNoteInput": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id"
+        ],
+        "type": "object"
+      },
+      "NotesReadNoteOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "metadata": {
+            "additionalProperties": true,
+            "default": {},
+            "type": "object"
+          },
+          "output": {
+            "additionalProperties": false,
+            "properties": {
+              "content": {
+                "type": "string"
+              },
+              "id": {
+                "type": "string"
+              },
+              "modifiedAt": {
+                "type": "integer"
+              },
+              "path": {
+                "type": "string"
+              },
+              "preview": {
+                "type": "string"
+              },
+              "size": {
+                "type": "integer"
+              },
+              "title": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "title",
+              "preview",
+              "content",
+              "path"
+            ],
+            "type": "object"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "metadata",
+          "output"
+        ],
+        "type": "object"
+      },
+      "NotesRescanIndexInput": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "NotesRescanIndexOutput": {
+        "additionalProperties": false,
+        "properties": {
+          "metadata": {
+            "additionalProperties": true,
+            "default": {},
+            "type": "object"
+          },
+          "output": {
+            "additionalProperties": false,
+            "properties": {
+              "indexStatus": {
+                "additionalProperties": false,
+                "properties": {
+                  "cachePath": {
+                    "type": "string"
+                  },
+                  "errors": {
+                    "type": "integer"
+                  },
+                  "finishedAt": {
+                    "type": "integer"
+                  },
+                  "ignoredPaths": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "indexedEntries": {
+                    "type": "integer"
+                  },
+                  "lastError": {
+                    "type": "string"
+                  },
+                  "lastUpdateAt": {
+                    "type": "integer"
+                  },
+                  "rescanCount": {
+                    "type": "integer"
+                  },
+                  "root": {
+                    "type": "string"
+                  },
+                  "scannedDirs": {
+                    "type": "integer"
+                  },
+                  "scannedFiles": {
+                    "type": "integer"
+                  },
+                  "startedAt": {
+                    "type": "integer"
+                  },
+                  "state": {
+                    "type": "string"
+                  },
+                  "watcherEnabled": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "state",
+                  "root",
+                  "ignoredPaths",
+                  "indexedEntries",
+                  "scannedFiles",
+                  "scannedDirs",
+                  "errors",
+                  "watcherEnabled",
+                  "cachePath",
+                  "rescanCount"
+                ],
+                "type": "object"
+              },
+              "status": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "status",
+              "indexStatus"
+            ],
+            "type": "object"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "metadata",
+          "output"
         ],
         "type": "object"
       },
@@ -2646,94 +3254,113 @@
       "NotesSearchNotesOutput": {
         "additionalProperties": false,
         "properties": {
-          "count": {
-            "type": "integer"
+          "metadata": {
+            "additionalProperties": true,
+            "default": {},
+            "type": "object"
           },
-          "errors": {
-            "type": "integer"
-          },
-          "highlightTerms": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "indexFinishedAt": {
-            "type": "integer"
-          },
-          "indexLastUpdateAt": {
-            "type": "integer"
-          },
-          "indexScannedDirs": {
-            "type": "integer"
-          },
-          "indexScannedFiles": {
-            "type": "integer"
-          },
-          "indexStartedAt": {
-            "type": "integer"
-          },
-          "indexState": {
-            "type": "string"
-          },
-          "notes": {
-            "items": {
-              "additionalProperties": false,
-              "properties": {
-                "id": {
-                  "type": "string"
-                },
-                "modifiedAt": {
-                  "type": "integer"
-                },
-                "path": {
-                  "type": "string"
-                },
-                "preview": {
-                  "type": "string"
-                },
-                "size": {
-                  "type": "integer"
-                },
-                "title": {
-                  "type": "string"
-                }
+          "output": {
+            "additionalProperties": false,
+            "properties": {
+              "count": {
+                "type": "integer"
               },
-              "required": [
-                "id",
-                "title",
-                "preview",
-                "path"
-              ],
-              "type": "object"
+              "errors": {
+                "type": "integer"
+              },
+              "highlightTerms": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "indexFinishedAt": {
+                "type": "integer"
+              },
+              "indexLastUpdateAt": {
+                "type": "integer"
+              },
+              "indexScannedDirs": {
+                "type": "integer"
+              },
+              "indexScannedFiles": {
+                "type": "integer"
+              },
+              "indexStartedAt": {
+                "type": "integer"
+              },
+              "indexState": {
+                "type": "string"
+              },
+              "notes": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "modifiedAt": {
+                      "type": "integer"
+                    },
+                    "path": {
+                      "type": "string"
+                    },
+                    "preview": {
+                      "type": "string"
+                    },
+                    "size": {
+                      "type": "integer"
+                    },
+                    "title": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "title",
+                    "preview",
+                    "path"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "query": {
+                "type": "string"
+              },
+              "root": {
+                "type": "string"
+              },
+              "scanned": {
+                "type": "integer"
+              },
+              "truncated": {
+                "type": "boolean"
+              }
             },
-            "type": "array"
+            "required": [
+              "query",
+              "root",
+              "notes",
+              "count",
+              "truncated",
+              "scanned",
+              "errors",
+              "indexState",
+              "indexScannedFiles",
+              "indexScannedDirs",
+              "highlightTerms"
+            ],
+            "type": "object"
           },
-          "query": {
+          "title": {
             "type": "string"
-          },
-          "root": {
-            "type": "string"
-          },
-          "scanned": {
-            "type": "integer"
-          },
-          "truncated": {
-            "type": "boolean"
           }
         },
         "required": [
-          "query",
-          "root",
-          "notes",
-          "count",
-          "truncated",
-          "scanned",
-          "errors",
-          "indexState",
-          "indexScannedFiles",
-          "indexScannedDirs",
-          "highlightTerms"
+          "title",
+          "metadata",
+          "output"
         ],
         "type": "object"
       },
@@ -2756,34 +3383,53 @@
       "NotesUpdateNoteOutput": {
         "additionalProperties": false,
         "properties": {
-          "content": {
-            "type": "string"
+          "metadata": {
+            "additionalProperties": true,
+            "default": {},
+            "type": "object"
           },
-          "id": {
-            "type": "string"
-          },
-          "modifiedAt": {
-            "type": "integer"
-          },
-          "path": {
-            "type": "string"
-          },
-          "preview": {
-            "type": "string"
-          },
-          "size": {
-            "type": "integer"
+          "output": {
+            "additionalProperties": false,
+            "properties": {
+              "content": {
+                "type": "string"
+              },
+              "id": {
+                "type": "string"
+              },
+              "modifiedAt": {
+                "type": "integer"
+              },
+              "path": {
+                "type": "string"
+              },
+              "preview": {
+                "type": "string"
+              },
+              "size": {
+                "type": "integer"
+              },
+              "title": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "title",
+              "preview",
+              "content",
+              "path"
+            ],
+            "type": "object"
           },
           "title": {
             "type": "string"
           }
         },
         "required": [
-          "id",
           "title",
-          "preview",
-          "content",
-          "path"
+          "metadata",
+          "output"
         ],
         "type": "object"
       },
@@ -2944,20 +3590,39 @@
         "type": "object"
       },
       "ScreenshotCaptureScreenshotOutput": {
+        "additionalProperties": false,
         "properties": {
-          "clipboard": {
-            "type": "boolean"
+          "metadata": {
+            "additionalProperties": true,
+            "default": {},
+            "type": "object"
           },
-          "filename": {
-            "type": "string"
+          "output": {
+            "properties": {
+              "clipboard": {
+                "type": "boolean"
+              },
+              "filename": {
+                "type": "string"
+              },
+              "format": {
+                "type": "string"
+              },
+              "path": {
+                "type": "string"
+              }
+            },
+            "type": "object"
           },
-          "format": {
-            "type": "string"
-          },
-          "path": {
+          "title": {
             "type": "string"
           }
         },
+        "required": [
+          "title",
+          "metadata",
+          "output"
+        ],
         "type": "object"
       },
       "ScreenshotCopyScreenshotToClipboardInput": {
@@ -2973,11 +3638,30 @@
         "type": "object"
       },
       "ScreenshotCopyScreenshotToClipboardOutput": {
+        "additionalProperties": false,
         "properties": {
-          "status": {
+          "metadata": {
+            "additionalProperties": true,
+            "default": {},
+            "type": "object"
+          },
+          "output": {
+            "properties": {
+              "status": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "title": {
             "type": "string"
           }
         },
+        "required": [
+          "title",
+          "metadata",
+          "output"
+        ],
         "type": "object"
       },
       "ScreenshotDeleteScreenshotInput": {
@@ -2993,14 +3677,33 @@
         "type": "object"
       },
       "ScreenshotDeleteScreenshotOutput": {
+        "additionalProperties": false,
         "properties": {
-          "deleted": {
-            "type": "boolean"
+          "metadata": {
+            "additionalProperties": true,
+            "default": {},
+            "type": "object"
           },
-          "status": {
+          "output": {
+            "properties": {
+              "deleted": {
+                "type": "boolean"
+              },
+              "status": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "title": {
             "type": "string"
           }
         },
+        "required": [
+          "title",
+          "metadata",
+          "output"
+        ],
         "type": "object"
       },
       "ScreenshotGetScreenshotInput": {
@@ -3016,23 +3719,42 @@
         "type": "object"
       },
       "ScreenshotGetScreenshotOutput": {
+        "additionalProperties": false,
         "properties": {
-          "created_at": {
-            "type": "integer"
+          "metadata": {
+            "additionalProperties": true,
+            "default": {},
+            "type": "object"
           },
-          "filename": {
+          "output": {
+            "properties": {
+              "created_at": {
+                "type": "integer"
+              },
+              "filename": {
+                "type": "string"
+              },
+              "format": {
+                "type": "string"
+              },
+              "path": {
+                "type": "string"
+              },
+              "size": {
+                "type": "integer"
+              }
+            },
+            "type": "object"
+          },
+          "title": {
             "type": "string"
-          },
-          "format": {
-            "type": "string"
-          },
-          "path": {
-            "type": "string"
-          },
-          "size": {
-            "type": "integer"
           }
         },
+        "required": [
+          "title",
+          "metadata",
+          "output"
+        ],
         "type": "object"
       },
       "ScreenshotListScreenshotsInput": {
@@ -3045,35 +3767,54 @@
         "type": "object"
       },
       "ScreenshotListScreenshotsOutput": {
-        "items": {
-          "additionalProperties": false,
-          "properties": {
-            "created_at": {
-              "type": "integer"
-            },
-            "filename": {
-              "type": "string"
-            },
-            "format": {
-              "type": "string"
-            },
-            "path": {
-              "type": "string"
-            },
-            "size": {
-              "type": "integer"
-            }
+        "additionalProperties": false,
+        "properties": {
+          "metadata": {
+            "additionalProperties": true,
+            "default": {},
+            "type": "object"
           },
-          "required": [
-            "filename",
-            "path",
-            "format",
-            "size",
-            "created_at"
-          ],
-          "type": "object"
+          "output": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "created_at": {
+                  "type": "integer"
+                },
+                "filename": {
+                  "type": "string"
+                },
+                "format": {
+                  "type": "string"
+                },
+                "path": {
+                  "type": "string"
+                },
+                "size": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "filename",
+                "path",
+                "format",
+                "size",
+                "created_at"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "title": {
+            "type": "string"
+          }
         },
-        "type": "array"
+        "required": [
+          "title",
+          "metadata",
+          "output"
+        ],
+        "type": "object"
       },
       "SessionCommandExtensionPartInput": {
         "properties": {
@@ -3401,11 +4142,30 @@
         "type": "object"
       },
       "SystemAppActionOutput": {
+        "additionalProperties": false,
         "properties": {
-          "status": {
+          "metadata": {
+            "additionalProperties": true,
+            "default": {},
+            "type": "object"
+          },
+          "output": {
+            "properties": {
+              "status": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "title": {
             "type": "string"
           }
         },
+        "required": [
+          "title",
+          "metadata",
+          "output"
+        ],
         "type": "object"
       },
       "SystemListInstalledAppsInput": {
@@ -3414,29 +4174,48 @@
         "type": "object"
       },
       "SystemListInstalledAppsOutput": {
-        "items": {
-          "additionalProperties": false,
-          "properties": {
-            "bundle_id": {
-              "type": "string"
-            },
-            "icon": {
-              "type": "string"
-            },
-            "name": {
-              "type": "string"
-            },
-            "path": {
-              "type": "string"
-            }
+        "additionalProperties": false,
+        "properties": {
+          "metadata": {
+            "additionalProperties": true,
+            "default": {},
+            "type": "object"
           },
-          "required": [
-            "name",
-            "path"
-          ],
-          "type": "object"
+          "output": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "bundle_id": {
+                  "type": "string"
+                },
+                "icon": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "path": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name",
+                "path"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "title": {
+            "type": "string"
+          }
         },
-        "type": "array"
+        "required": [
+          "title",
+          "metadata",
+          "output"
+        ],
+        "type": "object"
       },
       "SystemListOpenAppsInput": {
         "additionalProperties": false,
@@ -3449,108 +4228,127 @@
         "type": "object"
       },
       "SystemListOpenAppsOutput": {
-        "items": {
-          "additionalProperties": false,
-          "properties": {
-            "bundle_id": {
-              "type": "string"
-            },
-            "has_windows": {
-              "type": "boolean"
-            },
-            "is_active": {
-              "type": "boolean"
-            },
-            "is_hidden": {
-              "type": "boolean"
-            },
-            "name": {
-              "type": "string"
-            },
-            "pid": {
-              "type": "integer"
-            },
-            "windows": {
-              "items": {
-                "additionalProperties": false,
-                "properties": {
-                  "bounds": {
+        "additionalProperties": false,
+        "properties": {
+          "metadata": {
+            "additionalProperties": true,
+            "default": {},
+            "type": "object"
+          },
+          "output": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "bundle_id": {
+                  "type": "string"
+                },
+                "has_windows": {
+                  "type": "boolean"
+                },
+                "is_active": {
+                  "type": "boolean"
+                },
+                "is_hidden": {
+                  "type": "boolean"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "pid": {
+                  "type": "integer"
+                },
+                "windows": {
+                  "items": {
                     "additionalProperties": false,
                     "properties": {
-                      "height": {
-                        "type": "number"
+                      "bounds": {
+                        "additionalProperties": false,
+                        "properties": {
+                          "height": {
+                            "type": "number"
+                          },
+                          "width": {
+                            "type": "number"
+                          },
+                          "x": {
+                            "type": "number"
+                          },
+                          "y": {
+                            "type": "number"
+                          }
+                        },
+                        "required": [
+                          "x",
+                          "y",
+                          "width",
+                          "height"
+                        ],
+                        "type": "object"
                       },
-                      "width": {
-                        "type": "number"
+                      "is_onscreen": {
+                        "type": "boolean"
                       },
-                      "x": {
-                        "type": "number"
+                      "kind": {
+                        "type": "string"
                       },
-                      "y": {
-                        "type": "number"
+                      "layer": {
+                        "type": "integer"
+                      },
+                      "minimized": {
+                        "type": "boolean"
+                      },
+                      "owner_name": {
+                        "type": "string"
+                      },
+                      "owner_pid": {
+                        "type": "integer"
+                      },
+                      "state": {
+                        "type": "string"
+                      },
+                      "title": {
+                        "type": "string"
+                      },
+                      "window_id": {
+                        "type": "integer"
                       }
                     },
                     "required": [
-                      "x",
-                      "y",
-                      "width",
-                      "height"
+                      "window_id",
+                      "bounds",
+                      "layer",
+                      "is_onscreen",
+                      "state",
+                      "kind",
+                      "owner_pid"
                     ],
                     "type": "object"
                   },
-                  "is_onscreen": {
-                    "type": "boolean"
-                  },
-                  "kind": {
-                    "type": "string"
-                  },
-                  "layer": {
-                    "type": "integer"
-                  },
-                  "minimized": {
-                    "type": "boolean"
-                  },
-                  "owner_name": {
-                    "type": "string"
-                  },
-                  "owner_pid": {
-                    "type": "integer"
-                  },
-                  "state": {
-                    "type": "string"
-                  },
-                  "title": {
-                    "type": "string"
-                  },
-                  "window_id": {
-                    "type": "integer"
-                  }
-                },
-                "required": [
-                  "window_id",
-                  "bounds",
-                  "layer",
-                  "is_onscreen",
-                  "state",
-                  "kind",
-                  "owner_pid"
-                ],
-                "type": "object"
+                  "type": "array"
+                }
               },
-              "type": "array"
-            }
+              "required": [
+                "name",
+                "pid",
+                "is_active",
+                "is_hidden",
+                "has_windows",
+                "windows"
+              ],
+              "type": "object"
+            },
+            "type": "array"
           },
-          "required": [
-            "name",
-            "pid",
-            "is_active",
-            "is_hidden",
-            "has_windows",
-            "windows"
-          ],
-          "type": "object"
+          "title": {
+            "type": "string"
+          }
         },
-        "type": "array"
+        "required": [
+          "title",
+          "metadata",
+          "output"
+        ],
+        "type": "object"
       },
       "SystemListWindowsInput": {
         "additionalProperties": false,
@@ -3565,82 +4363,101 @@
       "SystemListWindowsOutput": {
         "additionalProperties": false,
         "properties": {
-          "snapshotId": {
-            "type": "integer"
+          "metadata": {
+            "additionalProperties": true,
+            "default": {},
+            "type": "object"
           },
-          "windows": {
-            "items": {
-              "additionalProperties": false,
-              "properties": {
-                "bounds": {
+          "output": {
+            "additionalProperties": false,
+            "properties": {
+              "snapshotId": {
+                "type": "integer"
+              },
+              "windows": {
+                "items": {
                   "additionalProperties": false,
                   "properties": {
-                    "height": {
-                      "type": "number"
+                    "bounds": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "height": {
+                          "type": "number"
+                        },
+                        "width": {
+                          "type": "number"
+                        },
+                        "x": {
+                          "type": "number"
+                        },
+                        "y": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "x",
+                        "y",
+                        "width",
+                        "height"
+                      ],
+                      "type": "object"
                     },
-                    "width": {
-                      "type": "number"
+                    "is_onscreen": {
+                      "type": "boolean"
                     },
-                    "x": {
-                      "type": "number"
+                    "kind": {
+                      "type": "string"
                     },
-                    "y": {
-                      "type": "number"
+                    "layer": {
+                      "type": "integer"
+                    },
+                    "minimized": {
+                      "type": "boolean"
+                    },
+                    "owner_name": {
+                      "type": "string"
+                    },
+                    "owner_pid": {
+                      "type": "integer"
+                    },
+                    "state": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "window_id": {
+                      "type": "integer"
                     }
                   },
                   "required": [
-                    "x",
-                    "y",
-                    "width",
-                    "height"
+                    "window_id",
+                    "bounds",
+                    "layer",
+                    "is_onscreen",
+                    "state",
+                    "kind",
+                    "owner_pid"
                   ],
                   "type": "object"
                 },
-                "is_onscreen": {
-                  "type": "boolean"
-                },
-                "kind": {
-                  "type": "string"
-                },
-                "layer": {
-                  "type": "integer"
-                },
-                "minimized": {
-                  "type": "boolean"
-                },
-                "owner_name": {
-                  "type": "string"
-                },
-                "owner_pid": {
-                  "type": "integer"
-                },
-                "state": {
-                  "type": "string"
-                },
-                "title": {
-                  "type": "string"
-                },
-                "window_id": {
-                  "type": "integer"
-                }
-              },
-              "required": [
-                "window_id",
-                "bounds",
-                "layer",
-                "is_onscreen",
-                "state",
-                "kind",
-                "owner_pid"
-              ],
-              "type": "object"
+                "type": "array"
+              }
             },
-            "type": "array"
+            "required": [
+              "snapshotId",
+              "windows"
+            ],
+            "type": "object"
+          },
+          "title": {
+            "type": "string"
           }
         },
         "required": [
-          "snapshotId",
-          "windows"
+          "title",
+          "metadata",
+          "output"
         ],
         "type": "object"
       },
@@ -3657,11 +4474,30 @@
         "type": "object"
       },
       "SystemRunApplescriptOutput": {
+        "additionalProperties": false,
         "properties": {
+          "metadata": {
+            "additionalProperties": true,
+            "default": {},
+            "type": "object"
+          },
           "output": {
+            "properties": {
+              "output": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "title": {
             "type": "string"
           }
         },
+        "required": [
+          "title",
+          "metadata",
+          "output"
+        ],
         "type": "object"
       },
       "SystemWindowActionInput": {
@@ -3689,11 +4525,30 @@
         "type": "object"
       },
       "SystemWindowActionOutput": {
+        "additionalProperties": false,
         "properties": {
-          "status": {
+          "metadata": {
+            "additionalProperties": true,
+            "default": {},
+            "type": "object"
+          },
+          "output": {
+            "properties": {
+              "status": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "title": {
             "type": "string"
           }
         },
+        "required": [
+          "title",
+          "metadata",
+          "output"
+        ],
         "type": "object"
       },
       "TerminalBashInput": {
@@ -3728,36 +4583,55 @@
       "TerminalBashOutput": {
         "additionalProperties": false,
         "properties": {
-          "command": {
-            "type": "string"
+          "metadata": {
+            "additionalProperties": true,
+            "default": {},
+            "type": "object"
           },
-          "durationMs": {
-            "type": "integer"
+          "output": {
+            "additionalProperties": false,
+            "properties": {
+              "command": {
+                "type": "string"
+              },
+              "durationMs": {
+                "type": "integer"
+              },
+              "exitCode": {
+                "type": "integer"
+              },
+              "stderr": {
+                "type": "string"
+              },
+              "stdout": {
+                "type": "string"
+              },
+              "timedOut": {
+                "type": "boolean"
+              },
+              "workdir": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "stdout",
+              "stderr",
+              "exitCode",
+              "timedOut",
+              "command",
+              "workdir",
+              "durationMs"
+            ],
+            "type": "object"
           },
-          "exitCode": {
-            "type": "integer"
-          },
-          "stderr": {
-            "type": "string"
-          },
-          "stdout": {
-            "type": "string"
-          },
-          "timedOut": {
-            "type": "boolean"
-          },
-          "workdir": {
+          "title": {
             "type": "string"
           }
         },
         "required": [
-          "stdout",
-          "stderr",
-          "exitCode",
-          "timedOut",
-          "command",
-          "workdir",
-          "durationMs"
+          "title",
+          "metadata",
+          "output"
         ],
         "type": "object"
       },
@@ -3781,31 +4655,50 @@
       "TerminalGlobOutput": {
         "additionalProperties": false,
         "properties": {
-          "count": {
-            "type": "integer"
+          "metadata": {
+            "additionalProperties": true,
+            "default": {},
+            "type": "object"
           },
-          "files": {
-            "items": {
-              "type": "string"
+          "output": {
+            "additionalProperties": false,
+            "properties": {
+              "count": {
+                "type": "integer"
+              },
+              "files": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "path": {
+                "type": "string"
+              },
+              "pattern": {
+                "type": "string"
+              },
+              "truncated": {
+                "type": "boolean"
+              }
             },
-            "type": "array"
+            "required": [
+              "files",
+              "count",
+              "truncated",
+              "pattern",
+              "path"
+            ],
+            "type": "object"
           },
-          "path": {
+          "title": {
             "type": "string"
-          },
-          "pattern": {
-            "type": "string"
-          },
-          "truncated": {
-            "type": "boolean"
           }
         },
         "required": [
-          "files",
-          "count",
-          "truncated",
-          "pattern",
-          "path"
+          "title",
+          "metadata",
+          "output"
         ],
         "type": "object"
       },
@@ -3833,28 +4726,47 @@
       "TerminalGrepOutput": {
         "additionalProperties": false,
         "properties": {
-          "matches": {
-            "type": "integer"
+          "metadata": {
+            "additionalProperties": true,
+            "default": {},
+            "type": "object"
           },
           "output": {
-            "type": "string"
+            "additionalProperties": false,
+            "properties": {
+              "matches": {
+                "type": "integer"
+              },
+              "output": {
+                "type": "string"
+              },
+              "path": {
+                "type": "string"
+              },
+              "pattern": {
+                "type": "string"
+              },
+              "truncated": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "output",
+              "matches",
+              "truncated",
+              "pattern",
+              "path"
+            ],
+            "type": "object"
           },
-          "path": {
+          "title": {
             "type": "string"
-          },
-          "pattern": {
-            "type": "string"
-          },
-          "truncated": {
-            "type": "boolean"
           }
         },
         "required": [
-          "output",
-          "matches",
-          "truncated",
-          "pattern",
-          "path"
+          "title",
+          "metadata",
+          "output"
         ],
         "type": "object"
       },
@@ -3878,24 +4790,43 @@
       "TerminalLsOutput": {
         "additionalProperties": false,
         "properties": {
-          "count": {
-            "type": "integer"
+          "metadata": {
+            "additionalProperties": true,
+            "default": {},
+            "type": "object"
           },
           "output": {
-            "type": "string"
+            "additionalProperties": false,
+            "properties": {
+              "count": {
+                "type": "integer"
+              },
+              "output": {
+                "type": "string"
+              },
+              "path": {
+                "type": "string"
+              },
+              "truncated": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "output",
+              "count",
+              "truncated",
+              "path"
+            ],
+            "type": "object"
           },
-          "path": {
+          "title": {
             "type": "string"
-          },
-          "truncated": {
-            "type": "boolean"
           }
         },
         "required": [
-          "output",
-          "count",
-          "truncated",
-          "path"
+          "title",
+          "metadata",
+          "output"
         ],
         "type": "object"
       },
@@ -4262,32 +5193,51 @@
       "WebWebFetchOutput": {
         "additionalProperties": false,
         "properties": {
-          "content": {
-            "type": "string"
+          "metadata": {
+            "additionalProperties": true,
+            "default": {},
+            "type": "object"
           },
-          "contentLength": {
-            "type": "integer"
+          "output": {
+            "additionalProperties": false,
+            "properties": {
+              "content": {
+                "type": "string"
+              },
+              "contentLength": {
+                "type": "integer"
+              },
+              "contentType": {
+                "type": "string"
+              },
+              "format": {
+                "type": "string"
+              },
+              "status": {
+                "type": "integer"
+              },
+              "url": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "url",
+              "status",
+              "contentType",
+              "content",
+              "format",
+              "contentLength"
+            ],
+            "type": "object"
           },
-          "contentType": {
-            "type": "string"
-          },
-          "format": {
-            "type": "string"
-          },
-          "status": {
-            "type": "integer"
-          },
-          "url": {
+          "title": {
             "type": "string"
           }
         },
         "required": [
-          "url",
-          "status",
-          "contentType",
-          "content",
-          "format",
-          "contentLength"
+          "title",
+          "metadata",
+          "output"
         ],
         "type": "object"
       },
@@ -4313,23 +5263,42 @@
       "WebWebSearchOutput": {
         "additionalProperties": false,
         "properties": {
-          "count": {
-            "type": "integer"
+          "metadata": {
+            "additionalProperties": true,
+            "default": {},
+            "type": "object"
           },
-          "query": {
-            "type": "string"
-          },
-          "results": {
-            "items": {
-              "type": "object"
+          "output": {
+            "additionalProperties": false,
+            "properties": {
+              "count": {
+                "type": "integer"
+              },
+              "query": {
+                "type": "string"
+              },
+              "results": {
+                "items": {
+                  "type": "object"
+                },
+                "type": "array"
+              }
             },
-            "type": "array"
+            "required": [
+              "results",
+              "query",
+              "count"
+            ],
+            "type": "object"
+          },
+          "title": {
+            "type": "string"
           }
         },
         "required": [
-          "results",
-          "query",
-          "count"
+          "title",
+          "metadata",
+          "output"
         ],
         "type": "object"
       },
@@ -4339,8 +5308,27 @@
         "type": "object"
       },
       "WorkspaceGetConfigOutput": {
-        "additionalProperties": true,
-        "description": "Workspace configuration document",
+        "additionalProperties": false,
+        "properties": {
+          "metadata": {
+            "additionalProperties": true,
+            "default": {},
+            "type": "object"
+          },
+          "output": {
+            "additionalProperties": true,
+            "description": "Workspace configuration document",
+            "type": "object"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "metadata",
+          "output"
+        ],
         "type": "object"
       },
       "WorkspaceGetPermissionsInput": {
@@ -4351,40 +5339,59 @@
       "WorkspaceGetPermissionsOutput": {
         "additionalProperties": false,
         "properties": {
-          "permissions": {
-            "items": {
-              "additionalProperties": false,
-              "properties": {
-                "granted": {
-                  "type": "boolean"
-                },
-                "id": {
-                  "type": "string"
-                },
-                "label": {
-                  "type": "string"
-                },
-                "required": {
-                  "type": "boolean"
-                }
-              },
-              "required": [
-                "id",
-                "label",
-                "granted",
-                "required"
-              ],
-              "type": "object"
-            },
-            "type": "array"
+          "metadata": {
+            "additionalProperties": true,
+            "default": {},
+            "type": "object"
           },
-          "platform": {
+          "output": {
+            "additionalProperties": false,
+            "properties": {
+              "permissions": {
+                "items": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "granted": {
+                      "type": "boolean"
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "label": {
+                      "type": "string"
+                    },
+                    "required": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "label",
+                    "granted",
+                    "required"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "platform": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "platform",
+              "permissions"
+            ],
+            "type": "object"
+          },
+          "title": {
             "type": "string"
           }
         },
         "required": [
-          "platform",
-          "permissions"
+          "title",
+          "metadata",
+          "output"
         ],
         "type": "object"
       },
@@ -4402,11 +5409,30 @@
         "type": "object"
       },
       "WorkspaceOpenPermissionOutput": {
+        "additionalProperties": false,
         "properties": {
-          "status": {
+          "metadata": {
+            "additionalProperties": true,
+            "default": {},
+            "type": "object"
+          },
+          "output": {
+            "properties": {
+              "status": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "title": {
             "type": "string"
           }
         },
+        "required": [
+          "title",
+          "metadata",
+          "output"
+        ],
         "type": "object"
       },
       "WorkspaceUpdateConfigInput": {
@@ -4423,8 +5449,27 @@
         "type": "object"
       },
       "WorkspaceUpdateConfigOutput": {
-        "additionalProperties": true,
-        "description": "Updated workspace configuration document",
+        "additionalProperties": false,
+        "properties": {
+          "metadata": {
+            "additionalProperties": true,
+            "default": {},
+            "type": "object"
+          },
+          "output": {
+            "additionalProperties": true,
+            "description": "Updated workspace configuration document",
+            "type": "object"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "metadata",
+          "output"
+        ],
         "type": "object"
       }
     }

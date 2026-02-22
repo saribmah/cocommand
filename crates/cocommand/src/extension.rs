@@ -10,7 +10,9 @@ use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 
+use cocommand_llm::ToolExecuteOutput;
 use serde::Serialize;
+use serde_json::{json, Value};
 
 use crate::error::CoreResult;
 
@@ -34,18 +36,32 @@ pub type ExtensionToolExecute = Arc<
     dyn Fn(
             serde_json::Value,
             ExtensionContext,
-        ) -> Pin<Box<dyn Future<Output = CoreResult<serde_json::Value>> + Send>>
+        ) -> Pin<Box<dyn Future<Output = CoreResult<ToolExecuteOutput>> + Send>>
         + Send
         + Sync,
 >;
 
 pub fn boxed_tool_future<F>(
     future: F,
-) -> Pin<Box<dyn Future<Output = CoreResult<serde_json::Value>> + Send>>
+) -> Pin<Box<dyn Future<Output = CoreResult<ToolExecuteOutput>> + Send>>
 where
-    F: Future<Output = CoreResult<serde_json::Value>> + Send + 'static,
+    F: Future<Output = CoreResult<ToolExecuteOutput>> + Send + 'static,
 {
     Box::pin(future)
+}
+
+pub fn boxed_tool_value_future<F>(
+    title: &'static str,
+    future: F,
+) -> Pin<Box<dyn Future<Output = CoreResult<ToolExecuteOutput>> + Send>>
+where
+    F: Future<Output = CoreResult<Value>> + Send + 'static,
+{
+    Box::pin(async move {
+        future
+            .await
+            .map(|output| ToolExecuteOutput::with_output(title, output))
+    })
 }
 
 #[derive(Clone)]
@@ -56,6 +72,25 @@ pub struct ExtensionTool {
     pub input_schema: serde_json::Value,
     pub output_schema: Option<serde_json::Value>,
     pub execute: ExtensionToolExecute,
+}
+
+pub fn wrap_tool_output_schema(output_schema: Option<Value>) -> Value {
+    let metadata_schema = json!({
+        "type": "object",
+        "default": {},
+        "additionalProperties": true
+    });
+    let output_schema = output_schema.unwrap_or_else(|| json!({}));
+    json!({
+        "type": "object",
+        "properties": {
+            "title": { "type": "string" },
+            "metadata": metadata_schema,
+            "output": output_schema
+        },
+        "required": ["title", "metadata", "output"],
+        "additionalProperties": false
+    })
 }
 
 #[derive(Clone)]

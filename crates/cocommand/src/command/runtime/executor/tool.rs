@@ -112,7 +112,32 @@ pub(super) fn spawn_tool_execution(
                 let result = execute(input).await;
                 match result {
                     Ok(output) => {
-                        if let Err(write_error) = processor.apply_completed(&context, output).await
+                        let output_value = match serde_json::to_value(output) {
+                            Ok(value) => value,
+                            Err(error) => {
+                                let error_value = json!({
+                                    "error": format!(
+                                        "failed to serialize tool output envelope: {error}"
+                                    )
+                                });
+                                if let Err(write_error) =
+                                    processor.apply_error(&context, error_value.clone()).await
+                                {
+                                    tracing::warn!(
+                                        "failed to persist async tool serialization error for {}: {}",
+                                        context.tool_call_id,
+                                        write_error
+                                    );
+                                }
+                                let _ = event_tx_job.send(SessionEvent::ToolAsyncFailed {
+                                    job_id,
+                                    error: value_to_string(&error_value),
+                                });
+                                return;
+                            }
+                        };
+                        if let Err(write_error) =
+                            processor.apply_completed(&context, output_value).await
                         {
                             tracing::warn!(
                                 "failed to persist async tool completion for {}: {}",
@@ -144,7 +169,32 @@ pub(super) fn spawn_tool_execution(
         let result = execute(input).await;
         match result {
             Ok(output) => {
-                if let Err(write_error) = processor.apply_completed(&context, output).await {
+                let output_value = match serde_json::to_value(output) {
+                    Ok(value) => value,
+                    Err(error) => {
+                        let error_value = json!({
+                            "error": format!("failed to serialize tool output envelope: {error}")
+                        });
+                        if let Err(write_error) =
+                            processor.apply_error(&context, error_value.clone()).await
+                        {
+                            tracing::warn!(
+                                "failed to persist tool serialization error for {}: {}",
+                                context.tool_call_id,
+                                write_error
+                            );
+                        }
+                        let _ = event_tx.send(SessionEvent::ToolImmediateFailure(
+                            ToolImmediateFailure {
+                                run_id: context.run_id.clone(),
+                                tool_call_id: context.tool_call_id.clone(),
+                                error: value_to_string(&error_value),
+                            },
+                        ));
+                        return;
+                    }
+                };
+                if let Err(write_error) = processor.apply_completed(&context, output_value).await {
                     tracing::warn!(
                         "failed to persist tool completion for {}: {}",
                         context.tool_call_id,

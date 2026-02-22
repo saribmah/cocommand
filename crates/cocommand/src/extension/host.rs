@@ -11,6 +11,8 @@ use tokio::process::{Child, ChildStdin};
 use tokio::sync::{oneshot, Mutex};
 use tokio::time::{timeout, Duration};
 
+use cocommand_llm::ToolExecuteOutput;
+
 use crate::error::{CoreError, CoreResult};
 
 #[derive(Debug, Serialize)]
@@ -60,6 +62,11 @@ pub struct InitializeResult {
 struct InvokeToolParams<'a> {
     tool_id: &'a str,
     args: serde_json::Value,
+}
+
+#[derive(Debug, Deserialize)]
+struct InvokeToolResult {
+    output: ToolExecuteOutput,
 }
 
 pub struct ExtensionHost {
@@ -177,7 +184,7 @@ impl ExtensionHost {
         &self,
         tool_id: &str,
         args: serde_json::Value,
-    ) -> CoreResult<serde_json::Value> {
+    ) -> CoreResult<ToolExecuteOutput> {
         let params = InvokeToolParams { tool_id, args };
         let result = self
             .send_request(
@@ -187,7 +194,13 @@ impl ExtensionHost {
                 })?,
             )
             .await?;
-        Ok(result)
+
+        let parsed: InvokeToolResult = serde_json::from_value(result).map_err(|error| {
+            CoreError::Internal(format!(
+                "invalid tool output envelope from extension host: {error}"
+            ))
+        })?;
+        Ok(parsed.output)
     }
 
     async fn send_request(

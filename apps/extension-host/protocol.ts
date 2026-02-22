@@ -56,7 +56,11 @@ export interface InvokeToolParams {
 
 /** Result of the `invoke_tool` method. */
 export interface InvokeToolResult {
-  output: unknown;
+  output: {
+    title: string;
+    metadata: unknown;
+    output: unknown;
+  };
 }
 
 /** Standard JSON-RPC error codes. */

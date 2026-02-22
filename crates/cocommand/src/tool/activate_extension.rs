@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use cocommand_llm::LlmTool;
+use cocommand_llm::{LlmTool, ToolExecuteOutput};
 use serde_json::json;
 
 use crate::session::SessionManager;
@@ -50,11 +50,14 @@ pub fn build_activate_extension_tool(
                 })
                 .await
                 .map_err(|error| json!({ "error": error.to_string() }))?;
-            Ok(json!({ "status": "ok", "activated": true, "id": app_id }))
+            Ok(ToolExecuteOutput::with_output(
+                "Extension activated",
+                json!({ "status": "ok", "activated": true, "id": app_id }),
+            ))
         })
             as std::pin::Pin<
                 Box<
-                    dyn std::future::Future<Output = Result<serde_json::Value, serde_json::Value>>
+                    dyn std::future::Future<Output = Result<ToolExecuteOutput, serde_json::Value>>
                         + Send,
                 >,
             >

@@ -139,7 +139,8 @@ pub(crate) async fn open_extension(
     let output = (tool.execute)(serde_json::json!({}), context)
         .await
         .map_err(|error| ApiError::internal(error.to_string()))?;
-
+    let output = serde_json::to_value(output)
+        .map_err(|error| ApiError::internal(format!("failed to serialize tool output: {error}")))?;
     Ok(Json(output))
 }
 

@@ -6,7 +6,8 @@ use crate::error::CoreResult;
 use crate::extension::host::ExtensionHost;
 use crate::extension::manifest::{ExtensionManifest, ExtensionTool as ManifestTool};
 use crate::extension::{
-    boxed_tool_future, Extension, ExtensionContext, ExtensionKind, ExtensionStatus, ExtensionTool,
+    boxed_tool_future, wrap_tool_output_schema, Extension, ExtensionContext, ExtensionKind,
+    ExtensionStatus, ExtensionTool,
 };
 use tokio::sync::Mutex;
 use tokio::time::{timeout, Duration};
@@ -162,7 +163,7 @@ pub fn tools_from_manifest(
                 input_schema: tool
                     .input_schema
                     .unwrap_or_else(|| serde_json::json!({ "type": "object" })),
-                output_schema: tool.output_schema,
+                output_schema: Some(wrap_tool_output_schema(tool.output_schema)),
                 execute,
             });
         }

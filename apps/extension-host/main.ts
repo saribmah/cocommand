@@ -10,6 +10,7 @@ import {
   type RpcRequest,
   type InitializeParams,
   type InvokeToolParams,
+  type InvokeToolResult,
   ErrorCodes,
   successResponse,
   errorResponse,
@@ -55,7 +56,23 @@ async function handleInvokeTool(id: number, params: InvokeToolParams): Promise<v
 
   try {
     const output = await handler(params.args);
-    respond(successResponse(id, { output }));
+    if (
+      !output ||
+      typeof output !== "object" ||
+      typeof (output as { title?: unknown }).title !== "string" ||
+      !("metadata" in (output as Record<string, unknown>)) ||
+      !("output" in (output as Record<string, unknown>))
+    ) {
+      respond(
+        errorResponse(
+          id,
+          ErrorCodes.TOOL_EXECUTION_ERROR,
+          "invalid tool output envelope: expected { title, metadata, output }"
+        )
+      );
+      return;
+    }
+    respond(successResponse(id, { output } satisfies InvokeToolResult));
   } catch (err) {
     respond(
       errorResponse(

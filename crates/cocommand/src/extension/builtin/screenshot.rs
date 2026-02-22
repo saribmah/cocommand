@@ -6,7 +6,7 @@ use std::sync::Arc;
 use crate::clipboard::set_clipboard_image;
 use crate::error::CoreError;
 use crate::extension::manifest::ExtensionManifest;
-use crate::extension::{boxed_tool_future, Extension, ExtensionKind, ExtensionTool};
+use crate::extension::{Extension, ExtensionKind, ExtensionTool};
 use crate::platform::{ScreenshotMode, ScreenshotOptions};
 use crate::utils::time::now_secs;
 
@@ -74,7 +74,7 @@ impl ScreenshotExtension {
             "capture_screenshot",
             Arc::new(
                 |input: serde_json::Value, context: crate::extension::ExtensionContext| {
-                    boxed_tool_future(async move {
+                    crate::extension::boxed_tool_value_future("Tool result", async move {
                         let mode = Self::parse_mode(input.get("mode").and_then(|v| v.as_str()))?;
                         let display = input
                             .get("display")
@@ -148,7 +148,7 @@ impl ScreenshotExtension {
             "list_screenshots",
             Arc::new(
                 |input: serde_json::Value, context: crate::extension::ExtensionContext| {
-                    boxed_tool_future(async move {
+                    crate::extension::boxed_tool_value_future("Tool result", async move {
                         let limit = input
                             .get("limit")
                             .and_then(|v| v.as_u64())
@@ -224,7 +224,7 @@ impl ScreenshotExtension {
             "get_screenshot",
             Arc::new(
                 |input: serde_json::Value, context: crate::extension::ExtensionContext| {
-                    boxed_tool_future(async move {
+                    crate::extension::boxed_tool_value_future("Tool result", async move {
                         let filename = input
                             .get("filename")
                             .and_then(|v| v.as_str())
@@ -278,7 +278,7 @@ impl ScreenshotExtension {
             "delete_screenshot",
             Arc::new(
                 |input: serde_json::Value, context: crate::extension::ExtensionContext| {
-                    boxed_tool_future(async move {
+                    crate::extension::boxed_tool_value_future("Tool result", async move {
                         let filename = input
                             .get("filename")
                             .and_then(|v| v.as_str())
@@ -315,7 +315,7 @@ impl ScreenshotExtension {
             "copy_screenshot_to_clipboard",
             Arc::new(
                 |input: serde_json::Value, context: crate::extension::ExtensionContext| {
-                    boxed_tool_future(async move {
+                    crate::extension::boxed_tool_value_future("Tool result", async move {
                         if !context.workspace.platform.supports_screenshot_tools() {
                             return Err(CoreError::Internal(
                                 "screenshot tool not supported on this platform".to_string(),
@@ -458,9 +458,9 @@ mod tests {
         .await
         .expect("output");
 
-        assert_eq!(output["filename"], "screenshot.png");
-        assert_eq!(output["format"], "png");
-        assert_eq!(output["clipboard"], true);
+        assert_eq!(output.output["filename"], "screenshot.png");
+        assert_eq!(output.output["format"], "png");
+        assert_eq!(output.output["clipboard"], true);
     }
 
     #[tokio::test]

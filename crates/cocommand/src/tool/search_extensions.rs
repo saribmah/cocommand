@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use cocommand_llm::LlmTool;
+use cocommand_llm::{LlmTool, ToolExecuteOutput};
 use serde_json::json;
 
 use crate::extension::ExtensionKind;
@@ -48,11 +48,14 @@ pub fn build_search_extensions_tool(workspace: Arc<WorkspaceInstance>) -> LlmToo
                 .take(limit)
                 .map(|(value, _)| value)
                 .collect();
-            Ok(json!({ "results": results }))
+            Ok(ToolExecuteOutput::with_output(
+                "Extension search results",
+                json!({ "results": results }),
+            ))
         })
             as std::pin::Pin<
                 Box<
-                    dyn std::future::Future<Output = Result<serde_json::Value, serde_json::Value>>
+                    dyn std::future::Future<Output = Result<ToolExecuteOutput, serde_json::Value>>
                         + Send,
                 >,
             >

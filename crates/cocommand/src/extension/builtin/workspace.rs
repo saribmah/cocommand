@@ -6,9 +6,7 @@ use serde_json::json;
 
 use crate::error::CoreError;
 use crate::extension::manifest::ExtensionManifest;
-use crate::extension::{
-    boxed_tool_future, Extension, ExtensionContext, ExtensionKind, ExtensionTool,
-};
+use crate::extension::{Extension, ExtensionContext, ExtensionKind, ExtensionTool};
 use crate::llm::{settings_from_workspace, LlmProvider};
 use crate::utils::time::now_secs;
 use crate::workspace::WorkspaceConfig;
@@ -29,7 +27,7 @@ impl WorkspaceExtension {
         execute_map.insert(
             "get_config",
             Arc::new(|_input: serde_json::Value, context: ExtensionContext| {
-                boxed_tool_future(async move {
+                crate::extension::boxed_tool_value_future("Tool result", async move {
                     let config = context.workspace.config.read().await;
                     serde_json::to_value(&*config).map_err(|e| {
                         CoreError::Internal(format!("failed to serialize config: {e}"))
@@ -42,7 +40,7 @@ impl WorkspaceExtension {
             "update_config",
             Arc::new(move |input: serde_json::Value, context: ExtensionContext| {
                 let llm = llm.clone();
-                boxed_tool_future(async move {
+                crate::extension::boxed_tool_value_future("Tool result", async move {
                     let payload: WorkspaceConfig =
                         serde_json::from_value(input.get("config").cloned().unwrap_or_default())
                             .map_err(|e| CoreError::InvalidInput(format!("invalid config: {e}")))?;
@@ -73,7 +71,7 @@ impl WorkspaceExtension {
         execute_map.insert(
             "get_permissions",
             Arc::new(|_input: serde_json::Value, context: ExtensionContext| {
-                boxed_tool_future(async move {
+                crate::extension::boxed_tool_value_future("Tool result", async move {
                     let snapshot = context.workspace.platform.permissions_snapshot();
                     serde_json::to_value(snapshot).map_err(|error| {
                         CoreError::Internal(format!(
@@ -87,7 +85,7 @@ impl WorkspaceExtension {
         execute_map.insert(
             "open_permission",
             Arc::new(|input: serde_json::Value, context: ExtensionContext| {
-                boxed_tool_future(async move {
+                crate::extension::boxed_tool_value_future("Tool result", async move {
                     let id = input
                         .get("id")
                         .and_then(|v| v.as_str())
@@ -237,8 +235,8 @@ mod tests {
         )
         .await
         .expect("get permissions");
-        assert_eq!(get_output["platform"], "test");
-        assert_eq!(get_output["permissions"][0]["id"], "automation");
+        assert_eq!(get_output.output["platform"], "test");
+        assert_eq!(get_output.output["permissions"][0]["id"], "automation");
 
         let open_permission = extension
             .tools()
@@ -254,7 +252,7 @@ mod tests {
         )
         .await
         .expect("open permission");
-        assert_eq!(open_output["status"], "ok");
+        assert_eq!(open_output.output["status"], "ok");
 
         let calls = platform.opened_permissions.lock().expect("lock");
         assert_eq!(calls.as_slice(), &["automation".to_string()]);

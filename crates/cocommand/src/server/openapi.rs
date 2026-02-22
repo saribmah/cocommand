@@ -150,6 +150,7 @@ pub fn generate_full_spec() -> String {
 /// Naming convention: `{PascalExtensionId}{PascalToolId}Input` / `Output`
 fn inject_tool_schemas(spec: &mut Value) {
     use crate::extension::builtin::manifest_tools::all_builtin_manifests;
+    use crate::extension::wrap_tool_output_schema;
 
     let schemas = spec
         .pointer_mut("/components/schemas")
@@ -168,7 +169,7 @@ fn inject_tool_schemas(spec: &mut Value) {
                 }
                 if let Some(output) = &tool.output_schema {
                     let name = format!("{ext_pascal}{tool_pascal}Output");
-                    schemas_obj.insert(name, output.clone());
+                    schemas_obj.insert(name, wrap_tool_output_schema(Some(output.clone())));
                 }
             }
         }

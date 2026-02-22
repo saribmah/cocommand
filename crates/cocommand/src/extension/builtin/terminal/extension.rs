@@ -7,7 +7,7 @@ use std::sync::Arc;
 use crate::error::{CoreError, CoreResult};
 use crate::extension::builtin::manifest_tools::{merge_manifest_tools, parse_builtin_manifest};
 use crate::extension::manifest::ExtensionManifest;
-use crate::extension::{boxed_tool_future, Extension, ExtensionKind, ExtensionTool};
+use crate::extension::{Extension, ExtensionKind, ExtensionTool};
 
 use super::ops;
 
@@ -38,7 +38,7 @@ impl TerminalExtension {
             "bash",
             Arc::new(
                 |input: serde_json::Value, context: crate::extension::ExtensionContext| {
-                    boxed_tool_future(async move {
+                    crate::extension::boxed_tool_value_future("Tool result", async move {
                         let command = required_string(&input, "command")?;
                         let timeout_ms = optional_u64(&input, "timeout")
                             .unwrap_or(120_000)
@@ -61,7 +61,7 @@ impl TerminalExtension {
             "glob",
             Arc::new(
                 |input: serde_json::Value, context: crate::extension::ExtensionContext| {
-                    boxed_tool_future(async move {
+                    crate::extension::boxed_tool_value_future("Tool result", async move {
                         let pattern = required_string(&input, "pattern")?;
                         let workspace_dir = context.workspace.workspace_dir.clone();
                         let path = match optional_string(&input, "path") {
@@ -82,7 +82,7 @@ impl TerminalExtension {
             "grep",
             Arc::new(
                 |input: serde_json::Value, context: crate::extension::ExtensionContext| {
-                    boxed_tool_future(async move {
+                    crate::extension::boxed_tool_value_future("Tool result", async move {
                         let pattern = required_string(&input, "pattern")?;
                         let workspace_dir = context.workspace.workspace_dir.clone();
                         let path = match optional_string(&input, "path") {
@@ -106,7 +106,7 @@ impl TerminalExtension {
             "ls",
             Arc::new(
                 |input: serde_json::Value, context: crate::extension::ExtensionContext| {
-                    boxed_tool_future(async move {
+                    crate::extension::boxed_tool_value_future("Tool result", async move {
                         let workspace_dir = context.workspace.workspace_dir.clone();
                         let path = match optional_string(&input, "path") {
                             Some(raw) => normalize_path(&raw, &workspace_dir)?,

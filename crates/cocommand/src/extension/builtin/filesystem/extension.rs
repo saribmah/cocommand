@@ -12,8 +12,7 @@ use crate::error::{CoreError, CoreResult};
 use crate::extension::builtin::manifest_tools::{merge_manifest_tools, parse_builtin_manifest};
 use crate::extension::manifest::ExtensionManifest;
 use crate::extension::{
-    boxed_tool_future, Extension, ExtensionInitContext, ExtensionKind, ExtensionStatus,
-    ExtensionTool,
+    Extension, ExtensionInitContext, ExtensionKind, ExtensionStatus, ExtensionTool,
 };
 use crate::workspace::FileSystemPreferences;
 
@@ -69,7 +68,7 @@ impl FileSystemExtension {
             Arc::new(
                 move |input: serde_json::Value, context: crate::extension::ExtensionContext| {
                     let index_manager = im.clone();
-                    boxed_tool_future(async move {
+                    crate::extension::boxed_tool_value_future("Tool result", async move {
                         let defaults =
                             workspace_filesystem_defaults(context.workspace.as_ref()).await;
                         let query = required_string(&input, "query")?;
@@ -112,7 +111,7 @@ impl FileSystemExtension {
             "list_directory",
             Arc::new(
                 move |input: serde_json::Value, context: crate::extension::ExtensionContext| {
-                    boxed_tool_future(async move {
+                    crate::extension::boxed_tool_value_future("Tool result", async move {
                         let defaults =
                             workspace_filesystem_defaults(context.workspace.as_ref()).await;
                         let path_raw =
@@ -157,7 +156,7 @@ impl FileSystemExtension {
             Arc::new(
                 move |input: serde_json::Value, context: crate::extension::ExtensionContext| {
                     let index_manager = im.clone();
-                    boxed_tool_future(async move {
+                    crate::extension::boxed_tool_value_future("Tool result", async move {
                         let defaults =
                             workspace_filesystem_defaults(context.workspace.as_ref()).await;
                         let root_raw =
@@ -187,7 +186,7 @@ impl FileSystemExtension {
             Arc::new(
                 move |input: serde_json::Value, context: crate::extension::ExtensionContext| {
                     let index_manager = im.clone();
-                    boxed_tool_future(async move {
+                    crate::extension::boxed_tool_value_future("Tool result", async move {
                         let defaults =
                             workspace_filesystem_defaults(context.workspace.as_ref()).await;
                         let root_raw =
@@ -219,7 +218,7 @@ impl FileSystemExtension {
             "read_file",
             Arc::new(
                 |input: serde_json::Value, context: crate::extension::ExtensionContext| {
-                    boxed_tool_future(async move {
+                    crate::extension::boxed_tool_value_future("Tool result", async move {
                         let path_raw = required_string(&input, "path")?;
                         let offset = bounded_u64(&input, "offset", 0, 0, u64::MAX)?;
                         let max_bytes = bounded_usize(&input, "maxBytes", 16_384, 1, 1_048_576)?;
@@ -240,7 +239,7 @@ impl FileSystemExtension {
             "path_info",
             Arc::new(
                 |input: serde_json::Value, context: crate::extension::ExtensionContext| {
-                    boxed_tool_future(async move {
+                    crate::extension::boxed_tool_value_future("Tool result", async move {
                         let path_raw = required_string(&input, "path")?;
                         let workspace_dir = context.workspace.workspace_dir.clone();
                         let path = normalize_input_path(&path_raw, &workspace_dir)?;
@@ -257,7 +256,7 @@ impl FileSystemExtension {
             "open_path",
             Arc::new(
                 |input: serde_json::Value, context: crate::extension::ExtensionContext| {
-                    boxed_tool_future(async move {
+                    crate::extension::boxed_tool_value_future("Tool result", async move {
                         let path_raw = required_string(&input, "path")?;
                         let workspace_dir = context.workspace.workspace_dir.clone();
                         let path = normalize_input_path(&path_raw, &workspace_dir)?;
@@ -286,7 +285,7 @@ impl FileSystemExtension {
             "reveal_path",
             Arc::new(
                 |input: serde_json::Value, context: crate::extension::ExtensionContext| {
-                    boxed_tool_future(async move {
+                    crate::extension::boxed_tool_value_future("Tool result", async move {
                         let path_raw = required_string(&input, "path")?;
                         let workspace_dir = context.workspace.workspace_dir.clone();
                         let path = normalize_input_path(&path_raw, &workspace_dir)?;
@@ -315,7 +314,7 @@ impl FileSystemExtension {
             "get_icons",
             Arc::new(
                 |input: serde_json::Value, context: crate::extension::ExtensionContext| {
-                    boxed_tool_future(async move {
+                    crate::extension::boxed_tool_value_future("Tool result", async move {
                         let paths_value = input
                             .get("paths")
                             .ok_or_else(|| CoreError::InvalidInput("missing paths".to_string()))?;

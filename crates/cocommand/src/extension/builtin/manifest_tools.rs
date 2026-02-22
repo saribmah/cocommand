@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::extension::manifest::ExtensionManifest;
-use crate::extension::{ExtensionTool, ExtensionToolExecute};
+use crate::extension::{wrap_tool_output_schema, ExtensionTool, ExtensionToolExecute};
 
 /// All builtin manifest JSON strings, embedded at compile time.
 pub const BUILTIN_MANIFESTS: &[&str] = &[
@@ -61,7 +61,7 @@ pub fn merge_manifest_tools(
                 .input_schema
                 .clone()
                 .unwrap_or_else(|| serde_json::json!({ "type": "object" })),
-            output_schema: mt.output_schema.clone(),
+            output_schema: Some(wrap_tool_output_schema(mt.output_schema.clone())),
             execute,
         });
     }

@@ -14,9 +14,7 @@ where
 fn map_part(part: TextStreamPart) -> Option<LlmStreamEvent> {
     match part {
         TextStreamPart::TextStart { id, .. } => Some(LlmStreamEvent::TextStart { id }),
-        TextStreamPart::TextDelta { id, text, .. } => {
-            Some(LlmStreamEvent::TextDelta { id, text })
-        }
+        TextStreamPart::TextDelta { id, text, .. } => Some(LlmStreamEvent::TextDelta { id, text }),
         TextStreamPart::TextEnd { id, .. } => Some(LlmStreamEvent::TextEnd { id }),
         TextStreamPart::ReasoningStart { id, .. } => Some(LlmStreamEvent::ReasoningStart { id }),
         TextStreamPart::ReasoningDelta { id, text, .. } => {

@@ -8,7 +8,17 @@
 /** Tool handler function signature. */
 export type ToolHandler = (
   args: Record<string, unknown>
-) => unknown | Promise<unknown>;
+) =>
+  | {
+      title: string;
+      metadata: unknown;
+      output: unknown;
+    }
+  | Promise<{
+      title: string;
+      metadata: unknown;
+      output: unknown;
+    }>;
 
 /** Extension manifest structure (matches Rust-side ExtensionManifest). */
 export interface ExtensionManifest {

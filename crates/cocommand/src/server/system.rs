@@ -219,6 +219,7 @@ async fn execute_system_tool(
 
     (tool.execute)(input, context)
         .await
+        .map(|output| output.output)
         .map_err(|e| ApiError::from(e))
 }
 

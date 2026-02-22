@@ -8,8 +8,7 @@ use crate::error::{CoreError, CoreResult};
 use crate::extension::builtin::manifest_tools::{merge_manifest_tools, parse_builtin_manifest};
 use crate::extension::manifest::ExtensionManifest;
 use crate::extension::{
-    boxed_tool_future, Extension, ExtensionInitContext, ExtensionKind, ExtensionStatus,
-    ExtensionTool,
+    Extension, ExtensionInitContext, ExtensionKind, ExtensionStatus, ExtensionTool,
 };
 use crate::llm::LlmProvider;
 
@@ -35,7 +34,7 @@ impl AgentExtension {
             "list-agents",
             std::sync::Arc::new(
                 |_input: serde_json::Value, context: crate::extension::ExtensionContext| {
-                    boxed_tool_future(async move {
+                    crate::extension::boxed_tool_value_future("Tool result", async move {
                         let payload = ops::list_agents(&context.workspace.storage).await?;
                         Ok(json!(payload))
                     })
@@ -47,7 +46,7 @@ impl AgentExtension {
             "create-agent",
             std::sync::Arc::new(
                 |input: serde_json::Value, context: crate::extension::ExtensionContext| {
-                    boxed_tool_future(async move {
+                    crate::extension::boxed_tool_value_future("Tool result", async move {
                         let name = required_string(&input, "name")?;
                         let personality = required_string(&input, "personality")?;
                         let description = optional_string(&input, "description");
@@ -72,7 +71,7 @@ impl AgentExtension {
             "get-agent",
             std::sync::Arc::new(
                 |input: serde_json::Value, context: crate::extension::ExtensionContext| {
-                    boxed_tool_future(async move {
+                    crate::extension::boxed_tool_value_future("Tool result", async move {
                         let id = required_string(&input, "id")?;
                         let agent = ops::get_agent(&context.workspace.storage, &id).await?;
                         Ok(json!(agent))
@@ -85,7 +84,7 @@ impl AgentExtension {
             "update-agent",
             std::sync::Arc::new(
                 |input: serde_json::Value, context: crate::extension::ExtensionContext| {
-                    boxed_tool_future(async move {
+                    crate::extension::boxed_tool_value_future("Tool result", async move {
                         let id = required_string(&input, "id")?;
                         let name = optional_string(&input, "name");
                         let description = optional_string(&input, "description");
@@ -112,7 +111,7 @@ impl AgentExtension {
             "delete-agent",
             std::sync::Arc::new(
                 |input: serde_json::Value, context: crate::extension::ExtensionContext| {
-                    boxed_tool_future(async move {
+                    crate::extension::boxed_tool_value_future("Tool result", async move {
                         let id = required_string(&input, "id")?;
                         let deleted = ops::delete_agent(&context.workspace.storage, &id).await?;
                         Ok(json!({
@@ -131,7 +130,7 @@ impl AgentExtension {
                 std::sync::Arc::new(
                     move |input: serde_json::Value, context: crate::extension::ExtensionContext| {
                         let llm = llm.clone();
-                        boxed_tool_future(async move {
+                        crate::extension::boxed_tool_value_future("Tool result", async move {
                             let id = required_string(&input, "id")?;
                             let message = required_string(&input, "message")?;
                             let payload =

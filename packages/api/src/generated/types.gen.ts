@@ -18,14 +18,20 @@ export type AgentCreateAgentInput = {
 };
 
 export type AgentCreateAgentOutput = {
-    createdAt: number;
-    description: string;
-    extensions: Array<string>;
-    id: string;
-    memory: string;
-    name: string;
-    personality: string;
-    updatedAt: number;
+    metadata: {
+        [key: string]: unknown;
+    };
+    output: {
+        createdAt: number;
+        description: string;
+        extensions: Array<string>;
+        id: string;
+        memory: string;
+        name: string;
+        personality: string;
+        updatedAt: number;
+    };
+    title: string;
 };
 
 export type AgentDeleteAgentInput = {
@@ -33,8 +39,14 @@ export type AgentDeleteAgentInput = {
 };
 
 export type AgentDeleteAgentOutput = {
-    deleted: boolean;
-    status: string;
+    metadata: {
+        [key: string]: unknown;
+    };
+    output: {
+        deleted: boolean;
+        status: string;
+    };
+    title: string;
 };
 
 export type AgentExecuteAgentInput = {
@@ -43,9 +55,15 @@ export type AgentExecuteAgentInput = {
 };
 
 export type AgentExecuteAgentOutput = {
-    agentId: string;
-    agentName: string;
-    response: string;
+    metadata: {
+        [key: string]: unknown;
+    };
+    output: {
+        agentId: string;
+        agentName: string;
+        response: string;
+    };
+    title: string;
 };
 
 export type AgentGetAgentInput = {
@@ -53,14 +71,20 @@ export type AgentGetAgentInput = {
 };
 
 export type AgentGetAgentOutput = {
-    createdAt: number;
-    description: string;
-    extensions: Array<string>;
-    id: string;
-    memory: string;
-    name: string;
-    personality: string;
-    updatedAt: number;
+    metadata: {
+        [key: string]: unknown;
+    };
+    output: {
+        createdAt: number;
+        description: string;
+        extensions: Array<string>;
+        id: string;
+        memory: string;
+        name: string;
+        personality: string;
+        updatedAt: number;
+    };
+    title: string;
 };
 
 export type AgentListAgentsInput = {
@@ -68,15 +92,21 @@ export type AgentListAgentsInput = {
 };
 
 export type AgentListAgentsOutput = {
-    agents: Array<{
-        createdAt: number;
-        description: string;
-        extensions: Array<string>;
-        id: string;
-        name: string;
-        updatedAt: number;
-    }>;
-    count: number;
+    metadata: {
+        [key: string]: unknown;
+    };
+    output: {
+        agents: Array<{
+            createdAt: number;
+            description: string;
+            extensions: Array<string>;
+            id: string;
+            name: string;
+            updatedAt: number;
+        }>;
+        count: number;
+    };
+    title: string;
 };
 
 export type AgentUpdateAgentInput = {
@@ -89,14 +119,20 @@ export type AgentUpdateAgentInput = {
 };
 
 export type AgentUpdateAgentOutput = {
-    createdAt: number;
-    description: string;
-    extensions: Array<string>;
-    id: string;
-    memory: string;
-    name: string;
-    personality: string;
-    updatedAt: number;
+    metadata: {
+        [key: string]: unknown;
+    };
+    output: {
+        createdAt: number;
+        description: string;
+        extensions: Array<string>;
+        id: string;
+        memory: string;
+        name: string;
+        personality: string;
+        updatedAt: number;
+    };
+    title: string;
 };
 
 export type ApiErrorBody = {
@@ -159,12 +195,18 @@ export type BrowserGetActiveTabInput = {
 };
 
 export type BrowserGetActiveTabOutput = {
-    active?: boolean;
-    id?: number;
-    title?: string;
-    url?: string;
-    [key: string]: unknown | boolean | number | string | undefined;
-} | null;
+    metadata: {
+        [key: string]: unknown;
+    };
+    output: {
+        active?: boolean;
+        id?: number;
+        title?: string;
+        url?: string;
+        [key: string]: unknown | boolean | number | string | undefined;
+    } | null;
+    title: string;
+};
 
 export type BrowserGetContentInput = {
     /**
@@ -182,25 +224,37 @@ export type BrowserGetContentInput = {
 };
 
 export type BrowserGetContentOutput = {
-    content?: string;
-    format?: 'html' | 'text' | 'markdown';
-    tabId?: number;
-    title?: string;
-    url?: string;
-    [key: string]: unknown | string | ('html' | 'text' | 'markdown') | number | undefined;
+    metadata: {
+        [key: string]: unknown;
+    };
+    output: {
+        content?: string;
+        format?: 'html' | 'text' | 'markdown';
+        tabId?: number;
+        title?: string;
+        url?: string;
+        [key: string]: unknown | string | ('html' | 'text' | 'markdown') | number | undefined;
+    };
+    title: string;
 };
 
 export type BrowserGetTabsInput = {
     [key: string]: never;
 };
 
-export type BrowserGetTabsOutput = Array<{
-    active?: boolean;
-    id?: number;
-    title?: string;
-    url?: string;
-    [key: string]: unknown | boolean | number | string | undefined;
-}>;
+export type BrowserGetTabsOutput = {
+    metadata: {
+        [key: string]: unknown;
+    };
+    output: Array<{
+        active?: boolean;
+        id?: number;
+        title?: string;
+        url?: string;
+        [key: string]: unknown | boolean | number | string | undefined;
+    }>;
+    title: string;
+};
 
 export type BrowserStatus = {
     connected: boolean;
@@ -211,7 +265,13 @@ export type ClipboardClearClipboardHistoryInput = {
 };
 
 export type ClipboardClearClipboardHistoryOutput = {
-    status?: string;
+    metadata: {
+        [key: string]: unknown;
+    };
+    output: {
+        status?: string;
+    };
+    title: string;
 };
 
 export type ClipboardGetClipboardInput = {
@@ -219,45 +279,63 @@ export type ClipboardGetClipboardInput = {
 };
 
 export type ClipboardGetClipboardOutput = {
-    created_at: string;
-    files?: Array<string>;
-    id: string;
-    image_format?: string;
-    image_path?: string;
-    kind: 'text' | 'image' | 'files';
-    source?: string;
-    text?: string;
-} | null;
+    metadata: {
+        [key: string]: unknown;
+    };
+    output: {
+        created_at: string;
+        files?: Array<string>;
+        id: string;
+        image_format?: string;
+        image_path?: string;
+        kind: 'text' | 'image' | 'files';
+        source?: string;
+        text?: string;
+    } | null;
+    title: string;
+};
 
 export type ClipboardListClipboardHistoryInput = {
     limit?: number;
 };
 
-export type ClipboardListClipboardHistoryOutput = Array<{
-    created_at: string;
-    files?: Array<string>;
-    id: string;
-    image_format?: string;
-    image_path?: string;
-    kind: 'text' | 'image' | 'files';
-    source?: string;
-    text?: string;
-}>;
+export type ClipboardListClipboardHistoryOutput = {
+    metadata: {
+        [key: string]: unknown;
+    };
+    output: Array<{
+        created_at: string;
+        files?: Array<string>;
+        id: string;
+        image_format?: string;
+        image_path?: string;
+        kind: 'text' | 'image' | 'files';
+        source?: string;
+        text?: string;
+    }>;
+    title: string;
+};
 
 export type ClipboardRecordClipboardInput = {
     [key: string]: never;
 };
 
 export type ClipboardRecordClipboardOutput = {
-    created_at: string;
-    files?: Array<string>;
-    id: string;
-    image_format?: string;
-    image_path?: string;
-    kind: 'text' | 'image' | 'files';
-    source?: string;
-    text?: string;
-} | null;
+    metadata: {
+        [key: string]: unknown;
+    };
+    output: {
+        created_at: string;
+        files?: Array<string>;
+        id: string;
+        image_format?: string;
+        image_path?: string;
+        kind: 'text' | 'image' | 'files';
+        source?: string;
+        text?: string;
+    } | null;
+    title: string;
+};
 
 export type ClipboardSetClipboardInput = {
     files?: Array<string>;
@@ -267,7 +345,13 @@ export type ClipboardSetClipboardInput = {
 };
 
 export type ClipboardSetClipboardOutput = {
-    status?: string;
+    metadata: {
+        [key: string]: unknown;
+    };
+    output: {
+        status?: string;
+    };
+    title: string;
 };
 
 export type CoreEvent = {
@@ -316,10 +400,16 @@ export type EditorEditFileInput = {
 };
 
 export type EditorEditFileOutput = {
-    additions: number;
-    deletions: number;
-    path: string;
-    replacements: number;
+    metadata: {
+        [key: string]: unknown;
+    };
+    output: {
+        additions: number;
+        deletions: number;
+        path: string;
+        replacements: number;
+    };
+    title: string;
 };
 
 export type EditorReadFileInput = {
@@ -338,12 +428,18 @@ export type EditorReadFileInput = {
 };
 
 export type EditorReadFileOutput = {
-    content: string;
-    limit: number;
-    lines: number;
-    offset: number;
-    path: string;
-    truncated: boolean;
+    metadata: {
+        [key: string]: unknown;
+    };
+    output: {
+        content: string;
+        limit: number;
+        lines: number;
+        offset: number;
+        path: string;
+        truncated: boolean;
+    };
+    title: string;
 };
 
 export type EditorWriteFileInput = {
@@ -358,9 +454,15 @@ export type EditorWriteFileInput = {
 };
 
 export type EditorWriteFileOutput = {
-    bytes_written: number;
-    created: boolean;
-    path: string;
+    metadata: {
+        [key: string]: unknown;
+    };
+    output: {
+        bytes_written: number;
+        created: boolean;
+        path: string;
+    };
+    title: string;
 };
 
 export type EnqueueMessageResponse = {
@@ -449,10 +551,16 @@ export type FilesystemGetIconsInput = {
 };
 
 export type FilesystemGetIconsOutput = {
-    icons: Array<{
-        icon?: string;
-        path: string;
-    }>;
+    metadata: {
+        [key: string]: unknown;
+    };
+    output: {
+        icons: Array<{
+            icon?: string;
+            path: string;
+        }>;
+    };
+    title: string;
 };
 
 export type FilesystemIndexStatusInput = {
@@ -467,20 +575,26 @@ export type FilesystemIndexStatusInput = {
 };
 
 export type FilesystemIndexStatusOutput = {
-    cachePath: string;
-    errors: number;
-    finishedAt?: number;
-    ignoredPaths: Array<string>;
-    indexedEntries: number;
-    lastError?: string;
-    lastUpdateAt?: number;
-    rescanCount: number;
-    root: string;
-    scannedDirs: number;
-    scannedFiles: number;
-    startedAt?: number;
-    state: string;
-    watcherEnabled: boolean;
+    metadata: {
+        [key: string]: unknown;
+    };
+    output: {
+        cachePath: string;
+        errors: number;
+        finishedAt?: number;
+        ignoredPaths: Array<string>;
+        indexedEntries: number;
+        lastError?: string;
+        lastUpdateAt?: number;
+        rescanCount: number;
+        root: string;
+        scannedDirs: number;
+        scannedFiles: number;
+        startedAt?: number;
+        state: string;
+        watcherEnabled: boolean;
+    };
+    title: string;
 };
 
 export type FilesystemListDirectoryInput = {
@@ -502,19 +616,25 @@ export type FilesystemListDirectoryInput = {
 };
 
 export type FilesystemListDirectoryOutput = {
-    count: number;
-    errors: number;
-    path: string;
-    recursive: boolean;
-    results: Array<{
-        icon?: string;
-        modifiedAt?: number;
-        name: string;
+    metadata: {
+        [key: string]: unknown;
+    };
+    output: {
+        count: number;
+        errors: number;
         path: string;
-        size?: number;
-        type: 'file' | 'directory' | 'symlink' | 'other';
-    }>;
-    truncated: boolean;
+        recursive: boolean;
+        results: Array<{
+            icon?: string;
+            modifiedAt?: number;
+            name: string;
+            path: string;
+            size?: number;
+            type: 'file' | 'directory' | 'symlink' | 'other';
+        }>;
+        truncated: boolean;
+    };
+    title: string;
 };
 
 export type FilesystemOpenPathInput = {
@@ -522,8 +642,14 @@ export type FilesystemOpenPathInput = {
 };
 
 export type FilesystemOpenPathOutput = {
-    path?: string;
-    status?: string;
+    metadata: {
+        [key: string]: unknown;
+    };
+    output: {
+        path?: string;
+        status?: string;
+    };
+    title: string;
 };
 
 export type FilesystemPathInfoInput = {
@@ -531,16 +657,22 @@ export type FilesystemPathInfoInput = {
 };
 
 export type FilesystemPathInfoOutput = {
-    exists: boolean;
-    extension?: string;
-    hidden?: boolean;
-    modifiedAt?: number;
-    name?: string;
-    parent?: string;
-    path: string;
-    readonly?: boolean;
-    size?: number;
-    type?: 'file' | 'directory' | 'symlink' | 'other';
+    metadata: {
+        [key: string]: unknown;
+    };
+    output: {
+        exists: boolean;
+        extension?: string;
+        hidden?: boolean;
+        modifiedAt?: number;
+        name?: string;
+        parent?: string;
+        path: string;
+        readonly?: boolean;
+        size?: number;
+        type?: 'file' | 'directory' | 'symlink' | 'other';
+    };
+    title: string;
 };
 
 export type FilesystemReadFileInput = {
@@ -550,12 +682,18 @@ export type FilesystemReadFileInput = {
 };
 
 export type FilesystemReadFileOutput = {
-    bytesRead: number;
-    content: string;
-    offset: number;
-    path: string;
-    totalBytes: number;
-    truncated: boolean;
+    metadata: {
+        [key: string]: unknown;
+    };
+    output: {
+        bytesRead: number;
+        content: string;
+        offset: number;
+        path: string;
+        totalBytes: number;
+        truncated: boolean;
+    };
+    title: string;
 };
 
 export type FilesystemRescanIndexInput = {
@@ -570,23 +708,29 @@ export type FilesystemRescanIndexInput = {
 };
 
 export type FilesystemRescanIndexOutput = {
-    indexStatus: {
-        cachePath: string;
-        errors: number;
-        finishedAt?: number;
-        ignoredPaths: Array<string>;
-        indexedEntries: number;
-        lastError?: string;
-        lastUpdateAt?: number;
-        rescanCount: number;
-        root: string;
-        scannedDirs: number;
-        scannedFiles: number;
-        startedAt?: number;
-        state: string;
-        watcherEnabled: boolean;
+    metadata: {
+        [key: string]: unknown;
     };
-    status: string;
+    output: {
+        indexStatus: {
+            cachePath: string;
+            errors: number;
+            finishedAt?: number;
+            ignoredPaths: Array<string>;
+            indexedEntries: number;
+            lastError?: string;
+            lastUpdateAt?: number;
+            rescanCount: number;
+            root: string;
+            scannedDirs: number;
+            scannedFiles: number;
+            startedAt?: number;
+            state: string;
+            watcherEnabled: boolean;
+        };
+        status: string;
+    };
+    title: string;
 };
 
 export type FilesystemRevealPathInput = {
@@ -594,8 +738,14 @@ export type FilesystemRevealPathInput = {
 };
 
 export type FilesystemRevealPathOutput = {
-    path?: string;
-    status?: string;
+    metadata: {
+        [key: string]: unknown;
+    };
+    output: {
+        path?: string;
+        status?: string;
+    };
+    title: string;
 };
 
 export type FilesystemSearchInput = {
@@ -622,27 +772,33 @@ export type FilesystemSearchInput = {
 };
 
 export type FilesystemSearchOutput = {
-    count: number;
-    errors: number;
-    highlightTerms: Array<string>;
-    indexFinishedAt?: number;
-    indexLastUpdateAt?: number;
-    indexScannedDirs: number;
-    indexScannedFiles: number;
-    indexStartedAt?: number;
-    indexState: string;
-    query: string;
-    results: Array<{
-        icon?: string;
-        modifiedAt?: number;
-        name: string;
-        path: string;
-        size?: number;
-        type: 'file' | 'directory' | 'symlink' | 'other';
-    }>;
-    root: string;
-    scanned: number;
-    truncated: boolean;
+    metadata: {
+        [key: string]: unknown;
+    };
+    output: {
+        count: number;
+        errors: number;
+        highlightTerms: Array<string>;
+        indexFinishedAt?: number;
+        indexLastUpdateAt?: number;
+        indexScannedDirs: number;
+        indexScannedFiles: number;
+        indexStartedAt?: number;
+        indexState: string;
+        query: string;
+        results: Array<{
+            icon?: string;
+            modifiedAt?: number;
+            name: string;
+            path: string;
+            size?: number;
+            type: 'file' | 'directory' | 'symlink' | 'other';
+        }>;
+        root: string;
+        scanned: number;
+        truncated: boolean;
+    };
+    title: string;
 };
 
 export type Message = {
@@ -680,12 +836,18 @@ export type NotesCreateNoteInput = {
 };
 
 export type NotesCreateNoteOutput = {
-    content: string;
-    id: string;
-    modifiedAt?: number;
-    path: string;
-    preview: string;
-    size?: number;
+    metadata: {
+        [key: string]: unknown;
+    };
+    output: {
+        content: string;
+        id: string;
+        modifiedAt?: number;
+        path: string;
+        preview: string;
+        size?: number;
+        title: string;
+    };
     title: string;
 };
 
@@ -694,8 +856,14 @@ export type NotesDeleteNoteInput = {
 };
 
 export type NotesDeleteNoteOutput = {
-    deleted?: boolean;
-    status?: string;
+    metadata: {
+        [key: string]: unknown;
+    };
+    output: {
+        deleted?: boolean;
+        status?: string;
+    };
+    title: string;
 };
 
 export type NotesIndexStatusInput = {
@@ -703,61 +871,10 @@ export type NotesIndexStatusInput = {
 };
 
 export type NotesIndexStatusOutput = {
-    cachePath: string;
-    errors: number;
-    finishedAt?: number;
-    ignoredPaths: Array<string>;
-    indexedEntries: number;
-    lastError?: string;
-    lastUpdateAt?: number;
-    rescanCount: number;
-    root: string;
-    scannedDirs: number;
-    scannedFiles: number;
-    startedAt?: number;
-    state: string;
-    watcherEnabled: boolean;
-};
-
-export type NotesListNotesInput = {
-    limit?: number;
-};
-
-export type NotesListNotesOutput = {
-    count: number;
-    errors: number;
-    notes: Array<{
-        id: string;
-        modifiedAt?: number;
-        path: string;
-        preview: string;
-        size?: number;
-        title: string;
-    }>;
-    root: string;
-    truncated: boolean;
-};
-
-export type NotesReadNoteInput = {
-    id: string;
-};
-
-export type NotesReadNoteOutput = {
-    content: string;
-    id: string;
-    modifiedAt?: number;
-    path: string;
-    preview: string;
-    size?: number;
-    title: string;
-};
-
-export type NotesRescanIndexInput = {
-    [key: string]: never;
-};
-
-export type NotesRescanIndexOutput = {
-    indexStatus: {
+    metadata: {
+        [key: string]: unknown;
+    };
+    output: {
         cachePath: string;
         errors: number;
         finishedAt?: number;
@@ -773,7 +890,82 @@ export type NotesRescanIndexOutput = {
         state: string;
         watcherEnabled: boolean;
     };
-    status: string;
+    title: string;
+};
+
+export type NotesListNotesInput = {
+    limit?: number;
+};
+
+export type NotesListNotesOutput = {
+    metadata: {
+        [key: string]: unknown;
+    };
+    output: {
+        count: number;
+        errors: number;
+        notes: Array<{
+            id: string;
+            modifiedAt?: number;
+            path: string;
+            preview: string;
+            size?: number;
+            title: string;
+        }>;
+        root: string;
+        truncated: boolean;
+    };
+    title: string;
+};
+
+export type NotesReadNoteInput = {
+    id: string;
+};
+
+export type NotesReadNoteOutput = {
+    metadata: {
+        [key: string]: unknown;
+    };
+    output: {
+        content: string;
+        id: string;
+        modifiedAt?: number;
+        path: string;
+        preview: string;
+        size?: number;
+        title: string;
+    };
+    title: string;
+};
+
+export type NotesRescanIndexInput = {
+    [key: string]: never;
+};
+
+export type NotesRescanIndexOutput = {
+    metadata: {
+        [key: string]: unknown;
+    };
+    output: {
+        indexStatus: {
+            cachePath: string;
+            errors: number;
+            finishedAt?: number;
+            ignoredPaths: Array<string>;
+            indexedEntries: number;
+            lastError?: string;
+            lastUpdateAt?: number;
+            rescanCount: number;
+            root: string;
+            scannedDirs: number;
+            scannedFiles: number;
+            startedAt?: number;
+            state: string;
+            watcherEnabled: boolean;
+        };
+        status: string;
+    };
+    title: string;
 };
 
 export type NotesSearchNotesInput = {
@@ -785,27 +977,33 @@ export type NotesSearchNotesInput = {
 };
 
 export type NotesSearchNotesOutput = {
-    count: number;
-    errors: number;
-    highlightTerms: Array<string>;
-    indexFinishedAt?: number;
-    indexLastUpdateAt?: number;
-    indexScannedDirs: number;
-    indexScannedFiles: number;
-    indexStartedAt?: number;
-    indexState: string;
-    notes: Array<{
-        id: string;
-        modifiedAt?: number;
-        path: string;
-        preview: string;
-        size?: number;
-        title: string;
-    }>;
-    query: string;
-    root: string;
-    scanned: number;
-    truncated: boolean;
+    metadata: {
+        [key: string]: unknown;
+    };
+    output: {
+        count: number;
+        errors: number;
+        highlightTerms: Array<string>;
+        indexFinishedAt?: number;
+        indexLastUpdateAt?: number;
+        indexScannedDirs: number;
+        indexScannedFiles: number;
+        indexStartedAt?: number;
+        indexState: string;
+        notes: Array<{
+            id: string;
+            modifiedAt?: number;
+            path: string;
+            preview: string;
+            size?: number;
+            title: string;
+        }>;
+        query: string;
+        root: string;
+        scanned: number;
+        truncated: boolean;
+    };
+    title: string;
 };
 
 export type NotesUpdateNoteInput = {
@@ -814,12 +1012,18 @@ export type NotesUpdateNoteInput = {
 };
 
 export type NotesUpdateNoteOutput = {
-    content: string;
-    id: string;
-    modifiedAt?: number;
-    path: string;
-    preview: string;
-    size?: number;
+    metadata: {
+        [key: string]: unknown;
+    };
+    output: {
+        content: string;
+        id: string;
+        modifiedAt?: number;
+        path: string;
+        preview: string;
+        size?: number;
+        title: string;
+    };
     title: string;
 };
 
@@ -871,10 +1075,16 @@ export type ScreenshotCaptureScreenshotInput = {
 };
 
 export type ScreenshotCaptureScreenshotOutput = {
-    clipboard?: boolean;
-    filename?: string;
-    format?: string;
-    path?: string;
+    metadata: {
+        [key: string]: unknown;
+    };
+    output: {
+        clipboard?: boolean;
+        filename?: string;
+        format?: string;
+        path?: string;
+    };
+    title: string;
 };
 
 export type ScreenshotCopyScreenshotToClipboardInput = {
@@ -882,7 +1092,13 @@ export type ScreenshotCopyScreenshotToClipboardInput = {
 };
 
 export type ScreenshotCopyScreenshotToClipboardOutput = {
-    status?: string;
+    metadata: {
+        [key: string]: unknown;
+    };
+    output: {
+        status?: string;
+    };
+    title: string;
 };
 
 export type ScreenshotDeleteScreenshotInput = {
@@ -890,8 +1106,14 @@ export type ScreenshotDeleteScreenshotInput = {
 };
 
 export type ScreenshotDeleteScreenshotOutput = {
-    deleted?: boolean;
-    status?: string;
+    metadata: {
+        [key: string]: unknown;
+    };
+    output: {
+        deleted?: boolean;
+        status?: string;
+    };
+    title: string;
 };
 
 export type ScreenshotGetScreenshotInput = {
@@ -899,24 +1121,36 @@ export type ScreenshotGetScreenshotInput = {
 };
 
 export type ScreenshotGetScreenshotOutput = {
-    created_at?: number;
-    filename?: string;
-    format?: string;
-    path?: string;
-    size?: number;
+    metadata: {
+        [key: string]: unknown;
+    };
+    output: {
+        created_at?: number;
+        filename?: string;
+        format?: string;
+        path?: string;
+        size?: number;
+    };
+    title: string;
 };
 
 export type ScreenshotListScreenshotsInput = {
     limit?: number;
 };
 
-export type ScreenshotListScreenshotsOutput = Array<{
-    created_at: number;
-    filename: string;
-    format: string;
-    path: string;
-    size: number;
-}>;
+export type ScreenshotListScreenshotsOutput = {
+    metadata: {
+        [key: string]: unknown;
+    };
+    output: Array<{
+        created_at: number;
+        filename: string;
+        format: string;
+        path: string;
+        size: number;
+    }>;
+    title: string;
+};
 
 export type SessionCommandExtensionPartInput = {
     extensionId: string;
@@ -998,73 +1232,97 @@ export type SystemAppActionInput = {
 };
 
 export type SystemAppActionOutput = {
-    status?: string;
+    metadata: {
+        [key: string]: unknown;
+    };
+    output: {
+        status?: string;
+    };
+    title: string;
 };
 
 export type SystemListInstalledAppsInput = {
     [key: string]: never;
 };
 
-export type SystemListInstalledAppsOutput = Array<{
-    bundle_id?: string;
-    icon?: string;
-    name: string;
-    path: string;
-}>;
+export type SystemListInstalledAppsOutput = {
+    metadata: {
+        [key: string]: unknown;
+    };
+    output: Array<{
+        bundle_id?: string;
+        icon?: string;
+        name: string;
+        path: string;
+    }>;
+    title: string;
+};
 
 export type SystemListOpenAppsInput = {
     visibleOnly?: boolean;
 };
 
-export type SystemListOpenAppsOutput = Array<{
-    bundle_id?: string;
-    has_windows: boolean;
-    is_active: boolean;
-    is_hidden: boolean;
-    name: string;
-    pid: number;
-    windows: Array<{
-        bounds: {
-            height: number;
-            width: number;
-            x: number;
-            y: number;
-        };
-        is_onscreen: boolean;
-        kind: string;
-        layer: number;
-        minimized?: boolean;
-        owner_name?: string;
-        owner_pid: number;
-        state: string;
-        title?: string;
-        window_id: number;
+export type SystemListOpenAppsOutput = {
+    metadata: {
+        [key: string]: unknown;
+    };
+    output: Array<{
+        bundle_id?: string;
+        has_windows: boolean;
+        is_active: boolean;
+        is_hidden: boolean;
+        name: string;
+        pid: number;
+        windows: Array<{
+            bounds: {
+                height: number;
+                width: number;
+                x: number;
+                y: number;
+            };
+            is_onscreen: boolean;
+            kind: string;
+            layer: number;
+            minimized?: boolean;
+            owner_name?: string;
+            owner_pid: number;
+            state: string;
+            title?: string;
+            window_id: number;
+        }>;
     }>;
-}>;
+    title: string;
+};
 
 export type SystemListWindowsInput = {
     visibleOnly?: boolean;
 };
 
 export type SystemListWindowsOutput = {
-    snapshotId: number;
-    windows: Array<{
-        bounds: {
-            height: number;
-            width: number;
-            x: number;
-            y: number;
-        };
-        is_onscreen: boolean;
-        kind: string;
-        layer: number;
-        minimized?: boolean;
-        owner_name?: string;
-        owner_pid: number;
-        state: string;
-        title?: string;
-        window_id: number;
-    }>;
+    metadata: {
+        [key: string]: unknown;
+    };
+    output: {
+        snapshotId: number;
+        windows: Array<{
+            bounds: {
+                height: number;
+                width: number;
+                x: number;
+                y: number;
+            };
+            is_onscreen: boolean;
+            kind: string;
+            layer: number;
+            minimized?: boolean;
+            owner_name?: string;
+            owner_pid: number;
+            state: string;
+            title?: string;
+            window_id: number;
+        }>;
+    };
+    title: string;
 };
 
 export type SystemRunApplescriptInput = {
@@ -1072,7 +1330,13 @@ export type SystemRunApplescriptInput = {
 };
 
 export type SystemRunApplescriptOutput = {
-    output?: string;
+    metadata: {
+        [key: string]: unknown;
+    };
+    output: {
+        output?: string;
+    };
+    title: string;
 };
 
 export type SystemWindowActionInput = {
@@ -1082,7 +1346,13 @@ export type SystemWindowActionInput = {
 };
 
 export type SystemWindowActionOutput = {
-    status?: string;
+    metadata: {
+        [key: string]: unknown;
+    };
+    output: {
+        status?: string;
+    };
+    title: string;
 };
 
 export type TerminalBashInput = {
@@ -1105,13 +1375,19 @@ export type TerminalBashInput = {
 };
 
 export type TerminalBashOutput = {
-    command: string;
-    durationMs: number;
-    exitCode: number;
-    stderr: string;
-    stdout: string;
-    timedOut: boolean;
-    workdir: string;
+    metadata: {
+        [key: string]: unknown;
+    };
+    output: {
+        command: string;
+        durationMs: number;
+        exitCode: number;
+        stderr: string;
+        stdout: string;
+        timedOut: boolean;
+        workdir: string;
+    };
+    title: string;
 };
 
 export type TerminalGlobInput = {
@@ -1126,11 +1402,17 @@ export type TerminalGlobInput = {
 };
 
 export type TerminalGlobOutput = {
-    count: number;
-    files: Array<string>;
-    path: string;
-    pattern: string;
-    truncated: boolean;
+    metadata: {
+        [key: string]: unknown;
+    };
+    output: {
+        count: number;
+        files: Array<string>;
+        path: string;
+        pattern: string;
+        truncated: boolean;
+    };
+    title: string;
 };
 
 export type TerminalGrepInput = {
@@ -1149,11 +1431,17 @@ export type TerminalGrepInput = {
 };
 
 export type TerminalGrepOutput = {
-    matches: number;
-    output: string;
-    path: string;
-    pattern: string;
-    truncated: boolean;
+    metadata: {
+        [key: string]: unknown;
+    };
+    output: {
+        matches: number;
+        output: string;
+        path: string;
+        pattern: string;
+        truncated: boolean;
+    };
+    title: string;
 };
 
 export type TerminalLsInput = {
@@ -1168,10 +1456,16 @@ export type TerminalLsInput = {
 };
 
 export type TerminalLsOutput = {
-    count: number;
-    output: string;
-    path: string;
-    truncated: boolean;
+    metadata: {
+        [key: string]: unknown;
+    };
+    output: {
+        count: number;
+        output: string;
+        path: string;
+        truncated: boolean;
+    };
+    title: string;
 };
 
 export type TextPart = PartBase & {
@@ -1270,12 +1564,18 @@ export type WebWebFetchInput = {
 };
 
 export type WebWebFetchOutput = {
-    content: string;
-    contentLength: number;
-    contentType: string;
-    format: string;
-    status: number;
-    url: string;
+    metadata: {
+        [key: string]: unknown;
+    };
+    output: {
+        content: string;
+        contentLength: number;
+        contentType: string;
+        format: string;
+        status: number;
+        url: string;
+    };
+    title: string;
 };
 
 export type WebWebSearchInput = {
@@ -1290,22 +1590,34 @@ export type WebWebSearchInput = {
 };
 
 export type WebWebSearchOutput = {
-    count: number;
-    query: string;
-    results: Array<{
+    metadata: {
         [key: string]: unknown;
-    }>;
+    };
+    output: {
+        count: number;
+        query: string;
+        results: Array<{
+            [key: string]: unknown;
+        }>;
+    };
+    title: string;
 };
 
 export type WorkspaceGetConfigInput = {
     [key: string]: never;
 };
 
-/**
- * Workspace configuration document
- */
 export type WorkspaceGetConfigOutput = {
-    [key: string]: unknown;
+    metadata: {
+        [key: string]: unknown;
+    };
+    /**
+     * Workspace configuration document
+     */
+    output: {
+        [key: string]: unknown;
+    };
+    title: string;
 };
 
 export type WorkspaceGetPermissionsInput = {
@@ -1313,13 +1625,19 @@ export type WorkspaceGetPermissionsInput = {
 };
 
 export type WorkspaceGetPermissionsOutput = {
-    permissions: Array<{
-        granted: boolean;
-        id: string;
-        label: string;
-        required: boolean;
-    }>;
-    platform: string;
+    metadata: {
+        [key: string]: unknown;
+    };
+    output: {
+        permissions: Array<{
+            granted: boolean;
+            id: string;
+            label: string;
+            required: boolean;
+        }>;
+        platform: string;
+    };
+    title: string;
 };
 
 export type WorkspaceOpenPermissionInput = {
@@ -1330,7 +1648,13 @@ export type WorkspaceOpenPermissionInput = {
 };
 
 export type WorkspaceOpenPermissionOutput = {
-    status?: string;
+    metadata: {
+        [key: string]: unknown;
+    };
+    output: {
+        status?: string;
+    };
+    title: string;
 };
 
 export type WorkspaceUpdateConfigInput = {
@@ -1342,11 +1666,17 @@ export type WorkspaceUpdateConfigInput = {
     };
 };
 
-/**
- * Updated workspace configuration document
- */
 export type WorkspaceUpdateConfigOutput = {
-    [key: string]: unknown;
+    metadata: {
+        [key: string]: unknown;
+    };
+    /**
+     * Updated workspace configuration document
+     */
+    output: {
+        [key: string]: unknown;
+    };
+    title: string;
 };
 
 export type StatusData = {

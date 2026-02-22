@@ -7,7 +7,7 @@ use std::sync::Arc;
 use crate::error::{CoreError, CoreResult};
 use crate::extension::builtin::manifest_tools::{merge_manifest_tools, parse_builtin_manifest};
 use crate::extension::manifest::ExtensionManifest;
-use crate::extension::{boxed_tool_future, Extension, ExtensionKind, ExtensionTool};
+use crate::extension::{Extension, ExtensionKind, ExtensionTool};
 
 use super::ops;
 
@@ -38,7 +38,7 @@ impl EditorExtension {
             "read_file",
             Arc::new(
                 |input: serde_json::Value, context: crate::extension::ExtensionContext| {
-                    boxed_tool_future(async move {
+                    crate::extension::boxed_tool_value_future("Tool result", async move {
                         let file_path = required_string(&input, "file_path")?;
                         let offset = optional_u64(&input, "offset").unwrap_or(1).max(1);
                         let limit = optional_u64(&input, "limit").unwrap_or(2000).max(1);
@@ -60,7 +60,7 @@ impl EditorExtension {
             "write_file",
             Arc::new(
                 |input: serde_json::Value, context: crate::extension::ExtensionContext| {
-                    boxed_tool_future(async move {
+                    crate::extension::boxed_tool_value_future("Tool result", async move {
                         let file_path = required_string(&input, "file_path")?;
                         let content = required_string_allow_empty(&input, "content")?;
                         let workspace_dir = context.workspace.workspace_dir.clone();
@@ -81,7 +81,7 @@ impl EditorExtension {
             "edit_file",
             Arc::new(
                 |input: serde_json::Value, context: crate::extension::ExtensionContext| {
-                    boxed_tool_future(async move {
+                    crate::extension::boxed_tool_value_future("Tool result", async move {
                         let file_path = required_string(&input, "file_path")?;
                         let old_string = required_string(&input, "old_string")?;
                         let new_string = required_string_allow_empty(&input, "new_string")?;

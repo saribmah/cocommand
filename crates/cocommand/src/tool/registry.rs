@@ -89,8 +89,9 @@ pub(crate) fn build_tool(tool: ExtensionTool, context: ExtensionContext) -> LlmT
         })
             as std::pin::Pin<
                 Box<
-                    dyn std::future::Future<Output = Result<serde_json::Value, serde_json::Value>>
-                        + Send,
+                    dyn std::future::Future<
+                            Output = Result<cocommand_llm::ToolExecuteOutput, serde_json::Value>,
+                        > + Send,
                 >,
             >
     });
