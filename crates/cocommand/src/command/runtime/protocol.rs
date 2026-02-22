@@ -1,4 +1,4 @@
-use serde_json::Value;
+use serde_json::{Map, Value};
 use tokio::sync::oneshot;
 use tokio_util::sync::CancellationToken;
 
@@ -32,11 +32,10 @@ pub enum SessionEvent {
     },
     ToolAsyncCompleted {
         job_id: String,
-        output: Value,
     },
     ToolAsyncFailed {
         job_id: String,
-        error: Value,
+        error: String,
     },
 }
 
@@ -49,9 +48,7 @@ pub enum RuntimeCommand {
         cancel_token: CancellationToken,
     },
     CallTool {
-        run_id: String,
-        tool_call_id: String,
-        tool_name: String,
+        context: ToolExecutionContext,
         input: Value,
         tool: Option<LlmTool>,
         is_async: bool,
@@ -62,12 +59,23 @@ pub enum RuntimeCommand {
 pub struct ToolImmediateSuccess {
     pub run_id: String,
     pub tool_call_id: String,
-    pub output: Value,
 }
 
 #[derive(Debug, Clone)]
 pub struct ToolImmediateFailure {
     pub run_id: String,
     pub tool_call_id: String,
-    pub error: Value,
+    pub error: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct ToolExecutionContext {
+    pub session_id: String,
+    pub run_id: String,
+    pub message_id: String,
+    pub part_id: String,
+    pub tool_call_id: String,
+    pub tool_name: String,
+    pub input: Map<String, Value>,
+    pub started_at: u64,
 }

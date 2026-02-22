@@ -43,10 +43,3 @@ pub(super) fn input_from_tool_state(state: &ToolState) -> Map<String, Value> {
         ToolState::Error(state) => state.input.clone(),
     }
 }
-
-pub(super) fn value_to_string(value: &Value) -> String {
-    match value {
-        Value::String(text) => text.clone(),
-        other => serde_json::to_string(other).unwrap_or_else(|_| "null".to_string()),
-    }
-}

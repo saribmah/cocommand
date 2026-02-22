@@ -2,29 +2,45 @@ use serde_json::{json, Value};
 use tokio::sync::mpsc;
 use uuid::Uuid;
 
-use crate::command::runtime::protocol::{SessionEvent, ToolImmediateFailure, ToolImmediateSuccess};
+use crate::bus::Bus;
+use crate::command::runtime::protocol::{
+    SessionEvent, ToolExecutionContext, ToolImmediateFailure, ToolImmediateSuccess,
+};
 use crate::command::runtime::types::RuntimeSemaphores;
 use crate::llm::LlmTool;
+use crate::storage::SharedStorage;
+
+use super::tool_processor::{value_to_string, ToolProcessor};
 
 #[allow(clippy::too_many_arguments)]
 pub(super) fn spawn_tool_execution(
+    storage: SharedStorage,
+    bus: Bus,
     event_tx: mpsc::UnboundedSender<SessionEvent>,
     semaphores: RuntimeSemaphores,
-    run_id: String,
-    tool_call_id: String,
-    tool_name: String,
+    context: ToolExecutionContext,
     input: Value,
     tool: Option<LlmTool>,
     is_async: bool,
 ) {
     tokio::spawn(async move {
+        let processor = ToolProcessor::new(storage, bus);
+
         let _tool_permit = match semaphores.tool.acquire_owned().await {
             Ok(permit) => permit,
             Err(_) => {
+                let error = json!({ "error": "tool semaphore closed" });
+                if let Err(write_error) = processor.apply_error(&context, error.clone()).await {
+                    tracing::warn!(
+                        "failed to persist tool error for {}: {}",
+                        context.tool_call_id,
+                        write_error
+                    );
+                }
                 let _ = event_tx.send(SessionEvent::ToolImmediateFailure(ToolImmediateFailure {
-                    run_id,
-                    tool_call_id,
-                    error: json!({ "error": "tool semaphore closed" }),
+                    run_id: context.run_id.clone(),
+                    tool_call_id: context.tool_call_id.clone(),
+                    error: value_to_string(&error),
                 }));
                 return;
             }
@@ -33,10 +49,20 @@ pub(super) fn spawn_tool_execution(
         let execute = match tool.and_then(|tool| tool.execute.clone()) {
             Some(execute) => execute,
             None => {
+                let error = json!({
+                    "error": format!("tool not available: {}", context.tool_name)
+                });
+                if let Err(write_error) = processor.apply_error(&context, error.clone()).await {
+                    tracing::warn!(
+                        "failed to persist tool error for {}: {}",
+                        context.tool_call_id,
+                        write_error
+                    );
+                }
                 let _ = event_tx.send(SessionEvent::ToolImmediateFailure(ToolImmediateFailure {
-                    run_id,
-                    tool_call_id,
-                    error: json!({ "error": format!("tool not available: {tool_name}") }),
+                    run_id: context.run_id.clone(),
+                    tool_call_id: context.tool_call_id.clone(),
+                    error: value_to_string(&error),
                 }));
                 return;
             }
@@ -47,20 +73,36 @@ pub(super) fn spawn_tool_execution(
             let job_permit = match semaphores.jobs.acquire_owned().await {
                 Ok(permit) => permit,
                 Err(_) => {
+                    let error = json!({ "error": "async job semaphore closed" });
+                    if let Err(write_error) = processor.apply_error(&context, error.clone()).await {
+                        tracing::warn!(
+                            "failed to persist tool error for {}: {}",
+                            context.tool_call_id,
+                            write_error
+                        );
+                    }
                     let _ =
                         event_tx.send(SessionEvent::ToolImmediateFailure(ToolImmediateFailure {
-                            run_id,
-                            tool_call_id,
-                            error: json!({ "error": "async job semaphore closed" }),
+                            run_id: context.run_id.clone(),
+                            tool_call_id: context.tool_call_id.clone(),
+                            error: value_to_string(&error),
                         }));
                     return;
                 }
             };
 
+            if let Err(write_error) = processor.apply_running_metadata(&context, &job_id).await {
+                tracing::warn!(
+                    "failed to persist async running state for {}: {}",
+                    context.tool_call_id,
+                    write_error
+                );
+            }
+
             let _ = event_tx.send(SessionEvent::ToolAsyncSpawned {
-                run_id: run_id.clone(),
-                tool_call_id: tool_call_id.clone(),
-                tool_name: tool_name.clone(),
+                run_id: context.run_id.clone(),
+                tool_call_id: context.tool_call_id.clone(),
+                tool_name: context.tool_name.clone(),
                 job_id: job_id.clone(),
             });
 
@@ -70,11 +112,29 @@ pub(super) fn spawn_tool_execution(
                 let result = execute(input).await;
                 match result {
                     Ok(output) => {
-                        let _ =
-                            event_tx_job.send(SessionEvent::ToolAsyncCompleted { job_id, output });
+                        if let Err(write_error) = processor.apply_completed(&context, output).await
+                        {
+                            tracing::warn!(
+                                "failed to persist async tool completion for {}: {}",
+                                context.tool_call_id,
+                                write_error
+                            );
+                        }
+                        let _ = event_tx_job.send(SessionEvent::ToolAsyncCompleted { job_id });
                     }
                     Err(error) => {
-                        let _ = event_tx_job.send(SessionEvent::ToolAsyncFailed { job_id, error });
+                        let error_str = value_to_string(&error);
+                        if let Err(write_error) = processor.apply_error(&context, error).await {
+                            tracing::warn!(
+                                "failed to persist async tool failure for {}: {}",
+                                context.tool_call_id,
+                                write_error
+                            );
+                        }
+                        let _ = event_tx_job.send(SessionEvent::ToolAsyncFailed {
+                            job_id,
+                            error: error_str,
+                        });
                     }
                 }
             });
@@ -84,17 +144,31 @@ pub(super) fn spawn_tool_execution(
         let result = execute(input).await;
         match result {
             Ok(output) => {
+                if let Err(write_error) = processor.apply_completed(&context, output).await {
+                    tracing::warn!(
+                        "failed to persist tool completion for {}: {}",
+                        context.tool_call_id,
+                        write_error
+                    );
+                }
                 let _ = event_tx.send(SessionEvent::ToolImmediateSuccess(ToolImmediateSuccess {
-                    run_id,
-                    tool_call_id,
-                    output,
+                    run_id: context.run_id.clone(),
+                    tool_call_id: context.tool_call_id.clone(),
                 }));
             }
             Err(error) => {
+                let error_str = value_to_string(&error);
+                if let Err(write_error) = processor.apply_error(&context, error).await {
+                    tracing::warn!(
+                        "failed to persist tool failure for {}: {}",
+                        context.tool_call_id,
+                        write_error
+                    );
+                }
                 let _ = event_tx.send(SessionEvent::ToolImmediateFailure(ToolImmediateFailure {
-                    run_id,
-                    tool_call_id,
-                    error,
+                    run_id: context.run_id.clone(),
+                    tool_call_id: context.tool_call_id.clone(),
+                    error: error_str,
                 }));
             }
         }

@@ -1,13 +1,12 @@
 use std::sync::Arc;
 
-use serde_json::{json, Map};
+use serde_json::json;
 use tempfile::tempdir;
 use tokio::sync::mpsc;
 
 use super::*;
 use crate::llm::{LlmTool, LlmToolSet};
 use crate::session::SessionManager;
-use crate::utils::time::now_secs;
 
 async fn test_actor() -> (
     SessionRuntimeActor,
@@ -54,9 +53,16 @@ async fn dispatch_tool_call_emits_runtime_command() {
     actor
         .dispatch_tool_call(
             &tools,
-            "run-1".to_string(),
-            "tool-call-1".to_string(),
-            "example_tool".to_string(),
+            ToolExecutionContext {
+                session_id: "session-1".to_string(),
+                run_id: "run-1".to_string(),
+                message_id: "message-1".to_string(),
+                part_id: "part-1".to_string(),
+                tool_call_id: "tool-call-1".to_string(),
+                tool_name: "example_tool".to_string(),
+                input: serde_json::Map::new(),
+                started_at: 1,
+            },
             json!({"value": 1}),
         )
         .await;
@@ -65,11 +71,9 @@ async fn dispatch_tool_call_emits_runtime_command() {
     assert!(matches!(
         command,
         RuntimeCommand::CallTool {
-            run_id,
-            tool_call_id,
-            tool_name,
+            context,
             ..
-        } if run_id == "run-1" && tool_call_id == "tool-call-1" && tool_name == "example_tool"
+        } if context.run_id == "run-1" && context.tool_call_id == "tool-call-1" && context.tool_name == "example_tool"
     ));
 }
 
@@ -78,25 +82,10 @@ async fn cancelled_run_ignores_immediate_tool_completion() {
     let (mut actor, _command_rx, _dir) = test_actor().await;
     actor.remember_cancelled_run("run-cancelled".to_string());
 
-    actor.tool_calls.insert(
-        "tool-call-1".to_string(),
-        ToolCallRecord {
-            session_id: "session-1".to_string(),
-            run_id: "run-cancelled".to_string(),
-            message_id: "message-1".to_string(),
-            part_id: "part-1".to_string(),
-            tool_call_id: "tool-call-1".to_string(),
-            tool_name: "example_tool".to_string(),
-            input: Map::new(),
-            started_at: now_secs(),
-        },
-    );
-
     actor
         .handle_tool_immediate_success(ToolImmediateSuccess {
             run_id: "run-cancelled".to_string(),
             tool_call_id: "tool-call-1".to_string(),
-            output: json!({"ok": true}),
         })
         .await
         .expect("ignored completion");

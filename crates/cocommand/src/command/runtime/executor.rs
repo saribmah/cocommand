@@ -3,6 +3,7 @@ mod processor;
 #[cfg(test)]
 mod tests;
 mod tool;
+mod tool_processor;
 
 use std::sync::Arc;
 
@@ -50,19 +51,17 @@ pub(crate) fn spawn_runtime_executor(
                     );
                 }
                 RuntimeCommand::CallTool {
-                    run_id,
-                    tool_call_id,
-                    tool_name,
+                    context,
                     input,
                     tool,
                     is_async,
                 } => {
                     spawn_tool_execution(
+                        storage.clone(),
+                        bus.clone(),
                         event_tx.clone(),
                         semaphores.clone(),
-                        run_id,
-                        tool_call_id,
-                        tool_name,
+                        context,
                         input,
                         tool,
                         is_async,
