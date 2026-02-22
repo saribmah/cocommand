@@ -7,7 +7,7 @@ use crate::event::{CoreEvent, SessionPartUpdatedPayload};
 use crate::message::message::MessageStorage;
 use crate::message::{
     MessagePart, PartBase, ToolPart, ToolState, ToolStateCompleted, ToolStateError,
-    ToolStateRunning, ToolStateTimeCompleted, ToolStateTimeRange, ToolStateTimeStart,
+    ToolStateTimeCompleted, ToolStateTimeRange,
 };
 use crate::storage::SharedStorage;
 use crate::utils::time::now_secs;
@@ -21,37 +21,6 @@ pub(super) struct ToolProcessor {
 impl ToolProcessor {
     pub(super) fn new(storage: SharedStorage, bus: Bus) -> Self {
         Self { storage, bus }
-    }
-
-    pub(super) async fn apply_running_metadata(
-        &self,
-        context: &ToolExecutionContext,
-        job_id: &str,
-    ) -> CoreResult<()> {
-        let mut metadata = Map::new();
-        metadata.insert("job_id".to_string(), Value::String(job_id.to_string()));
-        metadata.insert("status".to_string(), Value::String("running".to_string()));
-
-        let part = ToolPart {
-            base: PartBase {
-                id: context.part_id.clone(),
-                session_id: context.session_id.clone(),
-                message_id: context.message_id.clone(),
-            },
-            call_id: context.tool_call_id.clone(),
-            tool: context.tool_name.clone(),
-            state: ToolState::Running(ToolStateRunning {
-                input: context.input.clone(),
-                title: None,
-                metadata: Some(metadata),
-                time: ToolStateTimeStart {
-                    start: context.started_at,
-                },
-            }),
-            metadata: None,
-        };
-
-        self.store_part(context, part).await
     }
 
     pub(super) async fn apply_completed(

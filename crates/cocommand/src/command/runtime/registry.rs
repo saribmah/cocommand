@@ -13,7 +13,6 @@ use crate::workspace::WorkspaceInstance;
 
 const DEFAULT_MAX_CONCURRENT_LLM: usize = 8;
 const DEFAULT_MAX_CONCURRENT_TOOLS: usize = 32;
-const DEFAULT_MAX_CONCURRENT_ASYNC_JOBS: usize = 64;
 
 #[derive(Clone)]
 pub struct SessionRuntimeRegistry {
@@ -46,10 +45,6 @@ impl SessionRuntimeRegistry {
                 tool: Arc::new(tokio::sync::Semaphore::new(read_limit(
                     "COCOMMAND_MAX_CONCURRENT_TOOLS",
                     DEFAULT_MAX_CONCURRENT_TOOLS,
-                ))),
-                jobs: Arc::new(tokio::sync::Semaphore::new(read_limit(
-                    "COCOMMAND_MAX_CONCURRENT_ASYNC_JOBS",
-                    DEFAULT_MAX_CONCURRENT_ASYNC_JOBS,
                 ))),
             },
         }

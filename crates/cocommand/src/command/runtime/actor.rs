@@ -2,7 +2,7 @@ mod helpers;
 #[cfg(test)]
 mod tests;
 
-use std::collections::{HashMap, HashSet, VecDeque};
+use std::collections::{HashSet, VecDeque};
 use std::sync::Arc;
 
 use serde_json::Value;
@@ -12,13 +12,12 @@ use uuid::Uuid;
 
 use crate::bus::Bus;
 use crate::command::runtime::protocol::{
-    RuntimeCommand, SessionEvent, ToolExecutionContext, ToolImmediateFailure, ToolImmediateSuccess,
+    RuntimeCommand, SessionEvent, ToolExecutionContext, ToolFailure, ToolSuccess,
 };
 use crate::command::runtime::types::EnqueueMessageAck;
 use crate::command::session_message::{map_input_parts, SessionCommandInputPart};
 use crate::error::{CoreError, CoreResult};
 use crate::event::{
-    BackgroundJobCompletedPayload, BackgroundJobFailedPayload, BackgroundJobStartedPayload,
     CoreEvent, SessionContextPayload, SessionMessageStartedPayload, SessionRunCancelledPayload,
     SessionRunCompletedPayload,
 };
@@ -30,9 +29,7 @@ use crate::tool::ToolRegistry;
 use crate::utils::time::now_secs;
 use crate::workspace::WorkspaceInstance;
 
-use self::helpers::{
-    input_from_tool_state, is_async_tool_name, running_input_and_start, strip_tool_execute,
-};
+use self::helpers::{input_from_tool_state, running_input_and_start, strip_tool_execute};
 
 const MAX_TRACKED_CANCELLED_RUNS: usize = 512;
 
@@ -46,7 +43,6 @@ pub(crate) struct SessionRuntimeActor {
     command_tx: mpsc::UnboundedSender<RuntimeCommand>,
     inflight: Option<RunState>,
     queued_followups: usize,
-    jobs: HashMap<String, JobInfo>,
     cancelled_runs: HashSet<String>,
     cancelled_runs_order: VecDeque<String>,
 }
@@ -56,21 +52,6 @@ struct RunState {
     assistant_message: Message,
     tools: LlmToolSet,
     cancel_token: CancellationToken,
-}
-
-struct JobInfo {
-    job_id: String,
-    tool_call_id: String,
-    tool_name: String,
-    spawned_in_run: String,
-    status: JobStatus,
-    integrated: bool,
-}
-
-enum JobStatus {
-    Running,
-    Completed,
-    Failed,
 }
 
 impl SessionRuntimeActor {
@@ -93,7 +74,6 @@ impl SessionRuntimeActor {
             command_tx,
             inflight: None,
             queued_followups: 0,
-            jobs: HashMap::new(),
             cancelled_runs: HashSet::new(),
             cancelled_runs_order: VecDeque::new(),
         }
@@ -115,27 +95,8 @@ impl SessionRuntimeActor {
                     error,
                     cancelled,
                 } => self.handle_llm_failed(&run_id, &error, cancelled).await,
-                SessionEvent::ToolImmediateSuccess(payload) => {
-                    self.handle_tool_immediate_success(payload).await
-                }
-                SessionEvent::ToolImmediateFailure(payload) => {
-                    self.handle_tool_immediate_failure(payload).await
-                }
-                SessionEvent::ToolAsyncSpawned {
-                    run_id,
-                    tool_call_id,
-                    tool_name,
-                    job_id,
-                } => {
-                    self.handle_tool_async_spawned(run_id, tool_call_id, tool_name, job_id)
-                        .await
-                }
-                SessionEvent::ToolAsyncCompleted { job_id } => {
-                    self.handle_tool_async_completed(&job_id).await
-                }
-                SessionEvent::ToolAsyncFailed { job_id, error } => {
-                    self.handle_tool_async_failed(&job_id, &error).await
-                }
+                SessionEvent::ToolSuccess(payload) => self.handle_tool_success(payload).await,
+                SessionEvent::ToolFailure(payload) => self.handle_tool_failure(payload).await,
             };
 
             if let Err(error) = result {
@@ -240,7 +201,6 @@ impl SessionRuntimeActor {
         input: Value,
     ) {
         let tool = tools.get(&context.tool_name).cloned();
-        let is_async = is_async_tool_name(&context.tool_name);
 
         if self
             .command_tx
@@ -248,129 +208,29 @@ impl SessionRuntimeActor {
                 context: context.clone(),
                 input,
                 tool,
-                is_async,
             })
             .is_err()
         {
-            let _ = self
-                .event_tx
-                .send(SessionEvent::ToolImmediateFailure(ToolImmediateFailure {
-                    run_id: context.run_id,
-                    tool_call_id: context.tool_call_id,
-                    error: "runtime executor stopped before calling tool".to_string(),
-                }));
-        }
-    }
-
-    async fn handle_tool_immediate_success(
-        &mut self,
-        payload: ToolImmediateSuccess,
-    ) -> CoreResult<()> {
-        if self.cancelled_runs.contains(&payload.run_id) {
-            return Ok(());
-        }
-        self.schedule_followup().await?;
-        Ok(())
-    }
-
-    async fn handle_tool_immediate_failure(
-        &mut self,
-        payload: ToolImmediateFailure,
-    ) -> CoreResult<()> {
-        if self.cancelled_runs.contains(&payload.run_id) {
-            return Ok(());
-        }
-        self.schedule_followup().await?;
-        Ok(())
-    }
-
-    async fn handle_tool_async_spawned(
-        &mut self,
-        run_id: String,
-        tool_call_id: String,
-        tool_name: String,
-        job_id: String,
-    ) -> CoreResult<()> {
-        self.jobs.insert(
-            job_id.clone(),
-            JobInfo {
-                job_id: job_id.clone(),
-                tool_call_id: tool_call_id.clone(),
-                tool_name: tool_name.clone(),
-                spawned_in_run: run_id.clone(),
-                status: JobStatus::Running,
-                integrated: false,
-            },
-        );
-
-        let _ = self.bus.publish(CoreEvent::BackgroundJobStarted(
-            BackgroundJobStartedPayload {
-                session_id: self.session_id.clone(),
-                run_id,
-                tool_call_id,
-                tool_name,
-                job_id,
-            },
-        ));
-
-        Ok(())
-    }
-
-    async fn handle_tool_async_completed(&mut self, job_id: &str) -> CoreResult<()> {
-        let Some(job) = self.jobs.get_mut(job_id) else {
-            return Ok(());
-        };
-        if job.integrated {
-            return Ok(());
-        }
-        job.integrated = true;
-        job.status = JobStatus::Completed;
-
-        let tool_call_id = job.tool_call_id.clone();
-        let tool_name = job.tool_name.clone();
-        let spawned_in_run = job.spawned_in_run.clone();
-        let job_id = job.job_id.clone();
-
-        let _ = self.bus.publish(CoreEvent::BackgroundJobCompleted(
-            BackgroundJobCompletedPayload {
-                session_id: self.session_id.clone(),
-                run_id: spawned_in_run,
-                tool_call_id,
-                tool_name,
-                job_id,
-            },
-        ));
-
-        self.schedule_followup().await?;
-        Ok(())
-    }
-
-    async fn handle_tool_async_failed(&mut self, job_id: &str, error: &str) -> CoreResult<()> {
-        let Some(job) = self.jobs.get_mut(job_id) else {
-            return Ok(());
-        };
-        if job.integrated {
-            return Ok(());
-        }
-        job.integrated = true;
-        job.status = JobStatus::Failed;
-
-        let tool_call_id = job.tool_call_id.clone();
-        let tool_name = job.tool_name.clone();
-        let spawned_in_run = job.spawned_in_run.clone();
-        let job_id = job.job_id.clone();
-
-        let _ = self
-            .bus
-            .publish(CoreEvent::BackgroundJobFailed(BackgroundJobFailedPayload {
-                session_id: self.session_id.clone(),
-                run_id: spawned_in_run,
-                tool_call_id,
-                tool_name,
-                job_id,
-                error: error.to_string(),
+            let _ = self.event_tx.send(SessionEvent::ToolFailure(ToolFailure {
+                run_id: context.run_id,
+                tool_call_id: context.tool_call_id,
+                error: "runtime executor stopped before calling tool".to_string(),
             }));
+        }
+    }
 
+    async fn handle_tool_success(&mut self, payload: ToolSuccess) -> CoreResult<()> {
+        if self.cancelled_runs.contains(&payload.run_id) {
+            return Ok(());
+        }
+        self.schedule_followup().await?;
+        Ok(())
+    }
+
+    async fn handle_tool_failure(&mut self, payload: ToolFailure) -> CoreResult<()> {
+        if self.cancelled_runs.contains(&payload.run_id) {
+            return Ok(());
+        }
         self.schedule_followup().await?;
         Ok(())
     }

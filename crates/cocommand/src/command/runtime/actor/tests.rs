@@ -83,7 +83,7 @@ async fn cancelled_run_ignores_immediate_tool_completion() {
     actor.remember_cancelled_run("run-cancelled".to_string());
 
     actor
-        .handle_tool_immediate_success(ToolImmediateSuccess {
+        .handle_tool_success(ToolSuccess {
             run_id: "run-cancelled".to_string(),
             tool_call_id: "tool-call-1".to_string(),
         })

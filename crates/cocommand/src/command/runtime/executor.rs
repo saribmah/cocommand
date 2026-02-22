@@ -54,7 +54,6 @@ pub(crate) fn spawn_runtime_executor(
                     context,
                     input,
                     tool,
-                    is_async,
                 } => {
                     spawn_tool_execution(
                         storage.clone(),
@@ -64,7 +63,6 @@ pub(crate) fn spawn_runtime_executor(
                         context,
                         input,
                         tool,
-                        is_async,
                     );
                 }
             }

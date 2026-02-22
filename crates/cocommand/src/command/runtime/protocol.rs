@@ -22,21 +22,8 @@ pub enum SessionEvent {
         error: String,
         cancelled: bool,
     },
-    ToolImmediateSuccess(ToolImmediateSuccess),
-    ToolImmediateFailure(ToolImmediateFailure),
-    ToolAsyncSpawned {
-        run_id: String,
-        tool_call_id: String,
-        tool_name: String,
-        job_id: String,
-    },
-    ToolAsyncCompleted {
-        job_id: String,
-    },
-    ToolAsyncFailed {
-        job_id: String,
-        error: String,
-    },
+    ToolSuccess(ToolSuccess),
+    ToolFailure(ToolFailure),
 }
 
 pub enum RuntimeCommand {
@@ -51,18 +38,17 @@ pub enum RuntimeCommand {
         context: ToolExecutionContext,
         input: Value,
         tool: Option<LlmTool>,
-        is_async: bool,
     },
 }
 
 #[derive(Debug, Clone)]
-pub struct ToolImmediateSuccess {
+pub struct ToolSuccess {
     pub run_id: String,
     pub tool_call_id: String,
 }
 
 #[derive(Debug, Clone)]
-pub struct ToolImmediateFailure {
+pub struct ToolFailure {
     pub run_id: String,
     pub tool_call_id: String,
     pub error: String,

@@ -61,7 +61,6 @@ fn test_semaphores() -> RuntimeSemaphores {
     RuntimeSemaphores {
         llm: Arc::new(Semaphore::new(2)),
         tool: Arc::new(Semaphore::new(2)),
-        jobs: Arc::new(Semaphore::new(2)),
     }
 }
 
@@ -142,7 +141,6 @@ async fn missing_tool_emits_immediate_failure() {
             },
             input: json!({"x": 1}),
             tool: None,
-            is_async: false,
         })
         .expect("send command");
 
@@ -153,7 +151,7 @@ async fn missing_tool_emits_immediate_failure() {
 
     assert!(matches!(
         event,
-        SessionEvent::ToolImmediateFailure(ref payload)
+        SessionEvent::ToolFailure(ref payload)
             if payload.run_id == "run-1" && payload.tool_call_id == "tool-call-1"
     ));
 }

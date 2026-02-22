@@ -12,5 +12,4 @@ pub struct EnqueueMessageAck {
 pub struct RuntimeSemaphores {
     pub llm: Arc<Semaphore>,
     pub tool: Arc<Semaphore>,
-    pub jobs: Arc<Semaphore>,
 }
