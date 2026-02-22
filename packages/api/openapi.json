@@ -174,14 +174,25 @@
               "agentName": {
                 "type": "string"
               },
-              "response": {
+              "runId": {
+                "type": "string"
+              },
+              "sessionId": {
+                "type": "string"
+              },
+              "status": {
+                "enum": [
+                  "queued"
+                ],
                 "type": "string"
               }
             },
             "required": [
               "agentId",
               "agentName",
-              "response"
+              "sessionId",
+              "runId",
+              "status"
             ],
             "type": "object"
           },

@@ -74,7 +74,9 @@ impl Server {
             use crate::extension::builtin::workspace::WorkspaceExtension;
             use crate::extension::Extension;
             let mut registry = workspace.extension_registry.write().await;
-            registry.register(Arc::new(AgentExtension::new(llm.clone())) as Arc<dyn Extension>);
+            registry.register(
+                Arc::new(AgentExtension::new(runtime_registry.clone())) as Arc<dyn Extension>
+            );
             registry.register(
                 Arc::new(BrowserExtension::new(browser_bridge.clone())) as Arc<dyn Extension>
             );

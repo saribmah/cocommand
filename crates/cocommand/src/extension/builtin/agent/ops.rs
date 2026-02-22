@@ -1,11 +1,11 @@
-use cocommand_llm::{LlmProvider, LlmStreamEvent, LlmToolSet};
-use tokio_stream::StreamExt;
+use std::sync::Arc;
 
+use crate::command::runtime::SessionRuntimeRegistry;
+use crate::command::session_message::{SessionCommandInputPart, SessionCommandTextPartInput};
 use crate::error::{CoreError, CoreResult};
 use crate::extension::ExtensionContext;
-use crate::llm::settings_from_workspace;
+use crate::session::SessionManager;
 use crate::storage::SharedStorage;
-use crate::tool::registry::{build_tool, sanitize_tool_name};
 use crate::utils::time::now_secs;
 
 use super::types::{Agent, AgentSummary, ExecuteAgentPayload, ListAgentsPayload};
@@ -112,77 +112,70 @@ pub async fn delete_agent(storage: &SharedStorage, id: &str) -> CoreResult<bool>
 
 pub async fn execute_agent(
     context: &ExtensionContext,
-    llm: &dyn LlmProvider,
+    runtime_registry: &SessionRuntimeRegistry,
     id: &str,
     message: &str,
 ) -> CoreResult<ExecuteAgentPayload> {
     let storage = &context.workspace.storage;
     let agent = get_agent(storage, id).await?;
+    let child_sessions = Arc::new(SessionManager::new(context.workspace.clone()));
 
-    // Build agent system prompt
-    let mut system_prompt = agent.personality.clone();
-    if !agent.memory.is_empty() {
-        system_prompt.push_str("\n\n## Memory\n\n");
-        system_prompt.push_str(&agent.memory);
-    }
-
-    // Build LLM settings from workspace config, override system prompt
-    let settings = {
-        let config = context.workspace.config.read().await;
-        let mut settings = settings_from_workspace(&config.llm);
-        settings.system_prompt = system_prompt;
-        settings
+    let allowed_extensions = {
+        let registry = context.workspace.extension_registry.read().await;
+        let mut extensions = Vec::new();
+        for extension_id in &agent.extensions {
+            if let Some(extension) = registry.get(extension_id) {
+                extensions.push((extension_id.clone(), extension));
+                continue;
+            }
+            tracing::warn!(
+                "skipping missing extension {} while executing agent {}",
+                extension_id,
+                agent.id
+            );
+        }
+        extensions
     };
 
-    let agent_llm = llm
-        .with_settings(settings)
-        .map_err(|e| CoreError::Internal(format!("failed to create agent provider: {e}")))?;
+    let child_session_id = child_sessions
+        .with_fresh_session_mut(|session| {
+            let workspace = context.workspace.clone();
+            let allowed_extensions = allowed_extensions.clone();
+            Box::pin(async move {
+                let session_id = session.session_id.clone();
+                let extension_context = ExtensionContext {
+                    workspace,
+                    session_id: session_id.clone(),
+                };
 
-    // Build constrained tool set from agent's allowed extensions
-    let mut tool_set = LlmToolSet::new();
-    {
-        let registry = context.workspace.extension_registry.read().await;
-        let ext_context = context.clone();
-        for ext_id in &agent.extensions {
-            if let Some(ext) = registry.get(ext_id) {
-                for tool in ext.tools() {
-                    let raw_name = format!("{}.{}", ext_id, tool.id);
-                    let tool_name = sanitize_tool_name(&raw_name);
-                    let built = build_tool(tool, ext_context.clone());
-                    tool_set.insert(tool_name, built);
+                for (extension_id, extension) in &allowed_extensions {
+                    extension.activate(&extension_context).await?;
+                    session.activate_extension(extension_id);
                 }
-            }
-        }
-    }
 
-    // Build user message
-    let user_message = cocommand_llm::Message::from_text("agent", "user", message);
-    let messages = vec![user_message];
+                Ok(session_id)
+            })
+        })
+        .await?;
 
-    let stream = agent_llm
-        .stream(&messages, tool_set)
-        .await
-        .map_err(|e| CoreError::Internal(format!("agent execution failed: {e}")))?;
+    let runtime = runtime_registry
+        .spawn_with_session_manager(child_session_id.clone(), child_sessions)
+        .await;
 
-    // Consume stream, collecting text deltas
-    let mut response = String::new();
-    let mut pinned_stream = stream;
-    while let Some(part) = pinned_stream.next().await {
-        match part {
-            LlmStreamEvent::TextDelta { text, .. } => {
-                response.push_str(&text);
-            }
-            LlmStreamEvent::Error { error } => {
-                return Err(CoreError::Internal(format!("agent stream error: {error}")));
-            }
-            _ => {}
-        }
-    }
+    let ack = runtime
+        .enqueue_user_message(vec![SessionCommandInputPart::Text(
+            SessionCommandTextPartInput {
+                text: message.to_string(),
+            },
+        )])
+        .await?;
 
     Ok(ExecuteAgentPayload {
         agent_id: agent.id,
         agent_name: agent.name,
-        response,
+        session_id: child_session_id,
+        run_id: ack.run_id,
+        status: "queued".to_string(),
     })
 }
 
@@ -223,5 +216,185 @@ async fn ensure_unique_id(storage: &SharedStorage, base_id: &str) -> CoreResult<
             return Ok(candidate);
         }
         suffix += 1;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use async_trait::async_trait;
+    use futures_util::stream;
+    use serde_json::json;
+    use tempfile::tempdir;
+
+    use super::*;
+    use crate::bus::Bus;
+    use crate::command::runtime::SessionRuntimeRegistry;
+    use crate::llm::{
+        LlmError, LlmProvider, LlmSettings, LlmStream, LlmStreamEvent, LlmStreamOptions,
+    };
+    use crate::message::{Message, MessagePart};
+    use crate::session::SessionManager;
+    use crate::workspace::WorkspaceInstance;
+
+    #[derive(Clone)]
+    struct FakeLlmProvider;
+
+    #[async_trait]
+    impl LlmProvider for FakeLlmProvider {
+        async fn stream(
+            &self,
+            _messages: &[Message],
+            _tools: crate::llm::LlmToolSet,
+        ) -> Result<LlmStream, LlmError> {
+            self.stream_with_options(
+                &[],
+                crate::llm::LlmToolSet::new(),
+                LlmStreamOptions::default(),
+            )
+            .await
+        }
+
+        async fn stream_with_options(
+            &self,
+            _messages: &[Message],
+            _tools: crate::llm::LlmToolSet,
+            _options: LlmStreamOptions,
+        ) -> Result<LlmStream, LlmError> {
+            Ok(Box::pin(stream::iter(vec![LlmStreamEvent::Finish])))
+        }
+
+        async fn update_settings(&self, _settings: LlmSettings) -> Result<(), LlmError> {
+            Ok(())
+        }
+
+        fn with_settings(&self, _settings: LlmSettings) -> Result<Box<dyn LlmProvider>, LlmError> {
+            Ok(Box::new(self.clone()))
+        }
+    }
+
+    #[tokio::test]
+    async fn execute_agent_returns_queued_ack_and_enqueues_message() {
+        let dir = tempdir().expect("tempdir");
+        let workspace = Arc::new(WorkspaceInstance::new(dir.path()).await.expect("workspace"));
+
+        let agent = create_agent(
+            &workspace.storage,
+            "Queue Agent".to_string(),
+            Some("description".to_string()),
+            "personality".to_string(),
+            Some("memory".to_string()),
+            None,
+        )
+        .await
+        .expect("create agent");
+
+        let runtime_registry = SessionRuntimeRegistry::new(
+            workspace.as_ref().clone(),
+            Arc::new(SessionManager::new(workspace.clone())),
+            Arc::new(FakeLlmProvider),
+            Bus::new(64),
+        );
+
+        let payload = execute_agent(
+            &ExtensionContext {
+                workspace: workspace.clone(),
+                session_id: "parent-session".to_string(),
+            },
+            &runtime_registry,
+            &agent.id,
+            "child task input",
+        )
+        .await
+        .expect("execute agent");
+
+        assert_eq!(payload.agent_id, agent.id);
+        assert_eq!(payload.agent_name, agent.name);
+        assert_eq!(payload.status, "queued");
+        assert!(!payload.session_id.is_empty());
+        assert!(!payload.run_id.is_empty());
+
+        let messages =
+            crate::message::message::MessageStorage::load(&workspace.storage, &payload.session_id)
+                .await
+                .expect("load child messages");
+        let user_message = messages
+            .iter()
+            .find(|message| message.info.role == "user")
+            .expect("user message");
+        assert!(user_message.parts.iter().any(|part| matches!(
+            part,
+            MessagePart::Text(text) if text.text == "child task input"
+        )));
+    }
+
+    #[tokio::test]
+    async fn execute_agent_skips_missing_extensions() {
+        let dir = tempdir().expect("tempdir");
+        let workspace = Arc::new(WorkspaceInstance::new(dir.path()).await.expect("workspace"));
+
+        let agent = create_agent(
+            &workspace.storage,
+            "Missing Extension Agent".to_string(),
+            None,
+            "personality".to_string(),
+            None,
+            Some(vec!["not-installed".to_string()]),
+        )
+        .await
+        .expect("create agent");
+
+        let runtime_registry = SessionRuntimeRegistry::new(
+            workspace.as_ref().clone(),
+            Arc::new(SessionManager::new(workspace.clone())),
+            Arc::new(FakeLlmProvider),
+            Bus::new(64),
+        );
+
+        let payload = execute_agent(
+            &ExtensionContext {
+                workspace: workspace.clone(),
+                session_id: "parent-session".to_string(),
+            },
+            &runtime_registry,
+            &agent.id,
+            "run anyway",
+        )
+        .await
+        .expect("execute agent");
+
+        assert_eq!(payload.status, "queued");
+        let messages =
+            crate::message::message::MessageStorage::load(&workspace.storage, &payload.session_id)
+                .await
+                .expect("load child messages");
+        assert!(messages.iter().any(|message| message.info.role == "user"));
+    }
+
+    #[test]
+    fn slugify_generates_expected_ids() {
+        assert_eq!(slugify("My Agent"), "my-agent");
+        assert_eq!(slugify("  ???  "), "agent");
+        assert_eq!(slugify("a___b"), "a-b");
+    }
+
+    #[tokio::test]
+    async fn ensure_unique_id_appends_suffix_when_needed() {
+        let dir = tempdir().expect("tempdir");
+        let workspace = WorkspaceInstance::new(dir.path()).await.expect("workspace");
+        let storage = workspace.storage;
+        storage
+            .write(&[STORAGE_NAMESPACE, "agent"], &json!({"id": "agent"}))
+            .await
+            .expect("seed");
+        storage
+            .write(&[STORAGE_NAMESPACE, "agent-1"], &json!({"id": "agent-1"}))
+            .await
+            .expect("seed");
+        let id = ensure_unique_id(&storage, "agent")
+            .await
+            .expect("unique id");
+        assert_eq!(id, "agent-2");
     }
 }

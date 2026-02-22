@@ -49,5 +49,7 @@ pub struct ListAgentsPayload {
 pub struct ExecuteAgentPayload {
     pub agent_id: String,
     pub agent_name: String,
-    pub response: String,
+    pub session_id: String,
+    pub run_id: String,
+    pub status: String,
 }

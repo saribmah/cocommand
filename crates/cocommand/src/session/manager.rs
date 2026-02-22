@@ -55,6 +55,26 @@ impl SessionManager {
         handler(session).await
     }
 
+    pub async fn with_fresh_session_mut<F, R>(&self, handler: F) -> CoreResult<R>
+    where
+        for<'a> F:
+            FnOnce(&'a mut Session) -> Pin<Box<dyn Future<Output = CoreResult<R>> + Send + 'a>>,
+    {
+        let mut guard = self.active.lock().await;
+
+        if let Some(mut existing) = guard.take() {
+            existing.destroy().await?;
+        }
+
+        let session = Session::new(self.workspace.clone()).await?;
+        *guard = Some(session);
+
+        let session = guard
+            .as_mut()
+            .ok_or_else(|| CoreError::Internal("failed to initialize session".to_string()))?;
+        handler(session).await
+    }
+
     async fn load_latest_session(&self, now: u64, duration: u64) -> CoreResult<Option<Session>> {
         let storage = self.workspace.storage.clone();
         let workspace_id = {

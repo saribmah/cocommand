@@ -56,6 +56,24 @@ impl SessionRuntimeRegistry {
     }
 
     pub async fn get_or_create(&self, session_id: &str) -> SessionRuntimeHandle {
+        self.get_or_create_with_sessions(session_id, self.sessions.clone())
+            .await
+    }
+
+    pub async fn spawn_with_session_manager(
+        &self,
+        session_id: String,
+        sessions: Arc<SessionManager>,
+    ) -> SessionRuntimeHandle {
+        self.get_or_create_with_sessions(&session_id, sessions)
+            .await
+    }
+
+    async fn get_or_create_with_sessions(
+        &self,
+        session_id: &str,
+        sessions: Arc<SessionManager>,
+    ) -> SessionRuntimeHandle {
         let mut runtimes = self.runtimes.lock().await;
         if let Some(existing) = runtimes.get(session_id) {
             if !existing.is_closed() {
@@ -67,7 +85,7 @@ impl SessionRuntimeRegistry {
         let handle = spawn_session_runtime(
             session_id.to_string(),
             self.workspace.clone(),
-            self.sessions.clone(),
+            sessions,
             self.llm.clone(),
             self.bus.clone(),
             self.semaphores.clone(),

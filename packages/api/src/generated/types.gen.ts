@@ -61,7 +61,9 @@ export type AgentExecuteAgentOutput = {
     output: {
         agentId: string;
         agentName: string;
-        response: string;
+        runId: string;
+        sessionId: string;
+        status: 'queued';
     };
     title: string;
 };

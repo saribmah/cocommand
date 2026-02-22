@@ -19,8 +19,8 @@ pub(super) fn strip_tool_execute(tools: &LlmToolSet) -> LlmToolSet {
         .collect()
 }
 
-pub(super) fn is_async_tool_name(name: &str) -> bool {
-    name == "subagent_run" || name == "agent_execute-agent"
+pub(super) fn is_async_tool_name(_name: &str) -> bool {
+    false
 }
 
 pub(super) fn running_input_and_start(
@@ -41,5 +41,16 @@ pub(super) fn input_from_tool_state(state: &ToolState) -> Map<String, Value> {
         ToolState::Running(state) => state.input.clone(),
         ToolState::Completed(state) => state.input.clone(),
         ToolState::Error(state) => state.input.clone(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_async_tool_name;
+
+    #[test]
+    fn execute_agent_aliases_are_not_async_tools() {
+        assert!(!is_async_tool_name("agent_execute-agent"));
+        assert!(!is_async_tool_name("subagent_run"));
     }
 }

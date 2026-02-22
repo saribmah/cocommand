@@ -179,9 +179,11 @@
         "properties": {
           "agentId": { "type": "string" },
           "agentName": { "type": "string" },
-          "response": { "type": "string" }
+          "sessionId": { "type": "string" },
+          "runId": { "type": "string" },
+          "status": { "type": "string", "enum": ["queued"] }
         },
-        "required": ["agentId", "agentName", "response"],
+        "required": ["agentId", "agentName", "sessionId", "runId", "status"],
         "additionalProperties": false
       }
     }
