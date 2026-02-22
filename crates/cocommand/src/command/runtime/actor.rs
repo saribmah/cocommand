@@ -1,16 +1,16 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::Arc;
 
 use serde_json::{Map, Value};
 use tokio::sync::{mpsc, oneshot};
-use tokio_stream::StreamExt;
 use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
 use crate::bus::Bus;
 use crate::command::processor::{StorePartContext, StreamProcessor};
-use crate::command::runtime::tool_worker::{
-    spawn_tool_execution, ToolImmediateFailure, ToolImmediateSuccess,
+use crate::command::runtime::executor::spawn_runtime_executor;
+use crate::command::runtime::protocol::{
+    RuntimeCommand, SessionEvent, ToolImmediateFailure, ToolImmediateSuccess,
 };
 use crate::command::runtime::types::{EnqueueMessageAck, RuntimeSemaphores};
 use crate::command::session_message::{map_input_parts, SessionCommandInputPart};
@@ -20,7 +20,7 @@ use crate::event::{
     CoreEvent, SessionContextPayload, SessionMessageStartedPayload, SessionPartUpdatedPayload,
     SessionRunCancelledPayload, SessionRunCompletedPayload,
 };
-use crate::llm::{LlmProvider, LlmStreamEvent, LlmStreamOptions, LlmTool, LlmToolSet};
+use crate::llm::{LlmProvider, LlmStreamEvent, LlmTool, LlmToolSet};
 use crate::message::message::MessageStorage;
 use crate::message::{
     Message, PartBase, ToolPart, ToolState, ToolStateCompleted, ToolStateError, ToolStateRunning,
@@ -31,10 +31,12 @@ use crate::tool::ToolRegistry;
 use crate::utils::time::now_secs;
 use crate::workspace::WorkspaceInstance;
 
+const MAX_TRACKED_CANCELLED_RUNS: usize = 512;
+
 #[derive(Clone)]
 pub struct SessionRuntimeHandle {
     session_id: String,
-    tx: mpsc::UnboundedSender<ActorCommand>,
+    event_tx: mpsc::UnboundedSender<SessionEvent>,
 }
 
 impl SessionRuntimeHandle {
@@ -43,7 +45,7 @@ impl SessionRuntimeHandle {
     }
 
     pub fn is_closed(&self) -> bool {
-        self.tx.is_closed()
+        self.event_tx.is_closed()
     }
 
     pub async fn enqueue_user_message(
@@ -51,8 +53,8 @@ impl SessionRuntimeHandle {
         parts: Vec<SessionCommandInputPart>,
     ) -> CoreResult<EnqueueMessageAck> {
         let (reply_tx, reply_rx) = oneshot::channel();
-        self.tx
-            .send(ActorCommand::UserMessage {
+        self.event_tx
+            .send(SessionEvent::UserMessage {
                 parts,
                 reply: reply_tx,
             })
@@ -71,71 +73,45 @@ pub fn spawn_session_runtime(
     bus: Bus,
     semaphores: RuntimeSemaphores,
 ) -> SessionRuntimeHandle {
-    let (tx, rx) = mpsc::unbounded_channel();
+    let (event_tx, event_rx) = mpsc::unbounded_channel();
+    let (command_tx, command_rx) = mpsc::unbounded_channel();
+
+    spawn_runtime_executor(llm, semaphores, command_rx, event_tx.clone());
+
     let actor = SessionRuntimeActor::new(
         session_id.clone(),
         workspace,
         sessions,
-        llm,
         bus,
-        semaphores,
-        tx.clone(),
-        rx,
+        event_tx.clone(),
+        event_rx,
+        command_tx,
     );
+
     tokio::spawn(async move {
         actor.run().await;
     });
-    SessionRuntimeHandle { session_id, tx }
-}
 
-pub(crate) enum ActorCommand {
-    UserMessage {
-        parts: Vec<SessionCommandInputPart>,
-        reply: oneshot::Sender<CoreResult<EnqueueMessageAck>>,
-    },
-    LlmStreamPart {
-        run_id: String,
-        part: LlmStreamEvent,
-    },
-    LlmFinished {
-        run_id: String,
-    },
-    LlmFailed {
-        run_id: String,
-        error: String,
-        cancelled: bool,
-    },
-    ToolImmediateSuccess(ToolImmediateSuccess),
-    ToolImmediateFailure(ToolImmediateFailure),
-    ToolAsyncSpawned {
-        run_id: String,
-        tool_call_id: String,
-        tool_name: String,
-        job_id: String,
-    },
-    ToolAsyncCompleted {
-        job_id: String,
-        output: Value,
-    },
-    ToolAsyncFailed {
-        job_id: String,
-        error: Value,
-    },
+    SessionRuntimeHandle {
+        session_id,
+        event_tx,
+    }
 }
 
 struct SessionRuntimeActor {
     session_id: String,
     workspace: WorkspaceInstance,
     sessions: Arc<SessionManager>,
-    llm: Arc<dyn LlmProvider>,
     bus: Bus,
-    semaphores: RuntimeSemaphores,
-    tx: mpsc::UnboundedSender<ActorCommand>,
-    rx: mpsc::UnboundedReceiver<ActorCommand>,
+    event_tx: mpsc::UnboundedSender<SessionEvent>,
+    event_rx: mpsc::UnboundedReceiver<SessionEvent>,
+    command_tx: mpsc::UnboundedSender<RuntimeCommand>,
     inflight: Option<RunState>,
     queued_followups: usize,
     tool_calls: HashMap<String, ToolCallRecord>,
     jobs: HashMap<String, JobInfo>,
+    cancelled_runs: HashSet<String>,
+    cancelled_runs_order: VecDeque<String>,
 }
 
 struct RunState {
@@ -178,52 +154,52 @@ impl SessionRuntimeActor {
         session_id: String,
         workspace: WorkspaceInstance,
         sessions: Arc<SessionManager>,
-        llm: Arc<dyn LlmProvider>,
         bus: Bus,
-        semaphores: RuntimeSemaphores,
-        tx: mpsc::UnboundedSender<ActorCommand>,
-        rx: mpsc::UnboundedReceiver<ActorCommand>,
+        event_tx: mpsc::UnboundedSender<SessionEvent>,
+        event_rx: mpsc::UnboundedReceiver<SessionEvent>,
+        command_tx: mpsc::UnboundedSender<RuntimeCommand>,
     ) -> Self {
         Self {
             session_id,
             workspace,
             sessions,
-            llm,
             bus,
-            semaphores,
-            tx,
-            rx,
+            event_tx,
+            event_rx,
+            command_tx,
             inflight: None,
             queued_followups: 0,
             tool_calls: HashMap::new(),
             jobs: HashMap::new(),
+            cancelled_runs: HashSet::new(),
+            cancelled_runs_order: VecDeque::new(),
         }
     }
 
     async fn run(mut self) {
-        while let Some(command) = self.rx.recv().await {
-            let result = match command {
-                ActorCommand::UserMessage { parts, reply } => {
+        while let Some(event) = self.event_rx.recv().await {
+            let result = match event {
+                SessionEvent::UserMessage { parts, reply } => {
                     let result = self.handle_user_message(parts).await;
                     let _ = reply.send(result);
                     Ok(())
                 }
-                ActorCommand::LlmStreamPart { run_id, part } => {
+                SessionEvent::LlmStreamPart { run_id, part } => {
                     self.handle_llm_stream_part(&run_id, part).await
                 }
-                ActorCommand::LlmFinished { run_id } => self.handle_llm_finished(&run_id).await,
-                ActorCommand::LlmFailed {
+                SessionEvent::LlmFinished { run_id } => self.handle_llm_finished(&run_id).await,
+                SessionEvent::LlmFailed {
                     run_id,
                     error,
                     cancelled,
                 } => self.handle_llm_failed(&run_id, &error, cancelled).await,
-                ActorCommand::ToolImmediateSuccess(payload) => {
+                SessionEvent::ToolImmediateSuccess(payload) => {
                     self.handle_tool_immediate_success(payload).await
                 }
-                ActorCommand::ToolImmediateFailure(payload) => {
+                SessionEvent::ToolImmediateFailure(payload) => {
                     self.handle_tool_immediate_failure(payload).await
                 }
-                ActorCommand::ToolAsyncSpawned {
+                SessionEvent::ToolAsyncSpawned {
                     run_id,
                     tool_call_id,
                     tool_name,
@@ -232,17 +208,17 @@ impl SessionRuntimeActor {
                     self.handle_tool_async_spawned(run_id, tool_call_id, tool_name, job_id)
                         .await
                 }
-                ActorCommand::ToolAsyncCompleted { job_id, output } => {
+                SessionEvent::ToolAsyncCompleted { job_id, output } => {
                     self.handle_tool_async_completed(&job_id, output).await
                 }
-                ActorCommand::ToolAsyncFailed { job_id, error } => {
+                SessionEvent::ToolAsyncFailed { job_id, error } => {
                     self.handle_tool_async_failed(&job_id, error).await
                 }
             };
 
             if let Err(error) = result {
                 tracing::warn!(
-                    "session runtime actor {} command failed: {}",
+                    "session runtime actor {} event handling failed: {}",
                     self.session_id,
                     error
                 );
@@ -272,7 +248,7 @@ impl SessionRuntimeActor {
     async fn start_run(
         &mut self,
         user_message: Option<Message>,
-        trigger: Trigger,
+        _trigger: Trigger,
     ) -> CoreResult<String> {
         if self.inflight.is_some() {
             return Err(CoreError::Internal(
@@ -307,13 +283,22 @@ impl SessionRuntimeActor {
         let tools = self.build_tools().await?;
         let llm_tools = strip_tool_execute(&tools);
         let cancel_token = CancellationToken::new();
-        self.spawn_llm_worker(
-            run_id.clone(),
-            messages,
-            llm_tools,
-            cancel_token.clone(),
-            trigger,
-        );
+
+        self.command_tx
+            .send(RuntimeCommand::CallLlm {
+                run_id: run_id.clone(),
+                messages,
+                tools: llm_tools,
+                cancel_token: cancel_token.clone(),
+            })
+            .map_err(|_| {
+                let _ = self.event_tx.send(SessionEvent::LlmFailed {
+                    run_id: run_id.clone(),
+                    error: "runtime executor stopped".to_string(),
+                    cancelled: false,
+                });
+                CoreError::Internal("runtime executor stopped".to_string())
+            })?;
 
         self.inflight = Some(RunState {
             run_id: run_id.clone(),
@@ -324,63 +309,6 @@ impl SessionRuntimeActor {
         });
 
         Ok(run_id)
-    }
-
-    fn spawn_llm_worker(
-        &self,
-        run_id: String,
-        messages: Vec<Message>,
-        tools: LlmToolSet,
-        cancel_token: CancellationToken,
-        _trigger: Trigger,
-    ) {
-        let tx = self.tx.clone();
-        let llm = self.llm.clone();
-        let llm_permits = self.semaphores.llm.clone();
-
-        tokio::spawn(async move {
-            let _permit = match llm_permits.acquire_owned().await {
-                Ok(permit) => permit,
-                Err(_) => return,
-            };
-
-            let stream = llm
-                .stream_with_options(
-                    &messages,
-                    tools,
-                    LlmStreamOptions {
-                        max_steps: Some(1),
-                        abort_signal: Some(cancel_token.clone()),
-                    },
-                )
-                .await;
-
-            let mut stream = match stream {
-                Ok(stream) => stream,
-                Err(error) => {
-                    let _ = tx.send(ActorCommand::LlmFailed {
-                        run_id,
-                        error: error.to_string(),
-                        cancelled: cancel_token.is_cancelled(),
-                    });
-                    return;
-                }
-            };
-
-            while let Some(part) = stream.next().await {
-                if tx
-                    .send(ActorCommand::LlmStreamPart {
-                        run_id: run_id.clone(),
-                        part,
-                    })
-                    .is_err()
-                {
-                    return;
-                }
-            }
-
-            let _ = tx.send(ActorCommand::LlmFinished { run_id });
-        });
     }
 
     async fn handle_llm_stream_part(
@@ -449,22 +377,39 @@ impl SessionRuntimeActor {
 
         let tool = run.tools.get(&tool_name).cloned();
         let is_async = is_async_tool_name(&tool_name);
-        spawn_tool_execution(
-            self.tx.clone(),
-            self.semaphores.clone(),
-            run_id,
-            tool_call_id,
-            tool_name,
-            input,
-            tool,
-            is_async,
-        );
+
+        if self
+            .command_tx
+            .send(RuntimeCommand::CallTool {
+                run_id,
+                tool_call_id: tool_call_id.clone(),
+                tool_name: tool_name.clone(),
+                input,
+                tool,
+                is_async,
+            })
+            .is_err()
+        {
+            let _ = self
+                .event_tx
+                .send(SessionEvent::ToolImmediateFailure(ToolImmediateFailure {
+                    run_id: run.run_id.clone(),
+                    tool_call_id,
+                    error: serde_json::json!({
+                        "error": format!("runtime executor stopped before calling tool {tool_name}")
+                    }),
+                }));
+        }
     }
 
     async fn handle_tool_immediate_success(
         &mut self,
         payload: ToolImmediateSuccess,
     ) -> CoreResult<()> {
+        if self.cancelled_runs.contains(&payload.run_id) {
+            return Ok(());
+        }
+
         let Some(record) = self.tool_calls.get(&payload.tool_call_id).cloned() else {
             return Ok(());
         };
@@ -481,6 +426,10 @@ impl SessionRuntimeActor {
         &mut self,
         payload: ToolImmediateFailure,
     ) -> CoreResult<()> {
+        if self.cancelled_runs.contains(&payload.run_id) {
+            return Ok(());
+        }
+
         let Some(record) = self.tool_calls.get(&payload.tool_call_id).cloned() else {
             return Ok(());
         };
@@ -676,6 +625,7 @@ impl SessionRuntimeActor {
         let Some(run) = self.inflight.take() else {
             return;
         };
+        self.remember_cancelled_run(run.run_id.clone());
         run.cancel_token.cancel();
         let _ = self
             .bus
@@ -684,6 +634,19 @@ impl SessionRuntimeActor {
                 run_id: run.run_id,
                 reason: reason.to_string(),
             }));
+    }
+
+    fn remember_cancelled_run(&mut self, run_id: String) {
+        if !self.cancelled_runs.insert(run_id.clone()) {
+            return;
+        }
+
+        self.cancelled_runs_order.push_back(run_id);
+        while self.cancelled_runs_order.len() > MAX_TRACKED_CANCELLED_RUNS {
+            if let Some(evicted) = self.cancelled_runs_order.pop_front() {
+                self.cancelled_runs.remove(&evicted);
+            }
+        }
     }
 
     async fn build_tools(&self) -> CoreResult<LlmToolSet> {
@@ -890,5 +853,119 @@ fn value_to_string(value: &Value) -> String {
     match value {
         Value::String(text) => text.clone(),
         other => serde_json::to_string(other).unwrap_or_else(|_| "null".to_string()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use serde_json::json;
+    use tempfile::tempdir;
+    use tokio::sync::mpsc;
+
+    use super::*;
+    use crate::session::SessionManager;
+
+    async fn test_actor() -> (
+        SessionRuntimeActor,
+        mpsc::UnboundedReceiver<RuntimeCommand>,
+        tempfile::TempDir,
+    ) {
+        let dir = tempdir().expect("tempdir");
+        let workspace = WorkspaceInstance::new(dir.path()).await.expect("workspace");
+        let workspace_arc = Arc::new(workspace.clone());
+        let sessions = Arc::new(SessionManager::new(workspace_arc));
+        let bus = Bus::new(32);
+
+        let (event_tx, event_rx) = mpsc::unbounded_channel();
+        let (command_tx, command_rx) = mpsc::unbounded_channel();
+
+        (
+            SessionRuntimeActor::new(
+                "session-1".to_string(),
+                workspace,
+                sessions,
+                bus,
+                event_tx,
+                event_rx,
+                command_tx,
+            ),
+            command_rx,
+            dir,
+        )
+    }
+
+    #[tokio::test]
+    async fn dispatch_tool_call_emits_runtime_command() {
+        let (mut actor, mut command_rx, _dir) = test_actor().await;
+        let mut tools = LlmToolSet::new();
+        tools.insert(
+            "example_tool".to_string(),
+            LlmTool {
+                description: Some("tool".to_string()),
+                input_schema: json!({"type": "object"}),
+                execute: None,
+            },
+        );
+
+        actor.inflight = Some(RunState {
+            run_id: "run-1".to_string(),
+            assistant_message: Message::from_parts("session-1", "assistant", Vec::new()),
+            processor: StreamProcessor::new(),
+            tools,
+            cancel_token: CancellationToken::new(),
+        });
+
+        actor
+            .dispatch_tool_call(
+                "run-1".to_string(),
+                "tool-call-1".to_string(),
+                "example_tool".to_string(),
+                json!({"value": 1}),
+            )
+            .await;
+
+        let command = command_rx.recv().await.expect("runtime command");
+        assert!(matches!(
+            command,
+            RuntimeCommand::CallTool {
+                run_id,
+                tool_call_id,
+                tool_name,
+                ..
+            } if run_id == "run-1" && tool_call_id == "tool-call-1" && tool_name == "example_tool"
+        ));
+    }
+
+    #[tokio::test]
+    async fn cancelled_run_ignores_immediate_tool_completion() {
+        let (mut actor, _command_rx, _dir) = test_actor().await;
+        actor.remember_cancelled_run("run-cancelled".to_string());
+
+        actor.tool_calls.insert(
+            "tool-call-1".to_string(),
+            ToolCallRecord {
+                session_id: "session-1".to_string(),
+                run_id: "run-cancelled".to_string(),
+                message_id: "message-1".to_string(),
+                part_id: "part-1".to_string(),
+                tool_call_id: "tool-call-1".to_string(),
+                tool_name: "example_tool".to_string(),
+                input: Map::new(),
+                started_at: now_secs(),
+            },
+        );
+
+        actor
+            .handle_tool_immediate_success(ToolImmediateSuccess {
+                run_id: "run-cancelled".to_string(),
+                tool_call_id: "tool-call-1".to_string(),
+                output: json!({"ok": true}),
+            })
+            .await
+            .expect("ignored completion");
+
+        assert_eq!(actor.queued_followups, 0);
     }
 }
