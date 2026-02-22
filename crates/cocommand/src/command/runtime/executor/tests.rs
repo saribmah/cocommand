@@ -9,7 +9,7 @@ use tokio::time::{timeout, Duration};
 
 use super::*;
 use crate::bus::Bus;
-use crate::command::runtime::protocol::ToolExecutionContext;
+use crate::command::runtime::protocol::{ToolBatchCall, ToolExecutionContext};
 use crate::llm::{LlmError, LlmProvider, LlmSettings, LlmStream, LlmStreamEvent, LlmStreamOptions};
 use crate::message::message::MessageStorage;
 use crate::workspace::WorkspaceInstance;
@@ -128,19 +128,22 @@ async fn missing_tool_emits_immediate_failure() {
     );
 
     command_tx
-        .send(RuntimeCommand::CallTool {
-            context: ToolExecutionContext {
-                session_id: "session-1".to_string(),
-                run_id: "run-1".to_string(),
-                message_id: "message-1".to_string(),
-                part_id: "part-1".to_string(),
-                tool_call_id: "tool-call-1".to_string(),
-                tool_name: "missing_tool".to_string(),
-                input: serde_json::Map::new(),
-                started_at: 1,
-            },
-            input: json!({"x": 1}),
-            tool: None,
+        .send(RuntimeCommand::CallToolBatch {
+            run_id: "run-1".to_string(),
+            calls: vec![ToolBatchCall {
+                context: ToolExecutionContext {
+                    session_id: "session-1".to_string(),
+                    run_id: "run-1".to_string(),
+                    message_id: "message-1".to_string(),
+                    part_id: "part-1".to_string(),
+                    tool_call_id: "tool-call-1".to_string(),
+                    tool_name: "missing_tool".to_string(),
+                    input: serde_json::Map::new(),
+                    started_at: 1,
+                },
+                input: json!({"x": 1}),
+                tool: None,
+            }],
         })
         .expect("send command");
 
@@ -151,7 +154,10 @@ async fn missing_tool_emits_immediate_failure() {
 
     assert!(matches!(
         event,
-        SessionEvent::ToolFailure(ref payload)
-            if payload.run_id == "run-1" && payload.tool_call_id == "tool-call-1"
+        SessionEvent::ToolBatchFinished { ref run_id, ref results }
+            if run_id == "run-1"
+                && results.len() == 1
+                && results[0].tool_call_id == "tool-call-1"
+                && !results[0].success
     ));
 }

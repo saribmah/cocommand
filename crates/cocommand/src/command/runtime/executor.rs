@@ -10,7 +10,7 @@ use std::sync::Arc;
 use tokio::sync::mpsc;
 
 use self::llm::spawn_llm_execution;
-use self::tool::spawn_tool_execution;
+use self::tool::spawn_tool_batch_execution;
 use crate::bus::Bus;
 use crate::command::runtime::protocol::{RuntimeCommand, SessionEvent};
 use crate::command::runtime::types::RuntimeSemaphores;
@@ -50,19 +50,14 @@ pub(crate) fn spawn_runtime_executor(
                         cancel_token,
                     );
                 }
-                RuntimeCommand::CallTool {
-                    context,
-                    input,
-                    tool,
-                } => {
-                    spawn_tool_execution(
+                RuntimeCommand::CallToolBatch { run_id, calls } => {
+                    spawn_tool_batch_execution(
                         storage.clone(),
                         bus.clone(),
                         event_tx.clone(),
                         semaphores.clone(),
-                        context,
-                        input,
-                        tool,
+                        run_id,
+                        calls,
                     );
                 }
             }

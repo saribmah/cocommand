@@ -22,8 +22,10 @@ pub enum SessionEvent {
         error: String,
         cancelled: bool,
     },
-    ToolSuccess(ToolSuccess),
-    ToolFailure(ToolFailure),
+    ToolBatchFinished {
+        run_id: String,
+        results: Vec<ToolBatchResult>,
+    },
 }
 
 pub enum RuntimeCommand {
@@ -34,24 +36,24 @@ pub enum RuntimeCommand {
         tools: LlmToolSet,
         cancel_token: CancellationToken,
     },
-    CallTool {
-        context: ToolExecutionContext,
-        input: Value,
-        tool: Option<LlmTool>,
+    CallToolBatch {
+        run_id: String,
+        calls: Vec<ToolBatchCall>,
     },
 }
 
-#[derive(Debug, Clone)]
-pub struct ToolSuccess {
-    pub run_id: String,
-    pub tool_call_id: String,
+#[derive(Clone)]
+pub struct ToolBatchCall {
+    pub context: ToolExecutionContext,
+    pub input: Value,
+    pub tool: Option<LlmTool>,
 }
 
 #[derive(Debug, Clone)]
-pub struct ToolFailure {
-    pub run_id: String,
+pub struct ToolBatchResult {
     pub tool_call_id: String,
-    pub error: String,
+    pub success: bool,
+    pub error: Option<String>,
 }
 
 #[derive(Debug, Clone)]

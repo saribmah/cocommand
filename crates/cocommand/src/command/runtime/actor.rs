@@ -2,7 +2,7 @@ mod helpers;
 #[cfg(test)]
 mod tests;
 
-use std::collections::{HashSet, VecDeque};
+use std::collections::VecDeque;
 use std::sync::Arc;
 
 use serde_json::Value;
@@ -12,7 +12,7 @@ use uuid::Uuid;
 
 use crate::bus::Bus;
 use crate::command::runtime::protocol::{
-    RuntimeCommand, SessionEvent, ToolExecutionContext, ToolFailure, ToolSuccess,
+    RuntimeCommand, SessionEvent, ToolBatchCall, ToolBatchResult, ToolExecutionContext,
 };
 use crate::command::runtime::types::EnqueueMessageAck;
 use crate::command::session_message::{map_input_parts, SessionCommandInputPart};
@@ -31,8 +31,6 @@ use crate::workspace::WorkspaceInstance;
 
 use self::helpers::{input_from_tool_state, running_input_and_start, strip_tool_execute};
 
-const MAX_TRACKED_CANCELLED_RUNS: usize = 512;
-
 pub(crate) struct SessionRuntimeActor {
     session_id: String,
     workspace: WorkspaceInstance,
@@ -43,15 +41,25 @@ pub(crate) struct SessionRuntimeActor {
     command_tx: mpsc::UnboundedSender<RuntimeCommand>,
     inflight: Option<RunState>,
     queued_followups: usize,
-    cancelled_runs: HashSet<String>,
-    cancelled_runs_order: VecDeque<String>,
+    pending_user_runs: VecDeque<QueuedUserRun>,
 }
 
 struct RunState {
     run_id: String,
     assistant_message: Message,
     tools: LlmToolSet,
-    cancel_token: CancellationToken,
+    phase: RunPhase,
+}
+
+struct QueuedUserRun {
+    run_id: String,
+    user_message: Message,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum RunPhase {
+    LlmInFlight,
+    AwaitingToolBatch,
 }
 
 impl SessionRuntimeActor {
@@ -74,8 +82,7 @@ impl SessionRuntimeActor {
             command_tx,
             inflight: None,
             queued_followups: 0,
-            cancelled_runs: HashSet::new(),
-            cancelled_runs_order: VecDeque::new(),
+            pending_user_runs: VecDeque::new(),
         }
     }
 
@@ -95,8 +102,9 @@ impl SessionRuntimeActor {
                     error,
                     cancelled,
                 } => self.handle_llm_failed(&run_id, &error, cancelled).await,
-                SessionEvent::ToolSuccess(payload) => self.handle_tool_success(payload).await,
-                SessionEvent::ToolFailure(payload) => self.handle_tool_failure(payload).await,
+                SessionEvent::ToolBatchFinished { run_id, results } => {
+                    self.handle_tool_batch_finished(&run_id, results).await
+                }
             };
 
             if let Err(error) = result {
@@ -113,14 +121,16 @@ impl SessionRuntimeActor {
         &mut self,
         parts: Vec<SessionCommandInputPart>,
     ) -> CoreResult<EnqueueMessageAck> {
-        self.cancel_current_run("superseded_by_user");
-        self.queued_followups = 0;
-
+        let run_id = Uuid::now_v7().to_string();
         let mut user_message = Message::from_parts(&self.session_id, "user", Vec::new());
         user_message.parts = map_input_parts(parts, &self.session_id, &user_message.info.id);
         MessageStorage::store(&self.workspace.storage, &user_message).await?;
 
-        let run_id = self.start_run(Some(user_message), Trigger::User).await?;
+        self.pending_user_runs.push_back(QueuedUserRun {
+            run_id: run_id.clone(),
+            user_message,
+        });
+        self.try_start_next_user_run().await?;
 
         Ok(EnqueueMessageAck {
             run_id,
@@ -128,18 +138,23 @@ impl SessionRuntimeActor {
         })
     }
 
-    async fn start_run(
+    async fn start_run(&mut self, user_message: Option<Message>) -> CoreResult<String> {
+        let run_id = Uuid::now_v7().to_string();
+        self.start_run_with_id(run_id.clone(), user_message).await?;
+        Ok(run_id)
+    }
+
+    async fn start_run_with_id(
         &mut self,
+        run_id: String,
         user_message: Option<Message>,
-        _trigger: Trigger,
-    ) -> CoreResult<String> {
+    ) -> CoreResult<()> {
         if self.inflight.is_some() {
             return Err(CoreError::Internal(
                 "attempted to start run while llm already inflight".to_string(),
             ));
         }
 
-        let run_id = Uuid::now_v7().to_string();
         let messages = MessageStorage::load(&self.workspace.storage, &self.session_id).await?;
 
         let assistant_message = Message::from_parts(&self.session_id, "assistant", Vec::new());
@@ -188,50 +203,9 @@ impl SessionRuntimeActor {
             run_id: run_id.clone(),
             assistant_message,
             tools,
-            cancel_token,
+            phase: RunPhase::LlmInFlight,
         });
 
-        Ok(run_id)
-    }
-
-    async fn dispatch_tool_call(
-        &self,
-        tools: &LlmToolSet,
-        context: ToolExecutionContext,
-        input: Value,
-    ) {
-        let tool = tools.get(&context.tool_name).cloned();
-
-        if self
-            .command_tx
-            .send(RuntimeCommand::CallTool {
-                context: context.clone(),
-                input,
-                tool,
-            })
-            .is_err()
-        {
-            let _ = self.event_tx.send(SessionEvent::ToolFailure(ToolFailure {
-                run_id: context.run_id,
-                tool_call_id: context.tool_call_id,
-                error: "runtime executor stopped before calling tool".to_string(),
-            }));
-        }
-    }
-
-    async fn handle_tool_success(&mut self, payload: ToolSuccess) -> CoreResult<()> {
-        if self.cancelled_runs.contains(&payload.run_id) {
-            return Ok(());
-        }
-        self.schedule_followup().await?;
-        Ok(())
-    }
-
-    async fn handle_tool_failure(&mut self, payload: ToolFailure) -> CoreResult<()> {
-        if self.cancelled_runs.contains(&payload.run_id) {
-            return Ok(());
-        }
-        self.schedule_followup().await?;
         Ok(())
     }
 
@@ -240,34 +214,47 @@ impl SessionRuntimeActor {
         run_id: &str,
         parts: Vec<MessagePart>,
     ) -> CoreResult<()> {
-        let Some(run) = self.inflight.as_ref() else {
+        let Some(run) = self.inflight.take() else {
             return Ok(());
         };
         if run.run_id != run_id {
+            self.inflight = Some(run);
             return Ok(());
         }
 
-        let mut run = self.inflight.take().expect("inflight exists");
-        self.dispatch_tools_from_llm_parts(&run, &parts).await;
-        MessageStorage::touch_info(&self.workspace.storage, &mut run.assistant_message.info)
-            .await?;
-
-        let _ = self
-            .bus
-            .publish(CoreEvent::SessionRunCompleted(SessionRunCompletedPayload {
-                session_id: self.session_id.clone(),
-                run_id: run_id.to_string(),
-            }));
-
-        if self.queued_followups > 0 {
-            self.queued_followups -= 1;
-            let _ = self.start_run(None, Trigger::Followup).await?;
+        if run.phase != RunPhase::LlmInFlight {
+            self.inflight = Some(run);
+            return Ok(());
         }
 
+        let calls = self.build_tool_batch_calls(&run, &parts);
+        if calls.is_empty() {
+            self.complete_run(run).await?;
+            return Ok(());
+        }
+        self.queued_followups = self.queued_followups.saturating_add(1);
+
+        if let Err(error) = self.dispatch_tool_batch(run.run_id.clone(), calls).await {
+            self.queued_followups = self.queued_followups.saturating_sub(1);
+            let _ = self
+                .bus
+                .publish(CoreEvent::SessionRunCancelled(SessionRunCancelledPayload {
+                    session_id: self.session_id.clone(),
+                    run_id: run_id.to_string(),
+                    reason: format!("tool_batch_dispatch_failed: {error}"),
+                }));
+            return Ok(());
+        }
+
+        self.inflight = Some(RunState {
+            phase: RunPhase::AwaitingToolBatch,
+            ..run
+        });
         Ok(())
     }
 
-    async fn dispatch_tools_from_llm_parts(&mut self, run: &RunState, parts: &[MessagePart]) {
+    fn build_tool_batch_calls(&self, run: &RunState, parts: &[MessagePart]) -> Vec<ToolBatchCall> {
+        let mut calls = Vec::new();
         for part in parts {
             let MessagePart::Tool(tool_part) = part else {
                 continue;
@@ -279,13 +266,70 @@ impl SessionRuntimeActor {
                 continue;
             }
             let context = self.tool_execution_context(run, tool_part);
-            self.dispatch_tool_call(
-                &run.tools,
+            calls.push(ToolBatchCall {
+                tool: run.tools.get(&context.tool_name).cloned(),
                 context,
-                Value::Object(input_from_tool_state(&tool_part.state)),
-            )
-            .await;
+                input: Value::Object(input_from_tool_state(&tool_part.state)),
+            });
         }
+        calls
+    }
+
+    async fn dispatch_tool_batch(
+        &self,
+        run_id: String,
+        calls: Vec<ToolBatchCall>,
+    ) -> CoreResult<()> {
+        self.command_tx
+            .send(RuntimeCommand::CallToolBatch { run_id, calls })
+            .map_err(|_| {
+                CoreError::Internal("runtime executor stopped before calling tools".to_string())
+            })
+    }
+
+    async fn handle_tool_batch_finished(
+        &mut self,
+        run_id: &str,
+        _results: Vec<ToolBatchResult>,
+    ) -> CoreResult<()> {
+        let Some(run) = self.inflight.take() else {
+            return Ok(());
+        };
+        if run.run_id != run_id {
+            self.inflight = Some(run);
+            return Ok(());
+        }
+        if run.phase != RunPhase::AwaitingToolBatch {
+            self.inflight = Some(run);
+            return Ok(());
+        }
+
+        self.complete_run(run).await
+    }
+
+    async fn complete_run(&mut self, mut run: RunState) -> CoreResult<()> {
+        MessageStorage::touch_info(&self.workspace.storage, &mut run.assistant_message.info)
+            .await?;
+
+        let _ = self
+            .bus
+            .publish(CoreEvent::SessionRunCompleted(SessionRunCompletedPayload {
+                session_id: self.session_id.clone(),
+                run_id: run.run_id,
+            }));
+
+        if !self.pending_user_runs.is_empty() {
+            self.queued_followups = 0;
+            self.try_start_next_user_run().await?;
+            return Ok(());
+        }
+
+        if self.queued_followups > 0 {
+            self.queued_followups -= 1;
+            let _ = self.start_run(None).await?;
+        }
+
+        Ok(())
     }
 
     fn tool_execution_context(&self, run: &RunState, tool_part: &ToolPart) -> ToolExecutionContext {
@@ -314,6 +358,9 @@ impl SessionRuntimeActor {
         if run.run_id != run_id {
             return Ok(());
         }
+        if run.phase != RunPhase::LlmInFlight {
+            return Ok(());
+        }
 
         self.inflight = None;
 
@@ -330,49 +377,21 @@ impl SessionRuntimeActor {
                 reason,
             }));
 
-        if self.queued_followups > 0 {
-            self.queued_followups -= 1;
-            let _ = self.start_run(None, Trigger::Followup).await?;
-        }
+        self.try_start_next_user_run().await?;
 
         Ok(())
     }
 
-    async fn schedule_followup(&mut self) -> CoreResult<()> {
+    async fn try_start_next_user_run(&mut self) -> CoreResult<()> {
         if self.inflight.is_some() {
-            self.queued_followups = self.queued_followups.saturating_add(1);
             return Ok(());
         }
-        let _ = self.start_run(None, Trigger::Followup).await?;
-        Ok(())
-    }
-
-    fn cancel_current_run(&mut self, reason: &str) {
-        let Some(run) = self.inflight.take() else {
-            return;
+        let Some(next_user) = self.pending_user_runs.pop_front() else {
+            return Ok(());
         };
-        self.remember_cancelled_run(run.run_id.clone());
-        run.cancel_token.cancel();
-        let _ = self
-            .bus
-            .publish(CoreEvent::SessionRunCancelled(SessionRunCancelledPayload {
-                session_id: self.session_id.clone(),
-                run_id: run.run_id,
-                reason: reason.to_string(),
-            }));
-    }
-
-    fn remember_cancelled_run(&mut self, run_id: String) {
-        if !self.cancelled_runs.insert(run_id.clone()) {
-            return;
-        }
-
-        self.cancelled_runs_order.push_back(run_id);
-        while self.cancelled_runs_order.len() > MAX_TRACKED_CANCELLED_RUNS {
-            if let Some(evicted) = self.cancelled_runs_order.pop_front() {
-                self.cancelled_runs.remove(&evicted);
-            }
-        }
+        self.start_run_with_id(next_user.run_id, Some(next_user.user_message))
+            .await?;
+        Ok(())
     }
 
     async fn build_tools(&self) -> CoreResult<LlmToolSet> {
@@ -415,10 +434,4 @@ impl SessionRuntimeActor {
             })
             .await
     }
-}
-
-#[derive(Clone, Copy)]
-enum Trigger {
-    User,
-    Followup,
 }
