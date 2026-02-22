@@ -3,6 +3,7 @@ use std::sync::Arc;
 use tokio::sync::{mpsc, oneshot};
 
 use crate::bus::Bus;
+use crate::command::runtime::actor::SessionRuntimeActor;
 use crate::command::runtime::executor::spawn_runtime_executor;
 use crate::command::runtime::protocol::SessionEvent;
 use crate::command::runtime::types::{EnqueueMessageAck, RuntimeSemaphores};
@@ -11,8 +12,6 @@ use crate::error::{CoreError, CoreResult};
 use crate::llm::LlmProvider;
 use crate::session::SessionManager;
 use crate::workspace::WorkspaceInstance;
-
-use super::SessionRuntimeActor;
 
 #[derive(Clone)]
 pub struct SessionRuntimeHandle {
@@ -57,7 +56,15 @@ pub fn spawn_session_runtime(
     let (event_tx, event_rx) = mpsc::unbounded_channel();
     let (command_tx, command_rx) = mpsc::unbounded_channel();
 
-    spawn_runtime_executor(llm, semaphores, command_rx, event_tx.clone());
+    spawn_runtime_executor(
+        llm,
+        semaphores,
+        workspace.storage.clone(),
+        bus.clone(),
+        session_id.clone(),
+        command_rx,
+        event_tx.clone(),
+    );
 
     let actor = SessionRuntimeActor::new(
         session_id.clone(),

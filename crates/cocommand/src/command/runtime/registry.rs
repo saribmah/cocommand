@@ -5,7 +5,7 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 
 use crate::bus::Bus;
-use crate::command::runtime::actor::{spawn_session_runtime, SessionRuntimeHandle};
+use crate::command::runtime::handle::{spawn_session_runtime, SessionRuntimeHandle};
 use crate::command::runtime::types::RuntimeSemaphores;
 use crate::llm::LlmProvider;
 use crate::session::SessionManager;

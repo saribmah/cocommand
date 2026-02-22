@@ -3,12 +3,9 @@ use std::sync::Arc;
 use serde_json::{json, Map};
 use tempfile::tempdir;
 use tokio::sync::mpsc;
-use tokio_util::sync::CancellationToken;
 
 use super::*;
-use crate::command::processor::StreamProcessor;
 use crate::llm::{LlmTool, LlmToolSet};
-use crate::message::Message;
 use crate::session::SessionManager;
 use crate::utils::time::now_secs;
 
@@ -43,7 +40,7 @@ async fn test_actor() -> (
 
 #[tokio::test]
 async fn dispatch_tool_call_emits_runtime_command() {
-    let (mut actor, mut command_rx, _dir) = test_actor().await;
+    let (actor, mut command_rx, _dir) = test_actor().await;
     let mut tools = LlmToolSet::new();
     tools.insert(
         "example_tool".to_string(),
@@ -54,16 +51,9 @@ async fn dispatch_tool_call_emits_runtime_command() {
         },
     );
 
-    actor.inflight = Some(RunState {
-        run_id: "run-1".to_string(),
-        assistant_message: Message::from_parts("session-1", "assistant", Vec::new()),
-        processor: StreamProcessor::new(),
-        tools,
-        cancel_token: CancellationToken::new(),
-    });
-
     actor
         .dispatch_tool_call(
+            &tools,
             "run-1".to_string(),
             "tool-call-1".to_string(),
             "example_tool".to_string(),

@@ -35,6 +35,15 @@ pub(super) fn running_input_and_start(
     }
 }
 
+pub(super) fn input_from_tool_state(state: &ToolState) -> Map<String, Value> {
+    match state {
+        ToolState::Pending(state) => state.input.clone(),
+        ToolState::Running(state) => state.input.clone(),
+        ToolState::Completed(state) => state.input.clone(),
+        ToolState::Error(state) => state.input.clone(),
+    }
+}
+
 pub(super) fn value_to_string(value: &Value) -> String {
     match value {
         Value::String(text) => text.clone(),

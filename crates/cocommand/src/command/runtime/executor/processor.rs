@@ -224,12 +224,13 @@ impl StreamProcessor {
 
     pub(crate) async fn process<S>(
         &mut self,
-        mut stream: S,
+        stream: S,
         context: &StorePartContext<'_>,
     ) -> CoreResult<()>
     where
-        S: tokio_stream::Stream<Item = LlmStreamEvent> + Unpin,
+        S: tokio_stream::Stream<Item = LlmStreamEvent>,
     {
+        tokio::pin!(stream);
         while let Some(part) = stream.next().await {
             self.on_part(part, context).await?;
         }
@@ -240,10 +241,6 @@ impl StreamProcessor {
 
     pub(crate) fn mapped_parts(&self) -> &[MessagePart] {
         &self.mapped_parts
-    }
-
-    pub(crate) fn tool_call(&self, tool_call_id: &str) -> Option<ToolPart> {
-        self.tool_calls.get(tool_call_id).cloned()
     }
 
     async fn flush_text(&mut self, _context: &StorePartContext<'_>) -> CoreResult<()> {

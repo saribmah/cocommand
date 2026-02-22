@@ -5,20 +5,17 @@ use tokio_util::sync::CancellationToken;
 use crate::command::runtime::types::EnqueueMessageAck;
 use crate::command::session_message::SessionCommandInputPart;
 use crate::error::CoreResult;
-use crate::llm::{LlmStreamEvent, LlmTool, LlmToolSet};
-use crate::message::Message;
+use crate::llm::{LlmTool, LlmToolSet};
+use crate::message::{Message, MessagePart};
 
 pub enum SessionEvent {
     UserMessage {
         parts: Vec<SessionCommandInputPart>,
         reply: oneshot::Sender<CoreResult<EnqueueMessageAck>>,
     },
-    LlmStreamPart {
-        run_id: String,
-        part: LlmStreamEvent,
-    },
     LlmFinished {
         run_id: String,
+        parts: Vec<MessagePart>,
     },
     LlmFailed {
         run_id: String,
@@ -46,6 +43,7 @@ pub enum SessionEvent {
 pub enum RuntimeCommand {
     CallLlm {
         run_id: String,
+        assistant_message_id: String,
         messages: Vec<Message>,
         tools: LlmToolSet,
         cancel_token: CancellationToken,

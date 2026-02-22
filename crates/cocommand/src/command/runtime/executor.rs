@@ -1,4 +1,5 @@
 mod llm;
+mod processor;
 #[cfg(test)]
 mod tests;
 mod tool;
@@ -9,13 +10,18 @@ use tokio::sync::mpsc;
 
 use self::llm::spawn_llm_execution;
 use self::tool::spawn_tool_execution;
+use crate::bus::Bus;
 use crate::command::runtime::protocol::{RuntimeCommand, SessionEvent};
 use crate::command::runtime::types::RuntimeSemaphores;
 use crate::llm::LlmProvider;
+use crate::storage::SharedStorage;
 
 pub(crate) fn spawn_runtime_executor(
     llm: Arc<dyn LlmProvider>,
     semaphores: RuntimeSemaphores,
+    storage: SharedStorage,
+    bus: Bus,
+    session_id: String,
     mut command_rx: mpsc::UnboundedReceiver<RuntimeCommand>,
     event_tx: mpsc::UnboundedSender<SessionEvent>,
 ) {
@@ -24,6 +30,7 @@ pub(crate) fn spawn_runtime_executor(
             match command {
                 RuntimeCommand::CallLlm {
                     run_id,
+                    assistant_message_id,
                     messages,
                     tools,
                     cancel_token,
@@ -31,8 +38,12 @@ pub(crate) fn spawn_runtime_executor(
                     spawn_llm_execution(
                         llm.clone(),
                         semaphores.clone(),
+                        storage.clone(),
+                        bus.clone(),
+                        session_id.clone(),
                         event_tx.clone(),
                         run_id,
+                        assistant_message_id,
                         messages,
                         tools,
                         cancel_token,

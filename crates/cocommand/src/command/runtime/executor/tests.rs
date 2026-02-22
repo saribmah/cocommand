@@ -3,11 +3,15 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use futures_util::stream;
 use serde_json::json;
+use tempfile::tempdir;
 use tokio::sync::{mpsc, Semaphore};
 use tokio::time::{timeout, Duration};
 
 use super::*;
+use crate::bus::Bus;
 use crate::llm::{LlmError, LlmProvider, LlmSettings, LlmStream, LlmStreamEvent, LlmStreamOptions};
+use crate::message::message::MessageStorage;
+use crate::workspace::WorkspaceInstance;
 
 #[derive(Clone)]
 struct FakeLlmProvider;
@@ -61,60 +65,64 @@ fn test_semaphores() -> RuntimeSemaphores {
 }
 
 #[tokio::test]
-async fn llm_command_emits_stream_and_finished_events() {
+async fn llm_command_emits_finished_event_with_mapped_parts() {
+    let dir = tempdir().expect("tempdir");
+    let workspace = WorkspaceInstance::new(dir.path()).await.expect("workspace");
+    let bus = Bus::new(16);
+
     let (command_tx, command_rx) = mpsc::unbounded_channel();
     let (event_tx, mut event_rx) = mpsc::unbounded_channel();
     spawn_runtime_executor(
         Arc::new(FakeLlmProvider),
         test_semaphores(),
+        workspace.storage.clone(),
+        bus,
+        "session-1".to_string(),
         command_rx,
         event_tx,
     );
 
+    let assistant = crate::message::Message::from_parts("session-1", "assistant", Vec::new());
+    MessageStorage::store_info(&workspace.storage, &assistant.info)
+        .await
+        .expect("store assistant info");
+
     command_tx
         .send(RuntimeCommand::CallLlm {
             run_id: "run-1".to_string(),
+            assistant_message_id: assistant.info.id.clone(),
             messages: Vec::new(),
             tools: crate::llm::LlmToolSet::new(),
             cancel_token: tokio_util::sync::CancellationToken::new(),
         })
         .expect("send command");
 
-    let first = timeout(Duration::from_secs(2), event_rx.recv())
+    let event = timeout(Duration::from_secs(2), event_rx.recv())
         .await
-        .expect("first event")
-        .expect("first payload");
-    assert!(matches!(
-        first,
-        SessionEvent::LlmStreamPart { ref run_id, .. } if run_id == "run-1"
-    ));
+        .expect("event")
+        .expect("payload");
 
-    let second = timeout(Duration::from_secs(2), event_rx.recv())
-        .await
-        .expect("second event")
-        .expect("second payload");
     assert!(matches!(
-        second,
-        SessionEvent::LlmStreamPart { ref run_id, part: LlmStreamEvent::Finish } if run_id == "run-1"
-    ));
-
-    let third = timeout(Duration::from_secs(2), event_rx.recv())
-        .await
-        .expect("third event")
-        .expect("third payload");
-    assert!(matches!(
-        third,
-        SessionEvent::LlmFinished { ref run_id } if run_id == "run-1"
+        event,
+        SessionEvent::LlmFinished { ref run_id, ref parts }
+            if run_id == "run-1" && !parts.is_empty()
     ));
 }
 
 #[tokio::test]
 async fn missing_tool_emits_immediate_failure() {
+    let dir = tempdir().expect("tempdir");
+    let workspace = WorkspaceInstance::new(dir.path()).await.expect("workspace");
+    let bus = Bus::new(16);
+
     let (command_tx, command_rx) = mpsc::unbounded_channel();
     let (event_tx, mut event_rx) = mpsc::unbounded_channel();
     spawn_runtime_executor(
         Arc::new(FakeLlmProvider),
         test_semaphores(),
+        workspace.storage.clone(),
+        bus,
+        "session-1".to_string(),
         command_rx,
         event_tx,
     );

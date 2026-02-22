@@ -1,4 +1,3 @@
-mod handle;
 mod helpers;
 #[cfg(test)]
 mod tests;
@@ -13,7 +12,6 @@ use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
 use crate::bus::Bus;
-use crate::command::processor::{StorePartContext, StreamProcessor};
 use crate::command::runtime::protocol::{
     RuntimeCommand, SessionEvent, ToolImmediateFailure, ToolImmediateSuccess,
 };
@@ -25,22 +23,22 @@ use crate::event::{
     CoreEvent, SessionContextPayload, SessionMessageStartedPayload, SessionRunCancelledPayload,
     SessionRunCompletedPayload,
 };
-use crate::llm::{LlmStreamEvent, LlmToolSet};
+use crate::llm::LlmToolSet;
 use crate::message::message::MessageStorage;
-use crate::message::Message;
+use crate::message::{Message, MessagePart, ToolPart, ToolState};
 use crate::session::SessionManager;
 use crate::tool::ToolRegistry;
 use crate::utils::time::now_secs;
 use crate::workspace::WorkspaceInstance;
 
-pub use self::handle::{spawn_session_runtime, SessionRuntimeHandle};
 use self::helpers::{
-    is_async_tool_name, running_input_and_start, strip_tool_execute, value_to_string,
+    input_from_tool_state, is_async_tool_name, running_input_and_start, strip_tool_execute,
+    value_to_string,
 };
 
 const MAX_TRACKED_CANCELLED_RUNS: usize = 512;
 
-pub(super) struct SessionRuntimeActor {
+pub(crate) struct SessionRuntimeActor {
     session_id: String,
     workspace: WorkspaceInstance,
     sessions: Arc<SessionManager>,
@@ -59,7 +57,6 @@ pub(super) struct SessionRuntimeActor {
 struct RunState {
     run_id: String,
     assistant_message: Message,
-    processor: StreamProcessor,
     tools: LlmToolSet,
     cancel_token: CancellationToken,
 }
@@ -92,7 +89,7 @@ enum JobStatus {
 }
 
 impl SessionRuntimeActor {
-    fn new(
+    pub(crate) fn new(
         session_id: String,
         workspace: WorkspaceInstance,
         sessions: Arc<SessionManager>,
@@ -118,7 +115,7 @@ impl SessionRuntimeActor {
         }
     }
 
-    async fn run(mut self) {
+    pub(crate) async fn run(mut self) {
         while let Some(event) = self.event_rx.recv().await {
             let result = match event {
                 SessionEvent::UserMessage { parts, reply } => {
@@ -126,10 +123,9 @@ impl SessionRuntimeActor {
                     let _ = reply.send(result);
                     Ok(())
                 }
-                SessionEvent::LlmStreamPart { run_id, part } => {
-                    self.handle_llm_stream_part(&run_id, part).await
+                SessionEvent::LlmFinished { run_id, parts } => {
+                    self.handle_llm_finished(&run_id, parts).await
                 }
-                SessionEvent::LlmFinished { run_id } => self.handle_llm_finished(&run_id).await,
                 SessionEvent::LlmFailed {
                     run_id,
                     error,
@@ -229,6 +225,7 @@ impl SessionRuntimeActor {
         self.command_tx
             .send(RuntimeCommand::CallLlm {
                 run_id: run_id.clone(),
+                assistant_message_id: assistant_message.info.id.clone(),
                 messages,
                 tools: llm_tools,
                 cancel_token: cancel_token.clone(),
@@ -245,7 +242,6 @@ impl SessionRuntimeActor {
         self.inflight = Some(RunState {
             run_id: run_id.clone(),
             assistant_message,
-            processor: StreamProcessor::new(),
             tools,
             cancel_token,
         });
@@ -253,77 +249,21 @@ impl SessionRuntimeActor {
         Ok(run_id)
     }
 
-    async fn handle_llm_stream_part(
-        &mut self,
-        run_id: &str,
-        part: LlmStreamEvent,
-    ) -> CoreResult<()> {
-        let Some(run) = self.inflight.as_mut() else {
-            return Ok(());
-        };
-        if run.run_id != run_id {
-            return Ok(());
-        }
-
-        let context = StorePartContext::new(
-            &self.workspace.storage,
-            &self.bus,
-            &run.run_id,
-            &self.session_id,
-            &run.assistant_message.info.id,
-        );
-
-        let tool_call = match &part {
-            LlmStreamEvent::ToolCall {
-                tool_call_id,
-                tool_name,
-                input,
-            } => Some((tool_call_id.clone(), tool_name.clone(), input.clone())),
-            _ => None,
-        };
-
-        run.processor.on_part(part, &context).await?;
-
-        if let Some((tool_call_id, tool_name, input)) = tool_call {
-            if let Some(tool_part) = run.processor.tool_call(&tool_call_id) {
-                let (input_map, started_at) = running_input_and_start(&tool_part.state, now_secs());
-                let record = ToolCallRecord {
-                    session_id: self.session_id.clone(),
-                    run_id: run_id.to_string(),
-                    message_id: tool_part.base.message_id.clone(),
-                    part_id: tool_part.base.id.clone(),
-                    tool_call_id: tool_call_id.clone(),
-                    tool_name: tool_name.clone(),
-                    input: input_map,
-                    started_at,
-                };
-                self.tool_calls.insert(tool_call_id.clone(), record);
-            }
-            self.dispatch_tool_call(run_id.to_string(), tool_call_id, tool_name, input)
-                .await;
-        }
-
-        Ok(())
-    }
-
     async fn dispatch_tool_call(
         &self,
+        tools: &LlmToolSet,
         run_id: String,
         tool_call_id: String,
         tool_name: String,
         input: Value,
     ) {
-        let Some(run) = self.inflight.as_ref() else {
-            return;
-        };
-
-        let tool = run.tools.get(&tool_name).cloned();
+        let tool = tools.get(&tool_name).cloned();
         let is_async = is_async_tool_name(&tool_name);
 
         if self
             .command_tx
             .send(RuntimeCommand::CallTool {
-                run_id,
+                run_id: run_id.clone(),
                 tool_call_id: tool_call_id.clone(),
                 tool_name: tool_name.clone(),
                 input,
@@ -335,7 +275,7 @@ impl SessionRuntimeActor {
             let _ = self
                 .event_tx
                 .send(SessionEvent::ToolImmediateFailure(ToolImmediateFailure {
-                    run_id: run.run_id.clone(),
+                    run_id,
                     tool_call_id,
                     error: serde_json::json!({
                         "error": format!("runtime executor stopped before calling tool {tool_name}")
@@ -491,7 +431,11 @@ impl SessionRuntimeActor {
         Ok(())
     }
 
-    async fn handle_llm_finished(&mut self, run_id: &str) -> CoreResult<()> {
+    async fn handle_llm_finished(
+        &mut self,
+        run_id: &str,
+        parts: Vec<MessagePart>,
+    ) -> CoreResult<()> {
         let Some(run) = self.inflight.as_ref() else {
             return Ok(());
         };
@@ -500,6 +444,7 @@ impl SessionRuntimeActor {
         }
 
         let mut run = self.inflight.take().expect("inflight exists");
+        self.dispatch_tools_from_llm_parts(&run, &parts).await;
         MessageStorage::touch_info(&self.workspace.storage, &mut run.assistant_message.info)
             .await?;
 
@@ -516,6 +461,44 @@ impl SessionRuntimeActor {
         }
 
         Ok(())
+    }
+
+    async fn dispatch_tools_from_llm_parts(&mut self, run: &RunState, parts: &[MessagePart]) {
+        for part in parts {
+            let MessagePart::Tool(tool_part) = part else {
+                continue;
+            };
+            if !matches!(
+                &tool_part.state,
+                ToolState::Running(_) | ToolState::Pending(_)
+            ) {
+                continue;
+            }
+            self.register_tool_call(run, tool_part);
+            self.dispatch_tool_call(
+                &run.tools,
+                run.run_id.clone(),
+                tool_part.call_id.clone(),
+                tool_part.tool.clone(),
+                Value::Object(input_from_tool_state(&tool_part.state)),
+            )
+            .await;
+        }
+    }
+
+    fn register_tool_call(&mut self, run: &RunState, tool_part: &ToolPart) {
+        let (input_map, started_at) = running_input_and_start(&tool_part.state, now_secs());
+        let record = ToolCallRecord {
+            session_id: self.session_id.clone(),
+            run_id: run.run_id.clone(),
+            message_id: tool_part.base.message_id.clone(),
+            part_id: tool_part.base.id.clone(),
+            tool_call_id: tool_part.call_id.clone(),
+            tool_name: tool_part.tool.clone(),
+            input: input_map,
+            started_at,
+        };
+        self.tool_calls.insert(tool_part.call_id.clone(), record);
     }
 
     async fn handle_llm_failed(
